@@ -1,5 +1,5 @@
 # QGAN-LLM Research Codebase
-
+winget install --id Git.Git -e --source winget
 A rebuilt, genuinely-functional version of the QGAN-LLM comparison framework
 (Classical LSTM vs. Classical GAN-LLM vs. QGAN-LLM, plus ablations) for the
 "quantum-enhanced financial forecasting + cybersecurity threat detection"
