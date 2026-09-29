@@ -15,17 +15,17 @@ data:
   # into; this is what run_all.py actually loads for training/evaluation.
   # Expected files (see SETUP.md for exact acquisition steps). File names
   # reflect what acquire_all_data.py actually requests, which is driven by
-  # train_start/test_end below (currently 2012-2025), NOT a fixed "2010"
+  # train_start/test_end below (currently 2012-2026), NOT a fixed "2010"
   # start -- these were previously misnamed "..._2010_2025.csv" etc. even
   # though nothing in the pipeline ever fetched 2010 or 2011 (train_start
   # is 2012-01-01); renamed to match reality rather than widening the
   # actual study window to match the old name.
-  dukascopy_file: "data/raw/dukascopy_eurusd_1min_2012_2025.csv"
+  dukascopy_file: "data/raw/dukascopy_eurusd_1min_2012_2026.csv"
   # Path to the primary EUR/USD 1-minute OHLCV export from Dukascopy Bank SA.
   forexsb_file: "data/raw/forexsb_eurusd_1min_2012_2023.csv"
   # Path to the ForexSB 1-minute export used as a cross-check/supplementary
   # source alongside the Dukascopy series.
-  fred_file: "data/raw/fred_macro_2011_2025.csv"
+  fred_file: "data/raw/fred_macro_2011_2026.csv"
   # Path to the pivoted (wide-format) FRED macro file: CPI, Fed funds rate,
   # 10-year yield, unemployment rate, and GDP as one column each. Starts one
   # year before train_start (2011, not 2012) for publication-lag lookback --
@@ -48,8 +48,13 @@ data:
   test_start: "2024-01-01"
   # First date of the held-out test split, used only for final evaluation
   # (RMSE/MAE/ASR/latency) — never for training or early stopping.
-  test_end: "2025-12-31"
-  # Last date (inclusive) of the test split.
+  test_end: "2026-12-31"
+  # Last date (inclusive) of the test split. Extends the study window to 15
+  # years (2012-2026) -- Dukascopy's real data for 2026 won't exist until
+  # the year actually closes, so acquire_all_data.py's
+  # _refuse_if_incomplete_year() will correctly refuse to fetch until then
+  # (checked against the real clock each run, not a one-time guess) --
+  # no further code change needed once 2026 is over.
   outlier_method: "MAD"          # Median Absolute Deviation (not IQR — see methodology notes)
   # Robust outlier-detection method applied to both prices and indicators
   # before the technical-indicator feature engineering step.

@@ -61,9 +61,9 @@ it yourself at the paths named in `config/default_config.yaml`:
 
 | Config key | Expected path | Source |
 |---|---|---|
-| `data.dukascopy_file` | `data/raw/dukascopy_eurusd_1min_2012_2025.csv` | Dukascopy Bank SA — primary source |
+| `data.dukascopy_file` | `data/raw/dukascopy_eurusd_1min_2012_2026.csv` | Dukascopy Bank SA — primary source |
 | `data.forexsb_file` | `data/raw/forexsb_eurusd_1min_2012_2023.csv` | ForexSB — supplementary/cross-validation |
-| `data.fred_file` | `data/raw/fred_macro_2011_2025.csv` | FRED (Federal Reserve Economic Data) |
+| `data.fred_file` | `data/raw/fred_macro_2011_2026.csv` | FRED (Federal Reserve Economic Data) |
 | (VIX) | cached automatically at `data/raw/vix_cache.csv` on first run | yfinance (`^VIX`), pulled live |
 
 **Dukascopy**: Dukascopy Bank SA's historical data feed

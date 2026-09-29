@@ -244,11 +244,26 @@ def consolidate_dukascopy() -> None:
     print(f"    [OK] wrote {DUKASCOPY_MASTER}")
 
 
+def _refuse_if_incomplete_year(end_year: int, now: dt.datetime = None) -> None:
+    """Refuses to fetch/cache a year that hasn't finished yet, rather than
+    silently caching a partial year as if it were complete (see fix #5 in
+    this file's module docstring). `now` is injectable for testing --
+    without it, this check is only ever true or false depending on which
+    day the test happens to run, which is exactly the kind of thing that
+    should be a parameter, not a hidden call to dt.datetime.now()."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    if end_year >= now.year:
+        raise SystemExit(
+            f"Study window ends in {end_year}, which is not a complete year yet "
+            f"(today is {now.date()}); refusing to cache partial data. Re-run once "
+            f"{end_year} has fully closed -- no code change needed, this check "
+            f"clears itself automatically once the date passes. Set data.test_end "
+            f"to an earlier, finished year if you need to run before then."
+        )
+
+
 def acquire_dukascopy() -> None:
-    now_year = dt.datetime.now(dt.timezone.utc).year
-    if END_YEAR >= now_year:
-        raise SystemExit(f"Study window ends in {END_YEAR}, which is not a complete year yet; "
-                         f"refusing to cache partial data. Set data.test_end to a finished year.")
+    _refuse_if_incomplete_year(END_YEAR)
     print(f"\n=== [1/3] Dukascopy EURUSD 1-min ({START_YEAR}-{END_YEAR}) ===")
 
     # Short-circuit if the master file already covers the study window --
@@ -393,6 +408,7 @@ def _fred_one(series_id: str) -> pd.Series:
 
 
 def acquire_fred(refresh: bool = False) -> None:
+    _refuse_if_incomplete_year(END_YEAR)
     print(f"\n=== [3/3] FRED ({FRED_START} -> {FRED_END}; "
           f"{'official API' if os.environ.get('FRED_API_KEY') else 'keyless CSV endpoint'}) ===")
     if _nonempty(FRED_FILE) and not refresh:

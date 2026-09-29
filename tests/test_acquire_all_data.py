@@ -71,3 +71,29 @@ def test_dukascopy_filename_matches_configured_start_year():
     simply never requested."""
     assert str(a.START_YEAR) in os.path.basename(a.DUKASCOPY_MASTER)
     assert str(a.END_YEAR) in os.path.basename(a.DUKASCOPY_MASTER)
+
+
+def test_fred_filename_matches_configured_years():
+    """Same class of bug as the Dukascopy filename, for FRED_FILE (which
+    starts one year before START_YEAR, not at START_YEAR itself)."""
+    assert str(a.START_YEAR - 1) in os.path.basename(a.FRED_FILE)
+    assert str(a.END_YEAR) in os.path.basename(a.FRED_FILE)
+
+
+def test_refuses_when_study_window_ends_in_the_current_or_future_year():
+    """The exact guard that must fire once test_end is bumped to include
+    the current (not-yet-complete) year -- e.g. extending the study
+    window to include 2026 while it's still September 2026. Must refuse
+    now and clear itself automatically once the year is actually over,
+    with no code change required either time."""
+    now = pd.Timestamp("2026-09-29", tz="UTC").to_pydatetime()
+    with pytest.raises(SystemExit, match="not a complete year yet"):
+        a._refuse_if_incomplete_year(2026, now=now)
+    with pytest.raises(SystemExit, match="not a complete year yet"):
+        a._refuse_if_incomplete_year(2027, now=now)  # a future year is refused too
+
+
+def test_allows_a_genuinely_finished_year():
+    now = pd.Timestamp("2026-09-29", tz="UTC").to_pydatetime()
+    a._refuse_if_incomplete_year(2025, now=now)  # must not raise
+    a._refuse_if_incomplete_year(2012, now=now)  # must not raise

@@ -3,7 +3,7 @@
 Prioritized per the 09/28 conversation. Check off as each lands; keep
 this file in sync with what's actually in the repo, not what's planned.
 
-**8 items waiting implementation** (everything under "Backlog" +
+**11 items waiting implementation** (everything under "Backlog" +
 "Recommended, not yet started" below). "Deliberately not code work" is
 a separate list — those are manuscript-text fixes, not implementation
 gaps, so they don't count toward that number.
@@ -49,6 +49,23 @@ gaps, so they don't count toward that number.
 
 ## Recommended, not yet started
 
+- [ ] **Extend or disclose the cross-validation gap** — ForexSB/HistData
+      cross-check is capped at 2023 (`XVAL_LAST_YEAR = min(2023, END_YEAR)`).
+      2024-2026 (now 3+ years of the primary window) have zero independent
+      corroboration of the Dukascopy series. Either extend the cross-check
+      source or state this explicitly as a limitation.
+- [ ] **Macro-feature staleness indicator** — GDP/CPI/etc. are forward-filled
+      (correctly publication-lag-aware) but the model never sees *how old*
+      a value is when it's using it (GDP can be up to 355 days old per the
+      pipeline's own logged warning). Add a "days since last update" feature
+      per macro series in `prepare_data.py`.
+- [ ] **Reconsider outlier filtering (MAD 5.0/3.0) against stress periods** —
+      a study whose hypotheses are about adversarial/noise robustness
+      shouldn't casually filter out the real market-stress windows (2020
+      COVID, 2022 rate-hike volatility) that those hypotheses are actually
+      about. Check whether any known stress period got dropped; reconsider
+      the threshold or carve out a stress-test subset instead of blanket
+      filtering.
 - [ ] **QCBM-based quantum discriminator** — the manuscript's own
       definition of QGANs is "quantum generator AND quantum
       discriminator," built from Quantum Circuit Born Machines. Current
@@ -66,6 +83,18 @@ gaps, so they don't count toward that number.
       source to run against — that labeling scheme doesn't exist yet
       either, so this is two pieces of work, not one.
 
+**Cross-checked against the manuscript's actual H1-H5 text (not just
+the definitions list):** H3 (noise injection → poisoning resistance)
+and H5 (tomography/entanglement maps → threat-detection accuracy) each
+depend on one of the two pipeline gaps above (data poisoning never
+called; FPR/threat-detection never called) — those hypotheses'
+dependent variables literally don't exist yet, independent of data
+quality. H1/H4 (FID, RMSE) are also blocked, by the same-row leakage
+bug from the earlier audit, not by anything ingestion-related. All
+five hypotheses' H₀s invoke "statistically significant," which needs
+the repeated-runs experiment (also already on this list) regardless of
+which of the above gets fixed first.
+
 ## Deliberately NOT code work — manuscript text fixes instead
 
 - Data Sanitization / differential privacy — out of scope for this
@@ -75,6 +104,9 @@ gaps, so they don't count toward that number.
   reads like a definitions mix-up, not an implementation gap.
 - Quantum-Classical Coherence vs. the code's separate "Coherence Time
   Retention" metric — just needs clarifying wording, not new code.
+- **Single-broker/no-order-book-volume limitation** — Dukascopy's "volume"
+  for FX is a broker-side proxy, not a consolidated tape. One
+  limitations-section line, not code.
 - Automated Vulnerability Assessment, Cyber Threat Intelligence, AI
   Guardrails, Adaptive Resilience/ADT — confirmed background/lit-review
   terms only; never claimed as implemented methodology or results in
@@ -110,3 +142,14 @@ gaps, so they don't count toward that number.
       (2012/2012/2011 respectively) rather than widening the real study
       window to match the old (wrong) name. Regression tests added in
       `tests/test_acquire_all_data.py`.
+- [x] **Extended study window to 15 years (2012-2026)** —
+      `data.test_end` bumped to `2026-12-31`, `dukascopy_file`/
+      `fred_file` renamed to `..._2012_2026.csv`/`..._2011_2026.csv`.
+      The "refuse an incomplete year" guard (previously only in
+      `acquire_dukascopy()`) was refactored into a testable
+      `_refuse_if_incomplete_year()` and also applied to `acquire_fred()`,
+      which had no such guard before and would have silently written a
+      FRED file claiming 2026 coverage it didn't actually have. As of
+      today (2026-09-29) both correctly refuse with a clear message and
+      will start working automatically once 2026 is fully over — no
+      further code change needed when that happens.
