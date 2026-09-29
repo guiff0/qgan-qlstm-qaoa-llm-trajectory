@@ -64,7 +64,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from .base import BaseForecastingModel
 from ..attacks.adversarial import compute_attack_success_rate
-from ..evaluation.metrics import rmse as rmse_fn, mae as mae_fn
+from ..evaluation.metrics import rmse as rmse_fn, mae as mae_fn, synthetic_data_fidelity_report
 from ..evaluation.latency import measure_inference_latency
 from ..utils.reproducibility import set_all_seeds, seeded_generator
 from ..utils.progress import progress_bar, log_progress_milestone
@@ -290,5 +290,10 @@ class ClassicalGANLLM(BaseForecastingModel):
             )
             self.results["asr"] = asr_report["overall_asr"]
             self.results["asr_breakdown"] = asr_report
+
+        # See QGANLLM.evaluate for why this call is here at all (it existed
+        # only in tests before now) and why it's sampled against X_test.
+        synthetic = self.generate_synthetic_data(len(X_test))
+        self.results.update(synthetic_data_fidelity_report(np.asarray(X_test), synthetic))
 
         return self.results

@@ -126,6 +126,26 @@ def _year_cache(year: int) -> str:
     return os.path.join(CACHE_DIR, f"eurusd_1min_{year}.csv")
 
 
+# Evidence-based, not a guess: this project's own prior successful runs
+# have logged 2012-01-11 01:37:00+00:00 as the real first Dukascopy
+# EURUSD 1-min timestamp -- the free export's history simply doesn't go
+# back to Jan 1 for this year. Add an entry here only when there's
+# similarly concrete evidence (an actual successful fetch) of a
+# provider's real earliest-available date for a given year.
+KNOWN_PROVIDER_HISTORY_START = {
+    2012: pd.Timestamp("2012-01-11", tz="UTC"),
+}
+
+
+def _expected_start_threshold(year: int) -> pd.Timestamp:
+    """Latest first-timestamp we'll accept for `year` before calling it a
+    truncated download -- the provider's real earliest date (if known)
+    plus the same week of weekend/holiday slack used everywhere else,
+    instead of unconditionally assuming every year has full-year history."""
+    base = KNOWN_PROVIDER_HISTORY_START.get(year, pd.Timestamp(year, 1, 1, tz="UTC"))
+    return base + pd.Timedelta(days=7)
+
+
 def _validate_year(df: pd.DataFrame, year: int) -> None:
     if df is None or df.empty:
         raise ValueError("empty result")
@@ -134,11 +154,22 @@ def _validate_year(df: pd.DataFrame, year: int) -> None:
         raise ValueError(f"missing columns {sorted(missing)}; got {list(df.columns)}")
     idx = pd.to_datetime(df.index, utc=True)
     first, last = idx.min(), idx.max()
-    # FX is closed on weekends/holidays, so allow a week of slack at each edge.
-    if first > pd.Timestamp(year, 1, 8, tz="UTC") or last < pd.Timestamp(year, 12, 24, tz="UTC"):
-        raise ValueError(f"truncated download: spans {first} -> {last}")
-    if len(df) < 100_000:
-        raise ValueError(f"only {len(df):,} rows for a full year")
+    # FX is closed on weekends/holidays, so allow a week of slack at each edge
+    # (and, for a year with a known real provider-history start, slack past
+    # THAT date instead of Jan 1 -- see KNOWN_PROVIDER_HISTORY_START above).
+    start_threshold = _expected_start_threshold(year)
+    if first > start_threshold or last < pd.Timestamp(year, 12, 24, tz="UTC"):
+        raise ValueError(f"truncated download: spans {first} -> {last} "
+                         f"(expected to start on/before {start_threshold.date()})")
+    min_rows = 100_000
+    if year in KNOWN_PROVIDER_HISTORY_START:
+        # A genuinely partial first year should have proportionally fewer
+        # rows, not the full-year minimum -- otherwise this check would
+        # itself reject the same real, complete-as-it-gets year.
+        days_covered = (pd.Timestamp(year, 12, 31, tz="UTC") - KNOWN_PROVIDER_HISTORY_START[year]).days + 1
+        min_rows = int(100_000 * days_covered / 365)
+    if len(df) < min_rows:
+        raise ValueError(f"only {len(df):,} rows (expected >= {min_rows:,})")
 
 
 def fetch_dukascopy_year(year: int) -> None:
@@ -231,7 +262,7 @@ def acquire_dukascopy() -> None:
     if _nonempty(DUKASCOPY_MASTER):
         n, first, last, _ = _csv_summary(DUKASCOPY_MASTER)
         first_ts, last_ts = pd.Timestamp(first, tz="UTC"), pd.Timestamp(last, tz="UTC")
-        first_ok = first_ts <= pd.Timestamp(START_YEAR, 1, 8, tz="UTC")
+        first_ok = first_ts <= _expected_start_threshold(START_YEAR)
         last_ok = last_ts >= pd.Timestamp(END_YEAR, 12, 24, tz="UTC")
         if first_ok and last_ok and n > 100_000:
             print(f" -> Master already covers {START_YEAR}-{END_YEAR} ({n:,} rows, "

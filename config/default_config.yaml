@@ -13,15 +13,23 @@ data:
   processed_dir: "data/processed"
   # Directory prepare_data.py writes the final X_*.npy / y_*.npy arrays
   # into; this is what run_all.py actually loads for training/evaluation.
-  # Expected files (see SETUP.md for exact acquisition steps):
-  dukascopy_file: "data/raw/dukascopy_eurusd_1min_2010_2025.csv"
+  # Expected files (see SETUP.md for exact acquisition steps). File names
+  # reflect what acquire_all_data.py actually requests, which is driven by
+  # train_start/test_end below (currently 2012-2025), NOT a fixed "2010"
+  # start -- these were previously misnamed "..._2010_2025.csv" etc. even
+  # though nothing in the pipeline ever fetched 2010 or 2011 (train_start
+  # is 2012-01-01); renamed to match reality rather than widening the
+  # actual study window to match the old name.
+  dukascopy_file: "data/raw/dukascopy_eurusd_1min_2012_2025.csv"
   # Path to the primary EUR/USD 1-minute OHLCV export from Dukascopy Bank SA.
-  forexsb_file: "data/raw/forexsb_eurusd_1min_2010_2023.csv"
+  forexsb_file: "data/raw/forexsb_eurusd_1min_2012_2023.csv"
   # Path to the ForexSB 1-minute export used as a cross-check/supplementary
   # source alongside the Dukascopy series.
-  fred_file: "data/raw/fred_macro_2010_2025.csv"
+  fred_file: "data/raw/fred_macro_2011_2025.csv"
   # Path to the pivoted (wide-format) FRED macro file: CPI, Fed funds rate,
-  # 10-year yield, unemployment rate, and GDP as one column each.
+  # 10-year yield, unemployment rate, and GDP as one column each. Starts one
+  # year before train_start (2011, not 2012) for publication-lag lookback --
+  # see FRED_START in acquire_all_data.py.
   yfinance_ticker: "^VIX"
   # Ticker pulled live via yfinance on first run to source the VIX volatility
   # index; cached afterward at data/raw/vix_cache.csv.
@@ -299,3 +307,16 @@ logging:
   # files.
   save_format: ["csv", "json"]
   # Which output formats RunLogger writes per run.
+
+talis:
+  # Threat Latency-Impact Scoring (TaLIS) -- this study's own proposed
+  # metric (see src/evaluation/talis.py for the formula and what it
+  # substitutes for the manuscript's "damage"/"detection latency"
+  # language, since neither is measured directly by this pipeline).
+  impact_weight: 0.5
+  latency_weight: 0.5
+  latency_reference_ms: 40.0
+  # Reuses the same 40ms reference already used elsewhere in this
+  # project's Optuna-objective description (RMSE + 0.5*ASR +
+  # 0.1*(latency/40)), rather than inventing a new threshold.
+  latency_cap: 5.0

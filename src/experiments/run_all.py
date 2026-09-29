@@ -26,6 +26,7 @@ from src.baselines.classical_gan_llm import ClassicalGANLLM
 from src.baselines.qgan_llm import QGANLLM
 from src.baselines.qlstm_forecaster import QLSTMForecaster
 from src.baselines.qaoa_llm import QAOALLM
+from src.evaluation.talis import TaLISConfig, compute_talis
 from src.utils.config import load_config, merge_override
 from src.utils.logging_utils import RunLogger, make_run_id
 from src.utils.reproducibility import set_all_seeds
@@ -100,6 +101,13 @@ def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
             f"SD={latency_report['sd_latency_ms']:.3f}ms "
             f"(n={latency_report['n_repeats']} timed single-sample forward passes)"
         )
+
+    # TaLIS (Threat Latency-Impact Scoring) -- see src/evaluation/talis.py's
+    # module docstring for the formula and, importantly, for what it
+    # substitutes (ASR for dollar-impact, inference latency for detection
+    # latency) since neither is measured directly by this pipeline.
+    talis_cfg = TaLISConfig(**cfg.get("talis", {}))
+    metrics["talis_score"] = compute_talis(metrics.get("asr"), metrics.get("latency_mean_ms"), talis_cfg)
 
     run_logger.log_final_metrics(metrics)
     run_logger.append_to_results_csv(

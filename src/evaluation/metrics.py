@@ -151,11 +151,72 @@ def _average_precision(y_true: np.ndarray, y_score: np.ndarray) -> float:
     return float(np.sum((recall[1:] - recall[:-1]) * precision[1:]))
 
 
+def unique_sample_ratio(synthetic: np.ndarray, decimals: int = 3) -> float:
+    """
+    Fraction of generated rows that are NOT near-duplicates of another
+    generated row, rounding each row to `decimals` places before
+    dedup'ing (exact float dedup is too strict -- continuous generator
+    output essentially never repeats a value bit-for-bit even when it
+    has visually/functionally collapsed onto a handful of near-identical
+    points). 1.0 = every sample distinct at this resolution; near 0 =
+    severe collapse (the generator repeating a tiny number of outputs).
+
+    Catches the most literal form of mode collapse (repeated/near-
+    identical outputs) but NOT a generator that's diverse yet confined
+    to a narrow region of the real data's support -- that's what
+    mode_coverage (below) is for. Report both; they catch different
+    failure modes.
+    """
+    synthetic = np.asarray(synthetic)
+    if len(synthetic) == 0:
+        return float("nan")
+    rounded = np.round(synthetic, decimals)
+    n_unique = len(np.unique(rounded, axis=0))
+    return float(n_unique / len(synthetic))
+
+
+def mode_coverage(real: np.ndarray, synthetic: np.ndarray, n_bins: int = 20) -> float:
+    """
+    Per-feature histogram coverage: bin each feature into `n_bins`
+    quantile bins of the REAL distribution, then measure what fraction
+    of those bins contain at least one synthetic sample, averaged across
+    features. 1.0 = synthetic samples land in every real-data mode/bin;
+    a value well below 1.0 flags the generator ignoring entire regions
+    of the real distribution -- the textbook definition of mode
+    collapse (Ch.1's "generator produces only a limited number of
+    output types... ignoring other valid variations in the training
+    data"), as opposed to unique_sample_ratio's literal-duplicates check
+    above. Quantile (not equal-width) bins keep bin membership
+    meaningful even for skewed/heavy-tailed financial features.
+    """
+    real = np.asarray(real)
+    synthetic = np.asarray(synthetic)
+    n_features = real.shape[1]
+    coverages = np.empty(n_features)
+    for j in range(n_features):
+        edges = np.unique(np.quantile(real[:, j], np.linspace(0, 1, n_bins + 1)))
+        if len(edges) < 2:
+            coverages[j] = 1.0  # constant real feature -- any synthetic value "covers" it
+            continue
+        real_bins = np.digitize(real[:, j], edges[1:-1])
+        synth_bins = np.digitize(synthetic[:, j], edges[1:-1])
+        occupied_real = set(np.unique(real_bins).tolist())
+        occupied_synth = set(np.unique(synth_bins).tolist()) & occupied_real
+        coverages[j] = len(occupied_synth) / len(occupied_real)
+    return float(coverages.mean())
+
+
 def synthetic_data_fidelity_report(real: np.ndarray, synthetic: np.ndarray) -> dict:
     """One-call report matching the columns of Ch.4 Table 38
-    (Comparison of Synthetic Data Fidelity Metrics)."""
+    (Comparison of Synthetic Data Fidelity Metrics), plus two mode-collapse
+    diagnostics (see unique_sample_ratio and mode_coverage above) -- Ch.3
+    motivates avoiding mode collapse (Zhou et al., 2023) but this study
+    never measured it; these two numbers are a first measurement, not a
+    transcription of a pre-existing result."""
     return {
         "fid": frechet_distance(real, synthetic),
         "mmd": maximum_mean_discrepancy(real, synthetic),
         "wasserstein": mean_wasserstein_distance(real, synthetic),
+        "unique_sample_ratio": unique_sample_ratio(synthetic),
+        "mode_coverage": mode_coverage(real, synthetic),
     }

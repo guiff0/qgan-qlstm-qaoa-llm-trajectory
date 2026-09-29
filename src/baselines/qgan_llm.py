@@ -60,7 +60,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from .base import BaseForecastingModel
 from .classical_gan_llm import ClassicalDiscriminator
 from ..attacks.adversarial import compute_attack_success_rate
-from ..evaluation.metrics import rmse as rmse_fn, mae as mae_fn
+from ..evaluation.metrics import rmse as rmse_fn, mae as mae_fn, synthetic_data_fidelity_report
 from ..evaluation.latency import measure_inference_latency
 from ..quantum.circuits import QLSTMGenerator, apply_circuit_gates_only
 from ..quantum.tomography import entanglement_metrics
@@ -302,5 +302,15 @@ class QGANLLM(BaseForecastingModel):
         final_entanglement = self._measure_entanglement()
         self.results["entanglement_entropy"] = final_entanglement["entanglement_entropy"]
         self.results["purity"] = final_entanglement["purity"]
+
+        # Synthetic-data fidelity + mode-collapse diagnostics (Ch.4 Table 38,
+        # and Ch.3's mode-collapse risk -- see synthetic_data_fidelity_report's
+        # docstring). Wired in here because nothing previously called this
+        # function from the actual model-evaluation path; it existed but was
+        # only exercised by tests. Sampled against real TEST rows (not train)
+        # so this reflects held-out fidelity, matching how every other metric
+        # in `self.results` is computed on X_test/y_test.
+        synthetic = self.generate_synthetic_data(len(X_test))
+        self.results.update(synthetic_data_fidelity_report(np.asarray(X_test), synthetic))
 
         return self.results
