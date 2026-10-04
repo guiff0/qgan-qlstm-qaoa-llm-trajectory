@@ -48,10 +48,14 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from .base import BaseForecastingModel
-from ..attacks.adversarial import compute_attack_success_rate
+from ..attacks.adversarial import compute_attack_success_rate, compute_clean_asr
 from ..evaluation.latency import measure_inference_latency
 from ..evaluation.metrics import mae as mae_fn
 from ..evaluation.metrics import rmse as rmse_fn
+from ..evaluation.one_step_ahead import shift_for_one_step_ahead
+from ..evaluation.poisoning_resistance import evaluate_poisoning_resistance
+from ..evaluation.threat_detection import evaluate_threat_detection
+from ..evaluation.resilience_suite import run_resilience_suite
 from ..quantum.circuits import QLSTMGenerator
 from ..quantum.tomography import entanglement_metrics
 from ..utils.reproducibility import seeded_generator, set_all_seeds
@@ -119,6 +123,12 @@ class QLSTMForecaster(BaseForecastingModel):
 
     def train(self, X_train, y_train, X_val, y_val, run_logger=None):
         self.build()
+        # Same-row target leakage fix -- see
+        # src/evaluation/one_step_ahead.py's module docstring. This model
+        # (unlike QGANLLM) actually uses X_val/y_val below for early
+        # stopping, so both need to be shifted, not just train.
+        X_train, y_train = shift_for_one_step_ahead(np.asarray(X_train), np.asarray(y_train))
+        X_val, y_val = shift_for_one_step_ahead(np.asarray(X_val), np.asarray(y_val))
 
         train_ds = TensorDataset(torch.tensor(X_train, dtype=torch.float32),
                                   torch.tensor(y_train, dtype=torch.float32))
@@ -248,6 +258,9 @@ class QLSTMForecaster(BaseForecastingModel):
         )
 
     def evaluate(self, X_test, y_test, attack_cfg: dict = None, last_input_prices=None, **kwargs):
+        X_test, y_test = shift_for_one_step_ahead(np.asarray(X_test), np.asarray(y_test))
+        if last_input_prices is not None:
+            last_input_prices = np.asarray(last_input_prices)[:-1]  # keep row-aligned with the shift above
         predictions = self.predict(X_test)
         y_test_arr = np.array(y_test).flatten()
         predictions_arr = np.array(predictions).flatten()
@@ -269,10 +282,39 @@ class QLSTMForecaster(BaseForecastingModel):
             )
             self.results["asr"] = asr_report["overall_asr"]
             self.results["asr_breakdown"] = asr_report
+            self.results["asr_clean"] = compute_clean_asr(
+                self._forecast_model, X_test_t, y_test_t, last_prices_t, attack_cfg,
+            )
 
         if len(X_test) > 0:
             ent_report = self.measure_entanglement(np.asarray(X_test[0], dtype=np.float32))
             self.results["entanglement_entropy"] = ent_report["entanglement_entropy"]
             self.results["purity"] = ent_report["purity"]
+
+        # H3 (poisoning resistance -- no generate_synthetic_data on this
+        # pure forecaster, so this degrades gracefully to a pure-real-data
+        # poisoning test; model_inversion_accuracy reports NaN, honestly
+        # reflecting that it doesn't apply to a non-generative model) and
+        # H5 (threat detection/FPR) -- see QGANLLM.evaluate for full
+        # rationale, identical wiring here.
+        self.results.update(evaluate_poisoning_resistance(
+            self, np.asarray(X_test), np.asarray(y_test), self.results["rmse"], seed=self.seed,
+        ))
+        if attack_cfg is not None:
+            self.quantum_circuit.eval()
+            self.results.update(evaluate_threat_detection(
+                self._forecast_model, X_test, y_test, attack_cfg, seed=self.seed,
+                n_clean=attack_cfg.get("n_benign_samples", 1000),
+            ))
+
+        if len(X_test) > 0:
+            X_test_arr = np.asarray(X_test)
+            self.quantum_circuit.eval()
+            self.results.update(run_resilience_suite(
+                self._forecast_model, self.quantum_circuit.theta.detach().numpy(),
+                X_test_arr[0], float(np.asarray(y_test).flatten()[0]), X_test_arr[:50],
+                self.config["n_qubits"], self.config["n_layers"], self.config["entanglement"],
+                dev_name=self.config["quantum_device"], seed=self.seed,
+            ))
 
         return self.results

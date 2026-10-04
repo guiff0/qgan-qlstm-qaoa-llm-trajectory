@@ -59,8 +59,12 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from .base import BaseForecastingModel
 from .classical_gan_llm import ClassicalDiscriminator
-from ..attacks.adversarial import compute_attack_success_rate
+from ..attacks.adversarial import compute_attack_success_rate, compute_clean_asr
 from ..evaluation.metrics import rmse as rmse_fn, mae as mae_fn, synthetic_data_fidelity_report
+from ..evaluation.one_step_ahead import shift_for_one_step_ahead
+from ..evaluation.poisoning_resistance import evaluate_poisoning_resistance
+from ..evaluation.threat_detection import evaluate_threat_detection
+from ..evaluation.resilience_suite import run_resilience_suite
 from ..evaluation.latency import measure_inference_latency
 from ..quantum.circuits import QLSTMGenerator, apply_circuit_gates_only
 from ..quantum.tomography import entanglement_metrics
@@ -151,6 +155,11 @@ class QGANLLM(BaseForecastingModel):
 
     def train(self, X_train, y_train, X_val, y_val, run_logger=None):
         self.build()
+        # Fixes the same-row target leakage flagged in the earlier audit:
+        # see src/evaluation/one_step_ahead.py's module docstring for why
+        # this has to happen HERE (locally), not in prepare_data.py.
+        X_train, y_train = shift_for_one_step_ahead(np.asarray(X_train), np.asarray(y_train))
+        X_val, y_val = shift_for_one_step_ahead(np.asarray(X_val), np.asarray(y_val))
 
         train_ds = TensorDataset(
             torch.tensor(X_train, dtype=torch.float32),
@@ -277,6 +286,9 @@ class QGANLLM(BaseForecastingModel):
         return pred.numpy() if not torch.is_tensor(X) else pred
 
     def evaluate(self, X_test, y_test, attack_cfg: Dict = None, last_input_prices=None, **kwargs):
+        X_test, y_test = shift_for_one_step_ahead(np.asarray(X_test), np.asarray(y_test))
+        if last_input_prices is not None:
+            last_input_prices = np.asarray(last_input_prices)[:-1]  # keep row-aligned with the shift above
         predictions = self.predict(X_test)
         y_test_arr = np.array(y_test).flatten()
         predictions_arr = np.array(predictions).flatten()
@@ -298,6 +310,9 @@ class QGANLLM(BaseForecastingModel):
             )
             self.results["asr"] = asr_report["overall_asr"]
             self.results["asr_breakdown"] = asr_report
+            self.results["asr_clean"] = compute_clean_asr(
+                self._forecast_model, X_test_t, y_test_t, last_prices_t, attack_cfg,
+            )
 
         final_entanglement = self._measure_entanglement()
         self.results["entanglement_entropy"] = final_entanglement["entanglement_entropy"]
@@ -312,5 +327,36 @@ class QGANLLM(BaseForecastingModel):
         # in `self.results` is computed on X_test/y_test.
         synthetic = self.generate_synthetic_data(len(X_test))
         self.results.update(synthetic_data_fidelity_report(np.asarray(X_test), synthetic))
+
+        # H3 (poisoning + model-inversion resistance) and H5 (threat
+        # detection / FPR, to be correlated against entanglement_entropy
+        # above across ablations -- see scripts/run_hypothesis_tests.py)
+        # were previously computable by nothing in this pipeline at all
+        # (attacks/poisoning.py and attacks/threat_labels.py existed but
+        # were never called). Wired in here; see each module's docstring
+        # for exact scope and the stopgaps involved (an interim classical
+        # detector standing in for the LLM-based threat_scoring.py
+        # pathway until LLM-wiring lands).
+        self.results.update(evaluate_poisoning_resistance(
+            self, np.asarray(X_test), np.asarray(y_test), self.results["rmse"], seed=self.seed,
+        ))
+        if attack_cfg is not None:
+            self.forecast_head.eval()
+            self.results.update(evaluate_threat_detection(
+                self._forecast_model, X_test, y_test, attack_cfg, seed=self.seed,
+                n_clean=attack_cfg.get("n_benign_samples", 1000),
+            ))
+
+        # Quantum-specific resilience suite (QSFR/EER/NLCS/QGOM/M1_EFI) --
+        # only meaningful here because this model actually has a trained
+        # circuit; classical baselines skip this entirely.
+        X_test_arr = np.asarray(X_test)
+        self.forecast_head.eval()
+        self.results.update(run_resilience_suite(
+            self._forecast_model, self.generator.theta.detach().numpy(),
+            X_test_arr[0], float(np.asarray(y_test).flatten()[0]), X_test_arr[:50],
+            self.config["n_qubits"], self.config["n_layers"], self.config["entanglement"],
+            dev_name=self.config["quantum_device"], seed=self.seed,
+        ))
 
         return self.results

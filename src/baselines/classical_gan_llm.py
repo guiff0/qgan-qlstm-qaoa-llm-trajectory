@@ -63,8 +63,11 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
 from .base import BaseForecastingModel
-from ..attacks.adversarial import compute_attack_success_rate
+from ..attacks.adversarial import compute_attack_success_rate, compute_clean_asr
 from ..evaluation.metrics import rmse as rmse_fn, mae as mae_fn, synthetic_data_fidelity_report
+from ..evaluation.one_step_ahead import shift_for_one_step_ahead
+from ..evaluation.poisoning_resistance import evaluate_poisoning_resistance
+from ..evaluation.threat_detection import evaluate_threat_detection
 from ..evaluation.latency import measure_inference_latency
 from ..utils.reproducibility import set_all_seeds, seeded_generator
 from ..utils.progress import progress_bar, log_progress_milestone
@@ -195,6 +198,10 @@ class ClassicalGANLLM(BaseForecastingModel):
 
     def train(self, X_train, y_train, X_val, y_val, run_logger=None):
         self.build()
+        # Same-row target leakage fix -- see
+        # src/evaluation/one_step_ahead.py's module docstring.
+        X_train, y_train = shift_for_one_step_ahead(np.asarray(X_train), np.asarray(y_train))
+        X_val, y_val = shift_for_one_step_ahead(np.asarray(X_val), np.asarray(y_val))
 
         train_ds = TensorDataset(
             torch.tensor(X_train, dtype=torch.float32),
@@ -269,6 +276,9 @@ class ClassicalGANLLM(BaseForecastingModel):
         return pred.numpy() if not torch.is_tensor(X) else pred
 
     def evaluate(self, X_test, y_test, attack_cfg: Dict = None, last_input_prices=None, **kwargs):
+        X_test, y_test = shift_for_one_step_ahead(np.asarray(X_test), np.asarray(y_test))
+        if last_input_prices is not None:
+            last_input_prices = np.asarray(last_input_prices)[:-1]  # keep row-aligned with the shift above
         predictions = self.predict(X_test)
         y_test_arr = np.array(y_test).flatten()
         predictions_arr = np.array(predictions).flatten()
@@ -290,10 +300,25 @@ class ClassicalGANLLM(BaseForecastingModel):
             )
             self.results["asr"] = asr_report["overall_asr"]
             self.results["asr_breakdown"] = asr_report
+            self.results["asr_clean"] = compute_clean_asr(
+                self._forecast_model, X_test_t, y_test_t, last_prices_t, attack_cfg,
+            )
 
         # See QGANLLM.evaluate for why this call is here at all (it existed
         # only in tests before now) and why it's sampled against X_test.
         synthetic = self.generate_synthetic_data(len(X_test))
         self.results.update(synthetic_data_fidelity_report(np.asarray(X_test), synthetic))
+
+        # See QGANLLM.evaluate for full rationale (same H3/H5 wiring;
+        # this baseline just skips the quantum-only resilience suite).
+        self.results.update(evaluate_poisoning_resistance(
+            self, np.asarray(X_test), np.asarray(y_test), self.results["rmse"], seed=self.seed,
+        ))
+        if attack_cfg is not None:
+            self.forecast_head.eval()
+            self.results.update(evaluate_threat_detection(
+                self._forecast_model, X_test, y_test, attack_cfg, seed=self.seed,
+                n_clean=attack_cfg.get("n_benign_samples", 1000),
+            ))
 
         return self.results

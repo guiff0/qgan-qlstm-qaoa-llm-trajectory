@@ -31,14 +31,46 @@ def mad_outlier_mask(series: pd.Series, n_mads: float) -> pd.Series:
     return modified_z > n_mads
 
 
-def clean_prices(df: pd.DataFrame, price_cols: list[str], n_mads_price: float = 5.0) -> pd.DataFrame:
-    """Flags outliers via MAD, then repairs with linear interpolation
-    between adjacent valid points (matches Ch.3: 'linear interpolation
-    between adjacent valid prices, preserving series continuity')."""
-    df = df.copy()
+def domain_implausible_mask(df: pd.DataFrame, price_cols: list[str],
+                             max_abs_return: float = 0.5) -> pd.Series:
+    """
+    Ch.3's "Cleansing Protocol" describes TWO detection passes, in this
+    order: "this study first applied financial domain-based filters to
+    flag physically implausible values, such as zero prices or
+    minute-level returns exceeding a 50% absolute threshold. Subsequently,
+    this study implemented statistical detection using [MAD]." Only the
+    MAD pass existed in this file before -- this function is the first
+    pass, found missing while directly checking the manuscript's data-
+    cleaning claims against this file.
+
+    Flags: any non-positive price in price_cols, OR a minute-over-minute
+    return (on the first price column, conventionally 'close') whose
+    absolute value exceeds max_abs_return (default 0.5 = 50%, matching
+    the manuscript's stated threshold).
+    """
+    mask = pd.Series(False, index=df.index)
     for col in price_cols:
-        mask = mad_outlier_mask(df[col], n_mads_price)
-        df.loc[mask, col] = np.nan
+        mask |= df[col] <= 0
+    if price_cols:
+        ret = df[price_cols[0]].pct_change()
+        mask |= ret.abs() > max_abs_return
+    return mask
+
+
+def clean_prices(df: pd.DataFrame, price_cols: list[str], n_mads_price: float = 5.0,
+                  max_abs_return: float = 0.5) -> pd.DataFrame:
+    """Two-pass cleaning matching Ch.3 exactly: (1) domain-based filters
+    (zero/negative prices, >50% minute-over-minute returns) -- see
+    domain_implausible_mask -- then (2) MAD statistical detection. Both
+    passes repair with the same linear interpolation between adjacent
+    valid points (matches Ch.3: 'linear interpolation between adjacent
+    valid prices, preserving series continuity')."""
+    df = df.copy()
+    domain_mask = domain_implausible_mask(df, price_cols, max_abs_return)
+    for col in price_cols:
+        df.loc[domain_mask, col] = np.nan
+        mad_mask = mad_outlier_mask(df[col], n_mads_price)
+        df.loc[mad_mask, col] = np.nan
         df[col] = df[col].interpolate(method="linear", limit_direction="both")
     return df
 

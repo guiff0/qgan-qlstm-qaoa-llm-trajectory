@@ -264,6 +264,22 @@ def build_steps(cfg: dict, model_names: list[str], only_models: list[str] | None
             os.path.join(cfg.get("logging", {}).get("results_dir", "results"), "chapter4_numbers.json")
         ),
     })
+    steps.append({
+        "id": "run_hypothesis_tests",
+        "desc": "Compute the actual H1-H5 statistical tests from results/all_results.csv",
+        "cmd": [sys.executable, "-m", "scripts.run_hypothesis_tests"],
+        "required": False,
+        "artifact_ok": lambda: _nonempty(
+            os.path.join(cfg.get("logging", {}).get("results_dir", "results"), "hypothesis_test_results.json")
+        ),
+    })
+    steps.append({
+        "id": "scan_logs_for_pii",
+        "desc": "Data-sanitization gate: scan logs/*.json, *.log for PII patterns",
+        "cmd": [sys.executable, "-m", "scripts.scan_run_artifacts_for_pii"],
+        "required": False,
+        "artifact_ok": lambda: True,  # a clean scan writes nothing; absence of a hit isn't an artifact to check
+    })
     return steps
 
 

@@ -94,15 +94,23 @@ def get_mem_mb() -> float:
 
 
 def leakage_check(X_train, y_train, X_val, y_val, max_rows: int = 200_000) -> bool:
-    """Sanity check on the (X, y) pairing that the same-row models
-    (Classical GAN-LLM, QGAN-LLM, QLSTM) train on: fit a plain linear map
-    X_t -> y_t and score it on validation.
+    """Diagnostic on the RAW, same-row (X_t, y_t) pairing saved to
+    X_train.npy/y_train.npy: fit a plain linear map X_t -> y_t and score
+    it on validation. This WILL still flag leakage here, by design --
+    y stays same-row in these saved arrays because Classical LSTM's
+    WindowedSequenceDataset needs that exact convention (see the comment
+    above this function's call site in main()). The actual fix for the
+    three same-row models (Classical GAN-LLM, QGAN-LLM, QLSTM Forecaster)
+    is applied locally by each of them via
+    src/evaluation/one_step_ahead.py's shift_for_one_step_ahead(), not
+    here -- this function remains a trip-wire on the shared raw arrays,
+    not a statement about what those three models actually train on.
 
     One-step-ahead forecasting of a price series cannot beat 'persistence'
     (predict the next value = the current value) by much; if a *linear* map of
     the same row's features gets a validation RMSE BELOW the RMS one-step change
-    of y itself, y_t is being read out of X_t, not forecast. Returns True if
-    that red flag is raised. Diagnostic only; it changes nothing."""
+    of y itself, y_t is recoverable from X_t rather than needing to be forecast.
+    Returns True if that red flag is raised."""
     rng = np.random.default_rng(0)
     idx = np.sort(rng.choice(len(X_train), size=min(max_rows, len(X_train)), replace=False))
     A = np.c_[X_train[idx], np.ones(len(idx))]
@@ -175,7 +183,8 @@ def main():
     log_step(4, total_steps, "Cleaning Outliers & Technical Indicator Engineering")
     t0 = time.time()
     print(f" -> Filtering price outliers (MAD threshold: {data_cfg['outlier_threshold_price']})...")
-    merged = clean_prices(merged, PRICE_COLS, n_mads_price=data_cfg["outlier_threshold_price"])
+    merged = clean_prices(merged, PRICE_COLS, n_mads_price=data_cfg["outlier_threshold_price"],
+                           max_abs_return=data_cfg.get("max_abs_return", 0.5))
 
     print(" -> Calculating primary technical indicators...")
     merged = add_technical_indicators(merged)
@@ -245,6 +254,18 @@ def main():
         X_scaled = scaler.transform(raw_matrix)
         X_pca = pca.transform(X_scaled).astype(np.float32)
         y = split_df[target_col].to_numpy(dtype=np.float32)
+        # y[k] stays SAME-ROW (close[k]) here deliberately -- do not "fix"
+        # the leakage by shifting this shared array. Classical LSTM's
+        # WindowedSequenceDataset already correctly relies on exactly this
+        # convention (target = y[idx+sequence_length], predicted from a
+        # window [idx, idx+sequence_length) that never includes that row),
+        # so shifting y here would silently introduce an off-by-one error
+        # into the one model that was already correct. The actual fix for
+        # the same-row models (Classical GAN-LLM, QGAN-LLM, QLSTM Forecaster)
+        # is in their own training/eval code -- see
+        # src/evaluation/one_step_ahead.py's shift_for_one_step_ahead(),
+        # applied locally by each of those three models where they build
+        # their (X, y) pairs, not here.
 
         x_path = os.path.join(data_cfg["processed_dir"], f"X_{split_name}.npy")
         y_path = os.path.join(data_cfg["processed_dir"], f"y_{split_name}.npy")
@@ -259,7 +280,9 @@ def main():
         print(f"    [EXPORTED] X_{split_name}.npy -> Shape: {X_pca.shape} | Size: {x_size_mb:.2f} MB")
         print(f"    [EXPORTED] y_{split_name}.npy -> Shape: {y.shape}    | Size: {y_size_mb:.2f} MB")
 
-    print(" -> Leakage check on exported arrays...")
+    print(" -> Leakage check on exported arrays (expected to still flag the "
+          "RAW same-row pairing -- see leakage_check's docstring; the three "
+          "affected models fix this themselves via shift_for_one_step_ahead())...")
     Xt = np.load(os.path.join(data_cfg["processed_dir"], "X_train.npy"), mmap_mode="r")
     yt = np.load(os.path.join(data_cfg["processed_dir"], "y_train.npy"))
     Xv = np.load(os.path.join(data_cfg["processed_dir"], "X_val.npy"))

@@ -25,7 +25,14 @@ PII_PATTERNS = {
     "email": re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"),
     "ipv4": re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"),
     "ssn": re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
-    "phone": re.compile(r"\b\+?\d[\d\s\-()]{7,}\b"),
+    # Requires explicit phone-style grouping (3-3-4 digits, optional
+    # country code, with a separator between every group) -- NOT "any
+    # digit followed by 7+ more digits/spaces/dashes", which matched
+    # ordinary decimal numbers everywhere in this project's numeric
+    # training logs (e.g. "d_loss": 0.21967713476157172 as a "phone
+    # number"). Found and fixed while wiring this module in for the
+    # first time -- see scripts/scan_run_artifacts_for_pii.py.
+    "phone": re.compile(r"\b(?:\+?1[-.\s])?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b"),
 }
 
 

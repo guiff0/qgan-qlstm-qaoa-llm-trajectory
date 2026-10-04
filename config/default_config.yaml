@@ -59,6 +59,11 @@ data:
   # Robust outlier-detection method applied to both prices and indicators
   # before the technical-indicator feature engineering step.
   outlier_threshold_price: 5.0   # MADs
+  max_abs_return: 0.5            # domain-filter pass before MAD, per Ch.3: "minute-level
+  # returns exceeding a 50% absolute threshold" -- see
+  # src/data/preprocessing.py's domain_implausible_mask, added after
+  # checking Ch.3's cleaning-protocol text directly against this file
+  # and finding this first pass had never actually been implemented.
   # Rows whose price columns deviate more than this many MADs from the
   # rolling median are dropped during cleaning.
   outlier_threshold_indicator: 3.0
@@ -325,3 +330,15 @@ talis:
   # project's Optuna-objective description (RMSE + 0.5*ASR +
   # 0.1*(latency/40)), rather than inventing a new threshold.
   latency_cap: 5.0
+
+llm_forecaster:
+  # LLM Forecaster baseline (src/baselines/llm_forecaster.py) -- only
+  # registered in run_all.py when NVIDIA_API_KEY is set. See that file's
+  # module docstring for the full scope/limitations (zero-shot by
+  # default, small test subsample, unverified against a live endpoint
+  # from this development session).
+  model_id: "meta/llama-3.3-70b-instruct"
+  api_base: "https://api.nvidia.com/v1"
+  window_size: 10
+  horizon_minutes: 1
+  max_llm_calls: 20

@@ -185,3 +185,29 @@ def compute_attack_success_rate(model, X_test: torch.Tensor, y_test: torch.Tenso
     results["overall_asr"] = 100.0 * all_success.float().mean().item()
     results["n_samples"] = n
     return results
+
+
+def compute_clean_asr(model, X_test, y_test, last_input_prices, attack_cfg: dict) -> float:
+    """
+    The "clean" (epsilon=0, no actual perturbation) baseline
+    metrics/resilience.py's qar() needs (asr_classical_clean /
+    asr_quantum_clean) but this pipeline never computed before -- every
+    existing `asr` value is already the ATTACKED condition.
+
+    Scoped to fgsm+pgd only: both are epsilon-bounded, so epsilon=0
+    guarantees zero perturbation by construction. Carlini-Wagner has no
+    epsilon parameter (cw_c/cw_steps control an optimization objective,
+    not a perturbation budget directly) -- there's no equally direct
+    "zero perturbation" setting for it, so it's left out of the clean
+    baseline rather than guessing one. This means asr_clean and the
+    attacked `asr` aren't computed over the exact same attack set
+    (clean: fgsm+pgd; attacked: fgsm+pgd+cw by default) -- documented
+    here rather than silently mismatched.
+    """
+    clean_cfg = dict(attack_cfg)
+    clean_cfg["fgsm_epsilon"] = 0.0
+    clean_cfg["pgd_epsilon"] = 0.0
+    clean_cfg["pgd_alpha"] = 0.0
+    report = compute_attack_success_rate(model, X_test, y_test, last_input_prices,
+                                          clean_cfg, attacks=["fgsm", "pgd"])
+    return report["overall_asr"]

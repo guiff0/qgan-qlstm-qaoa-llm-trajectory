@@ -26,6 +26,7 @@ from src.baselines.classical_gan_llm import ClassicalGANLLM
 from src.baselines.qgan_llm import QGANLLM
 from src.baselines.qlstm_forecaster import QLSTMForecaster
 from src.baselines.qaoa_llm import QAOALLM
+from src.baselines.llm_forecaster import LLMForecaster
 from src.evaluation.talis import TaLISConfig, compute_talis
 from src.utils.config import load_config, merge_override
 from src.utils.logging_utils import RunLogger, make_run_id
@@ -109,6 +110,16 @@ def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
     talis_cfg = TaLISConfig(**cfg.get("talis", {}))
     metrics["talis_score"] = compute_talis(metrics.get("asr"), metrics.get("latency_mean_ms"), talis_cfg)
 
+    # Passthrough for mediation_pipelines.py's M3->DV3 pathway (quantum
+    # noise injection level mediating FPR) -- not wired into a full
+    # mediation test yet (needs fpr_per_run collected across several
+    # independent runs, not just this one config's value), but the
+    # column needs to exist in results/all_results.csv before that's
+    # possible at all, so it's saved now rather than added later.
+    if "noise_strength" in model.config:
+        metrics["noise_strength"] = model.config["noise_strength"]
+    metrics["seed"] = seed
+
     run_logger.log_final_metrics(metrics)
     run_logger.append_to_results_csv(
         model_name,
@@ -136,10 +147,14 @@ def main():
                               "ablations) as a JSON list to stdout and exit without running "
                               "anything. Used by run_pipeline.py to enumerate per-model steps "
                               "without duplicating the ablation-merging logic below.")
+    parser.add_argument("--seed", type=int, default=None,
+                         help="Override config['seed'] for this run without editing the config "
+                              "file. Added for scripts/run_repeated_experiment.py, which needs a "
+                              "different seed per repeated run of the same model config.")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
-    seed = cfg["seed"]
+    seed = args.seed if args.seed is not None else cfg["seed"]
 
     models_to_run = {
         "Classical LSTM": lambda: ClassicalLSTM(cfg["classical_lstm"], seed=seed),
@@ -148,6 +163,17 @@ def main():
         "QLSTM Forecaster": lambda: QLSTMForecaster(cfg["qlstm_forecaster"], seed=seed),
         "QAOA-Enhanced LLM": lambda: QAOALLM(cfg["qaoa_llm"], seed=seed),
     }
+    # LLM Forecaster: only registered when NVIDIA_API_KEY is actually set.
+    # Matches nvidia_finetune.py's established philosophy -- no silent
+    # fabrication -- but at the REGISTRATION level rather than making every
+    # other user's run_pipeline.py invocation crash on a missing key for a
+    # baseline they may not even want. Without the key, this model simply
+    # doesn't appear in --list-models' output, so run_pipeline.py's
+    # per-model steps never try to run it. With the key, it runs for real
+    # (and fails loudly, per llm_inference.py, if the key turns out to be
+    # invalid or the endpoint rejects the request).
+    if os.environ.get("NVIDIA_API_KEY"):
+        models_to_run["LLM Forecaster"] = lambda: LLMForecaster(cfg.get("llm_forecaster", {}), seed=seed)
     for ablation in cfg["ablations"]:
         ablation_cfg = merge_override(cfg["qgan_llm"], {k: v for k, v in ablation.items() if k != "name"})
         models_to_run[ablation["name"]] = (lambda c=ablation_cfg: QGANLLM(c, seed=seed))
