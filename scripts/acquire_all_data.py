@@ -80,12 +80,38 @@ RAW_DIR = os.path.dirname(DUKASCOPY_MASTER) or "."
 CACHE_DIR = os.path.join(RAW_DIR, "dukascopy_cache")
 HISTDATA_DIR = os.path.join(RAW_DIR, "histdata_zips")
 
+def _effective_end_year(configured_end_year: int, now: dt.datetime = None) -> int:
+    """
+    The configured end year (data.test_end), capped at the last year
+    that has ACTUALLY finished. If test_end names a year that hasn't
+    closed yet (e.g. set to 2026-12-31 while it's still September
+    2026), this returns the last complete year instead (2025) and
+    prints a clear note -- rather than the old behavior of aborting the
+    whole acquisition step outright. A run today fetches/consolidates
+    through the last complete year only; a run any time after the
+    configured year actually closes picks it up automatically into the
+    SAME master file, with no code or config change either way. (See
+    _refuse_if_incomplete_year below for a stricter, raise-instead-of-
+    skip alternative, still available but no longer the default here.)
+    """
+    now = now or dt.datetime.now(dt.timezone.utc)
+    if configured_end_year >= now.year:
+        effective = now.year - 1
+        print(f"[NOTE] data.test_end names {configured_end_year}, which is not a complete "
+              f"year yet (today is {now.date()}); using {effective} for this run instead. "
+              f"No code change needed -- re-run after {configured_end_year} closes to pick "
+              f"it up automatically.")
+        return effective
+    return configured_end_year
+
+
 START_YEAR = pd.Timestamp(CFG["train_start"]).year
-END_YEAR = pd.Timestamp(CFG["test_end"]).year
-XVAL_LAST_YEAR = min(2023, END_YEAR)  # cross-check window per Appendix C
+END_YEAR = pd.Timestamp(CFG["test_end"]).year          # the configured/intended study window
+EFFECTIVE_END_YEAR = _effective_end_year(END_YEAR)      # what this run can ACTUALLY fetch today
+XVAL_LAST_YEAR = min(2023, EFFECTIVE_END_YEAR)  # cross-check window per Appendix C
 FRED_SERIES = list(CFG.get("fred_series", ["CPIAUCSL", "FEDFUNDS", "GS10", "UNRATE", "GDP"]))
 FRED_START = f"{START_YEAR - 1}-01-01"  # one year of lookback for publication lags
-FRED_END = f"{END_YEAR}-12-31"
+FRED_END = f"{EFFECTIVE_END_YEAR}-12-31"
 
 
 # ----------------------------------------------------------------------
@@ -205,7 +231,7 @@ def fetch_dukascopy_year(year: int) -> None:
 
 
 def consolidate_dukascopy() -> None:
-    files = {y: _year_cache(y) for y in range(START_YEAR, END_YEAR + 1)}
+    files = {y: _year_cache(y) for y in range(START_YEAR, EFFECTIVE_END_YEAR + 1)}
     missing = [y for y, f in files.items() if not _nonempty(f)]
     if missing:
         raise RuntimeError(f"Cannot consolidate; missing year caches: {missing}")
@@ -230,7 +256,7 @@ def consolidate_dukascopy() -> None:
     n_dup = int(df["timestamp"].duplicated(keep="last").sum())
     df = df.drop_duplicates("timestamp", keep="last")
     lo = pd.Timestamp(START_YEAR, 1, 1, tz="UTC")
-    hi = pd.Timestamp(END_YEAR + 1, 1, 1, tz="UTC")
+    hi = pd.Timestamp(EFFECTIVE_END_YEAR + 1, 1, 1, tz="UTC")
     df = df[(df["timestamp"] >= lo) & (df["timestamp"] < hi)].reset_index(drop=True)
 
     gaps = df["timestamp"].diff().dt.total_seconds() / 86400
@@ -245,7 +271,15 @@ def consolidate_dukascopy() -> None:
 
 
 def _refuse_if_incomplete_year(end_year: int, now: dt.datetime = None) -> None:
-    """Refuses to fetch/cache a year that hasn't finished yet, rather than
+    """NOT called by acquire_dukascopy()/acquire_fred() any more -- see
+    _effective_end_year() above, which SKIPS an incomplete trailing year
+    instead of aborting the whole acquisition step. This stricter,
+    raise-instead-of-skip version is kept available (and still tested)
+    for anyone who explicitly wants a hard failure instead -- e.g. a
+    CI/scheduled job that should treat "2026 isn't done yet" as a real
+    error rather than something to quietly work around.
+
+    Refuses to fetch/cache a year that hasn't finished yet, rather than
     silently caching a partial year as if it were complete (see fix #5 in
     this file's module docstring). `now` is injectable for testing --
     without it, this check is only ever true or false depending on which
@@ -263,8 +297,8 @@ def _refuse_if_incomplete_year(end_year: int, now: dt.datetime = None) -> None:
 
 
 def acquire_dukascopy() -> None:
-    _refuse_if_incomplete_year(END_YEAR)
-    print(f"\n=== [1/3] Dukascopy EURUSD 1-min ({START_YEAR}-{END_YEAR}) ===")
+    print(f"\n=== [1/3] Dukascopy EURUSD 1-min ({START_YEAR}-{EFFECTIVE_END_YEAR}"
+          f"{f', study window extends to {END_YEAR}' if EFFECTIVE_END_YEAR != END_YEAR else ''}) ===")
 
     # Short-circuit if the master file already covers the study window --
     # matches the pattern acquire_fred() and acquire_crosscheck() already
@@ -278,15 +312,15 @@ def acquire_dukascopy() -> None:
         n, first, last, _ = _csv_summary(DUKASCOPY_MASTER)
         first_ts, last_ts = pd.Timestamp(first, tz="UTC"), pd.Timestamp(last, tz="UTC")
         first_ok = first_ts <= _expected_start_threshold(START_YEAR)
-        last_ok = last_ts >= pd.Timestamp(END_YEAR, 12, 24, tz="UTC")
+        last_ok = last_ts >= pd.Timestamp(EFFECTIVE_END_YEAR, 12, 24, tz="UTC")
         if first_ok and last_ok and n > 100_000:
-            print(f" -> Master already covers {START_YEAR}-{END_YEAR} ({n:,} rows, "
+            print(f" -> Master already covers {START_YEAR}-{EFFECTIVE_END_YEAR} ({n:,} rows, "
                   f"{first} -> {last}): {DUKASCOPY_MASTER}")
             return
         print(f" -> Master exists but does not cover the full window ({n:,} rows, "
               f"{first} -> {last}); re-fetching missing years.")
     failed = []
-    years = list(range(START_YEAR, END_YEAR + 1))
+    years = list(range(START_YEAR, EFFECTIVE_END_YEAR + 1))
     bar = progress_bar(total=len(years), desc="Dukascopy years", unit="year")
     for y in years:
         try:
@@ -399,16 +433,15 @@ def _fred_one(series_id: str) -> pd.Series:
         s = s.dropna()
         if s.empty:
             raise ValueError("no observations")
-        if s.index.max() < pd.Timestamp(END_YEAR, 7, 1):
+        if s.index.max() < pd.Timestamp(EFFECTIVE_END_YEAR, 7, 1):
             raise ValueError(f"latest observation {s.index.max().date()} is too old "
-                             f"for a window ending {END_YEAR}")
+                             f"for a window ending {EFFECTIVE_END_YEAR}")
         return s
 
     return _retry(_do, f"FRED {series_id}")
 
 
 def acquire_fred(refresh: bool = False) -> None:
-    _refuse_if_incomplete_year(END_YEAR)
     print(f"\n=== [3/3] FRED ({FRED_START} -> {FRED_END}; "
           f"{'official API' if os.environ.get('FRED_API_KEY') else 'keyless CSV endpoint'}) ===")
     if _nonempty(FRED_FILE) and not refresh:

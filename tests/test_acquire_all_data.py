@@ -97,3 +97,42 @@ def test_allows_a_genuinely_finished_year():
     now = pd.Timestamp("2026-09-29", tz="UTC").to_pydatetime()
     a._refuse_if_incomplete_year(2025, now=now)  # must not raise
     a._refuse_if_incomplete_year(2012, now=now)  # must not raise
+
+
+def test_effective_end_year_skips_incomplete_trailing_year():
+    """The current default behavior: don't abort the whole acquisition
+    step just because the configured end year (e.g. 2026, set up ahead
+    of time) hasn't finished -- use the last complete year instead."""
+    now = pd.Timestamp("2026-09-29", tz="UTC").to_pydatetime()
+    assert a._effective_end_year(2026, now=now) == 2025
+    assert a._effective_end_year(2027, now=now) == 2025  # a future year, same handling
+
+
+def test_effective_end_year_passes_through_a_finished_year_unchanged():
+    now = pd.Timestamp("2026-09-29", tz="UTC").to_pydatetime()
+    assert a._effective_end_year(2025, now=now) == 2025
+    assert a._effective_end_year(2012, now=now) == 2012
+
+
+def test_effective_end_year_becomes_the_configured_year_once_it_closes():
+    """The exact guarantee this behavior depends on: run the SAME config
+    (test_end naming 2026) from a date after 2026 has closed, and 2026
+    is included automatically -- no code or config change needed."""
+    now_after = pd.Timestamp("2027-01-02", tz="UTC").to_pydatetime()
+    assert a._effective_end_year(2026, now=now_after) == 2026
+
+
+def test_module_level_effective_end_year_is_capped_today():
+    """The actual module-level constant acquire_dukascopy()/
+    acquire_fred()/consolidate_dukascopy() all use -- confirms the
+    skip is wired in for real, not just available as a helper function
+    nothing calls."""
+    assert a.EFFECTIVE_END_YEAR <= a.END_YEAR
+    import datetime as dt
+    if a.END_YEAR >= dt.datetime.now(dt.timezone.utc).year:
+        assert a.EFFECTIVE_END_YEAR < a.END_YEAR
+
+
+def test_xval_and_fred_end_derive_from_effective_not_configured_end_year():
+    assert a.XVAL_LAST_YEAR <= a.EFFECTIVE_END_YEAR
+    assert a.FRED_END == f"{a.EFFECTIVE_END_YEAR}-12-31"

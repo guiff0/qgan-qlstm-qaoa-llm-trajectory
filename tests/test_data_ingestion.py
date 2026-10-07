@@ -299,6 +299,11 @@ def acq(tmp_path, monkeypatch):
         import src.scripts.acquire_all_data as a
     monkeypatch.setattr(a, "START_YEAR", 2010)
     monkeypatch.setattr(a, "END_YEAR", 2012)
+    # EFFECTIVE_END_YEAR is computed once at import time from the real
+    # config/real clock (see _effective_end_year) -- patching END_YEAR
+    # alone doesn't retroactively update it, so it needs patching too,
+    # same as FRED_END below already does for the same reason.
+    monkeypatch.setattr(a, "EFFECTIVE_END_YEAR", 2012)
     monkeypatch.setattr(a, "CACHE_DIR", str(tmp_path / "cache"))
     monkeypatch.setattr(a, "DUKASCOPY_MASTER", str(tmp_path / "master.csv"))
     monkeypatch.setattr(a, "XVAL_FILE", str(tmp_path / "xval.csv"))
@@ -355,10 +360,23 @@ def test_consolidate_refuses_when_a_year_is_missing(acq):
         acq.consolidate_dukascopy()
 
 
-def test_partial_current_year_refused(acq, monkeypatch):
+def test_current_incomplete_year_is_skipped_not_refused(acq, monkeypatch):
+    """Behavior changed: acquire_dukascopy() used to abort outright
+    (SystemExit) when END_YEAR named the current, not-yet-complete
+    year. It now SKIPS that one year and proceeds with whatever IS
+    complete (EFFECTIVE_END_YEAR) instead -- see _effective_end_year().
+    This test overrides the `acq` fixture's own EFFECTIVE_END_YEAR=2012
+    (set unconditionally for every other test using this fixture) to
+    actually exercise that computation here specifically."""
     import datetime as dt
-    monkeypatch.setattr(acq, "END_YEAR", dt.datetime.now(dt.timezone.utc).year)
-    with pytest.raises(SystemExit):
+    now_year = dt.datetime.now(dt.timezone.utc).year
+    monkeypatch.setattr(acq, "END_YEAR", now_year)
+    monkeypatch.setattr(acq, "EFFECTIVE_END_YEAR", acq._effective_end_year(now_year))
+    assert acq.EFFECTIVE_END_YEAR == now_year - 1
+    # No SystemExit -- it proceeds (and fails for an unrelated, expected
+    # reason: no real Dukascopy data source is reachable/installed in
+    # this test environment, a RuntimeError, not the old SystemExit).
+    with pytest.raises(RuntimeError):
         acq.acquire_dukascopy()
 
 

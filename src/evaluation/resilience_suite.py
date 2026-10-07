@@ -34,7 +34,7 @@ from ..attacks.quantum_attacks import (
 from ..quantum.tomography import statevector_from_circuit, reduced_density_matrix
 from ..quantum.gradient_obfuscation import qgom_d
 from ..quantum.encoding_fidelity import compute_m1_efi
-from ..quantum.decoherence import decoherence_rho_series
+from ..quantum.decoherence import decoherence_rho_series, decoherence_rho_series_trajectory
 from ..metrics.resilience import nlcs, ctr, check_ctr_tractable, MAX_QUBITS_FOR_DENSITY_MATRIX
 
 
@@ -96,17 +96,20 @@ def run_resilience_suite(forward_fn, weights_np: np.ndarray, X_single: np.ndarra
         result["nlcs"] = float("nan")
         result["nlcs_error"] = str(exc)
 
-    # CTR -- now computable (src/quantum/decoherence.py), but still capped
-    # at MAX_QUBITS_FOR_DENSITY_MATRIX (12): a dense density matrix for this
-    # study's primary 20-qubit configuration would need ~1.1 TB, regardless
-    # of how the decoherence series is generated -- that ceiling was never
-    # the missing piece, the series-generator was, and that's fixed now.
-    if n_qubits <= MAX_QUBITS_FOR_DENSITY_MATRIX:
-        try:
+    # CTR -- exact (dense density matrix) at <= 12 qubits, trajectory-based
+    # (Monte Carlo wavefunction, see decoherence.py) above that. The dense
+    # method needs ~16 TB at this study's primary 20-qubit configuration
+    # regardless of implementation; the trajectory method avoids that
+    # entirely (each trajectory is a plain statevector, same O(2**n) memory
+    # every other quantum computation in this codebase already uses) at the
+    # cost of being a statistical estimate rather than an exact value --
+    # see decoherence_rho_series_trajectory's docstring and the
+    # cross-validation in tests/test_decoherence_trajectory.py.
+    try:
+        if n_qubits <= MAX_QUBITS_FOR_DENSITY_MATRIX:
             # decoherence_rho_series always uses PennyLane's default.mixed
-            # device (the only device here that supports noise channels) --
-            # unlike every other function in this module, it has no
-            # dev_name parameter to pass through.
+            # device -- unlike every other function in this module, it has
+            # no dev_name parameter to pass through.
             clean_series = decoherence_rho_series(
                 inputs_np, weights_np, n_qubits, n_layers, entanglement,
                 extra_depolarizing=0.0, seed=seed,
@@ -116,17 +119,54 @@ def run_resilience_suite(forward_fn, weights_np: np.ndarray, X_single: np.ndarra
                 extra_depolarizing=0.15, seed=seed,
             )
             result["ctr"] = ctr(clean_series, attacked_series, n_qubits=n_qubits)
-        except Exception as exc:
-            result["ctr"] = float("nan")
-            result["ctr_error"] = str(exc)
-    else:
+            result["ctr_method"] = "exact"
+        else:
+            # n_trajectories here is deliberately small (NOT the
+            # n_trajectories=1000 used in tests/test_decoherence_trajectory.py's
+            # cross-validation against the exact method). At this study's
+            # primary 20-qubit configuration, each single trajectory costs
+            # ~1-1.5s (measured: ~25ms per channel application x 20 qubits x
+            # ~2-3 channels per step x n_steps) -- 1000 trajectories would be
+            # 15-25 MINUTES per model, for ONE metric, inside a pipeline that
+            # already has a severe documented runtime problem (see TODO.md).
+            # n_trajectories=10, n_steps=5 keeps this to roughly a minute at
+            # 20 qubits (measured -- see resilience_suite's own module
+            # docstring note on this), trading real precision for being
+            # runnable at all inside routine evaluate() calls. This is a
+            # ROUGH estimate -- high variance at n_trajectories=10 -- not a
+            # number to report as-is. For a final, publication-quality CTR,
+            # call decoherence_rho_series_trajectory directly with far more
+            # trajectories (500-1000+, per
+            # tests/test_decoherence_trajectory.py's cross-validation) as a
+            # separate, one-off computation -- not through this automatic
+            # per-model path.
+            # ctr()'s own n_qubits argument is a TRACTABILITY check on the
+            # density matrices it's actually handed, not a record of the
+            # original circuit's size -- decoherence_rho_series_trajectory
+            # returns matrices REDUCED to `subsystem` (default: half of
+            # n_qubits), so that reduced size is what must be passed here,
+            # not the full n_qubits. Passing the full n_qubits made ctr()
+            # wrongly reject this as if a dense 14+-qubit matrix had been
+            # built, when what it's actually holding is much smaller.
+            trajectory_subsystem = list(range(max(n_qubits // 2, 1)))
+            clean_series = decoherence_rho_series_trajectory(
+                inputs_np, weights_np, n_qubits, n_layers, entanglement,
+                extra_depolarizing=0.0, n_steps=5, n_trajectories=10, seed=seed,
+                subsystem=trajectory_subsystem,
+            )
+            attacked_series = decoherence_rho_series_trajectory(
+                inputs_np, weights_np, n_qubits, n_layers, entanglement,
+                extra_depolarizing=0.15, n_steps=5, n_trajectories=10, seed=seed,
+                subsystem=trajectory_subsystem,
+            )
+            result["ctr"] = ctr(clean_series, attacked_series, n_qubits=len(trajectory_subsystem))
+            result["ctr_method"] = ("trajectory (n_trajectories=10, n_steps=5 -- a fast, "
+                                     "ROUGH estimate for routine evaluation only; call "
+                                     "decoherence_rho_series_trajectory directly with more "
+                                     "trajectories for a number worth reporting)")
+    except Exception as exc:
         result["ctr"] = float("nan")
-        result["ctr_note"] = (
-            f"not computed: n_qubits={n_qubits} exceeds the "
-            f"{MAX_QUBITS_FOR_DENSITY_MATRIX}-qubit dense-density-matrix ceiling "
-            f"(this study's primary 20-qubit configuration needs ~1.1 TB regardless "
-            f"of how the decoherence series is generated -- see check_ctr_tractable)"
-        )
+        result["ctr_error"] = str(exc)
 
     try:
         X_t = torch.as_tensor(X_single.reshape(1, -1), dtype=torch.float32)
