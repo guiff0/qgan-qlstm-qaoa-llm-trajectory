@@ -84,7 +84,12 @@ def test_resilience_suite_returns_finite_values_including_ctr_at_small_qubit_cou
         assert np.isfinite(result[key]), f"{key} should be a finite float, got {result[key]}"
 
 
-def test_resilience_suite_skips_ctr_gracefully_above_12_qubits():
+def test_resilience_suite_computes_ctr_above_12_qubits_via_trajectory_method():
+    """Above MAX_QUBITS_FOR_DENSITY_MATRIX (12), run_resilience_suite
+    switches from the exact (dense density matrix) CTR computation to
+    the trajectory-based one (src/quantum/decoherence.py), which has no
+    such ceiling -- confirms it actually computes a real number here,
+    not NaN, at a qubit count the dense method could never reach."""
     n_qubits, n_layers = 14, 1
     weights = np.random.randn(n_qubits * n_layers * 3) * 0.1
     X_single = np.random.randn(16)
@@ -95,5 +100,5 @@ def test_resilience_suite_skips_ctr_gracefully_above_12_qubits():
     result = run_resilience_suite(head, weights, X_single, 0.1, X_batch,
                                    n_qubits, n_layers, "ring",
                                    dev_name="default.qubit", seed=0)
-    assert np.isnan(result["ctr"])
-    assert "exceeds" in result["ctr_note"]
+    assert np.isfinite(result["ctr"])
+    assert "trajectory" in result["ctr_method"]
