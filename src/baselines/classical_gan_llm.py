@@ -57,6 +57,8 @@ from __future__ import annotations
 
 from typing import Dict
 
+import os
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -71,6 +73,10 @@ from ..evaluation.threat_detection import evaluate_threat_detection
 from ..evaluation.latency import measure_inference_latency
 from ..utils.reproducibility import set_all_seeds, seeded_generator
 from ..utils.progress import progress_bar, log_progress_milestone
+from ..utils.gan_training import (
+    config_fingerprint, checkpoint_file, save_checkpoint, load_checkpoint,
+    fit_linear_head_closed_form, epoch_row_indices,
+)
 
 
 class LSTMGenerator(nn.Module):
@@ -130,6 +136,9 @@ class ClassicalGANLLM(BaseForecastingModel):
             "epochs": 30,
             "synthetic_ratio": 0.4,
             "n_critic": 2,
+            "max_batches_per_epoch": None,   # None = full pass over the training set
+            "eval_samples": 20000,           # rows used for synthetic-fidelity metrics
+            "resume": True,                  # resume/skip from models/*.ckpt when config+seed match
         }
         cfg = {**default_config, **(config or {})}
         super().__init__("Classical GAN-LLM", cfg)
@@ -158,10 +167,11 @@ class ClassicalGANLLM(BaseForecastingModel):
         self.forecast_head = nn.Linear(self.config["output_dim"], 1)
         self.forecast_optimizer = torch.optim.Adam(self.forecast_head.parameters(), lr=self.config["learning_rate"])
 
-    def _train_discriminator_step(self, real_batch):
+    def _train_discriminator_step(self, real_batch, fake=None):
         batch_size = real_batch.shape[0]
-        z = torch.randn(batch_size, self.config["latent_dim"])
-        fake = self.generator(z)
+        if fake is None:
+            with torch.no_grad():
+                fake = self.generator(torch.randn(batch_size, self.config["latent_dim"]))
 
         real_out = self.discriminator(real_batch)
         fake_out = self.discriminator(fake.detach())
@@ -173,10 +183,10 @@ class ClassicalGANLLM(BaseForecastingModel):
         self.d_optimizer.step()
         return d_loss.item()
 
-    def _train_generator_step(self, real_batch):
+    def _train_generator_step(self, real_batch, fake=None):
         batch_size = real_batch.shape[0]
-        z = torch.randn(batch_size, self.config["latent_dim"])
-        fake = self.generator(z)
+        if fake is None:
+            fake = self.generator(torch.randn(batch_size, self.config["latent_dim"]))
 
         fake_out = self.discriminator(fake)
         adv_loss = self.criterion(fake_out, torch.ones(batch_size, 1))
@@ -202,46 +212,78 @@ class ClassicalGANLLM(BaseForecastingModel):
         # src/evaluation/one_step_ahead.py's module docstring.
         X_train, y_train = shift_for_one_step_ahead(np.asarray(X_train), np.asarray(y_train))
         X_val, y_val = shift_for_one_step_ahead(np.asarray(X_val), np.asarray(y_val))
-
-        train_ds = TensorDataset(
-            torch.tensor(X_train, dtype=torch.float32),
-            torch.tensor(y_train, dtype=torch.float32),
-        )
-        train_loader = DataLoader(
-            train_ds, batch_size=self.config["batch_size"], shuffle=True,
-            generator=seeded_generator(self.seed),
-        )
+        log = run_logger.info if run_logger else (lambda *_a, **_k: None)
 
         n_epochs = self.config["epochs"]
-        total_batches = len(train_loader)
+        batch_size = self.config["batch_size"]
+        max_batches = self.config.get("max_batches_per_epoch")
+        fp = config_fingerprint(self.config, self.seed, "classical_gan_llm")
+        self.checkpoint_path = checkpoint_file("classical_gan_llm", fp)
+
+        # ---- resume / skip-if-complete -----------------------------------
+        start_epoch, head_mse = 0, float("nan")
+        ckpt = load_checkpoint(self.checkpoint_path, fp) if self.config.get("resume", True) else None
+        if ckpt is not None:
+            self.generator.load_state_dict(ckpt["generator"])
+            self.discriminator.load_state_dict(ckpt["discriminator"])
+            self.forecast_head.load_state_dict(ckpt["forecast_head"])
+            self.g_optimizer.load_state_dict(ckpt["g_optimizer"])
+            self.d_optimizer.load_state_dict(ckpt["d_optimizer"])
+            start_epoch, head_mse = int(ckpt["next_epoch"]), ckpt.get("head_mse", float("nan"))
+            log(f"Resuming from checkpoint {self.checkpoint_path}: next_epoch={start_epoch}/{n_epochs}"
+                + (" (training already complete -- skipping to evaluation)" if ckpt.get("completed") else ""))
+            if ckpt.get("completed"):
+                self.is_trained = True
+                return
+        else:
+            # The forecast head only ever sees REAL rows (the generator never
+            # touches it), so it is a convex least-squares problem: fit it
+            # exactly instead of 58k Adam steps per epoch.
+            head_mse = fit_linear_head_closed_form(self.forecast_head, X_train, y_train)
+            log(f"Forecast head fitted in closed form on {len(X_train):,} real rows: train MSE={head_mse:.3e}")
+
+        X_t = torch.from_numpy(np.ascontiguousarray(X_train, dtype=np.float32))
+        n_rows = len(X_t)
+
         with progress_bar(total=n_epochs, desc="Classical GAN-LLM epochs", unit="epoch") as epoch_bar:
-            for epoch in range(n_epochs):
-                d_loss_total, g_loss_total, f_loss_total, n_batches = 0.0, 0.0, 0.0, 0
+            if start_epoch:
+                epoch_bar.update(start_epoch)
+            for epoch in range(start_epoch, n_epochs):
+                torch.manual_seed(self.seed * 1_000_003 + epoch)  # resume-reproducible noise
+                idx = epoch_row_indices(n_rows, batch_size, max_batches, self.seed, epoch)
+                total_batches = (len(idx) + batch_size - 1) // batch_size
+                d_loss_total, g_loss_total, n_batches = 0.0, 0.0, 0
                 batch_bar = progress_bar(total=total_batches, desc=f"  epoch {epoch} batches", unit="batch")
-                for X_batch, y_batch in train_loader:
+                for s_ in range(0, len(idx), batch_size):
+                    X_batch = X_t[idx[s_:s_ + batch_size]]
+                    fake = self.generator(torch.randn(len(X_batch), self.config["latent_dim"]))
                     for _ in range(self.config["n_critic"]):
-                        d_loss_total += self._train_discriminator_step(X_batch)
-                    g_loss_total += self._train_generator_step(X_batch)
-                    f_loss_total += self._train_forecast_head_step(X_batch, y_batch)
+                        d_loss_total += self._train_discriminator_step(X_batch, fake.detach())
+                    g_loss_total += self._train_generator_step(X_batch, fake)
                     n_batches += 1
                     batch_bar.update(1)
                     batch_bar.set_postfix(d=f"{d_loss_total / max(n_batches * self.config['n_critic'], 1):.3e}",
-                                          g=f"{g_loss_total / max(n_batches, 1):.3e}",
-                                          fcast=f"{f_loss_total / max(n_batches, 1):.3e}")
+                                          g=f"{g_loss_total / max(n_batches, 1):.3e}")
                     if run_logger:
                         log_progress_milestone(run_logger, f"TRAIN epoch {epoch}", n_batches, total_batches)
                 batch_bar.close()
 
+                d_avg = d_loss_total / max(n_batches * self.config["n_critic"], 1)
+                g_avg = g_loss_total / max(n_batches, 1)
                 if run_logger:
-                    run_logger.log_epoch(
-                        epoch,
-                        d_loss=d_loss_total / max(n_batches * self.config["n_critic"], 1),
-                        g_loss=g_loss_total / max(n_batches, 1),
-                        forecast_loss=f_loss_total / max(n_batches, 1),
-                    )
+                    run_logger.log_epoch(epoch, d_loss=d_avg, g_loss=g_avg, forecast_loss=head_mse)
+
+                save_checkpoint(self.checkpoint_path, {
+                    "fingerprint": fp, "next_epoch": epoch + 1, "completed": (epoch + 1 == n_epochs),
+                    "generator": self.generator.state_dict(),
+                    "discriminator": self.discriminator.state_dict(),
+                    "forecast_head": self.forecast_head.state_dict(),
+                    "g_optimizer": self.g_optimizer.state_dict(),
+                    "d_optimizer": self.d_optimizer.state_dict(),
+                    "head_mse": head_mse,
+                })
                 epoch_bar.update(1)
-                epoch_bar.set_postfix(d=f"{d_loss_total / max(n_batches * self.config['n_critic'], 1):.3e}",
-                                      g=f"{g_loss_total / max(n_batches, 1):.3e}")
+                epoch_bar.set_postfix(d=f"{d_avg:.3e}", g=f"{g_avg:.3e}")
 
         self.is_trained = True
 
@@ -306,8 +348,15 @@ class ClassicalGANLLM(BaseForecastingModel):
 
         # See QGANLLM.evaluate for why this call is here at all (it existed
         # only in tests before now) and why it's sampled against X_test.
-        synthetic = self.generate_synthetic_data(len(X_test))
-        self.results.update(synthetic_data_fidelity_report(np.asarray(X_test), synthetic))
+        # FIX: was len(X_test) (744,785 rows) -> MMD built a 2 TiB kernel matrix.
+        # Fidelity is an estimate; use a fixed-seed subsample of `eval_samples`
+        # real test rows vs the same number of synthetic rows (identical for both
+        # GAN baselines so FID/MMD/Wasserstein stay comparable).
+        n_eval = min(len(X_test), int(self.config.get("eval_samples", 20000)))
+        sel = np.sort(np.random.default_rng(self.seed).choice(len(X_test), n_eval, replace=False))
+        synthetic = self.generate_synthetic_data(n_eval)
+        self.results.update(synthetic_data_fidelity_report(np.asarray(X_test)[sel], synthetic))
+        self.results["fidelity_n_samples"] = n_eval
 
         # See QGANLLM.evaluate for full rationale (same H3/H5 wiring;
         # this baseline just skips the quantum-only resilience suite).

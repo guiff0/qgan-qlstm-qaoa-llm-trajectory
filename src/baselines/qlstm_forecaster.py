@@ -42,6 +42,8 @@ from __future__ import annotations
 
 from typing import Dict
 
+import os
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -60,6 +62,9 @@ from ..quantum.circuits import QLSTMGenerator
 from ..quantum.tomography import entanglement_metrics
 from ..utils.reproducibility import seeded_generator, set_all_seeds
 from ..utils.progress import progress_bar, log_progress_milestone
+from ..utils.gan_training import (
+    config_fingerprint, checkpoint_file, save_checkpoint, load_checkpoint, epoch_row_indices,
+)
 
 
 class QLSTMForecaster(BaseForecastingModel):
@@ -92,6 +97,11 @@ class QLSTMForecaster(BaseForecastingModel):
             "batch_size": 64,
             "epochs": 50,
             "early_stopping_patience": 10,
+            "max_batches_per_epoch": None,  # None = full pass over the training set
+            "val_samples": None,            # None = whole validation split; else fixed-seed subsample
+            "eval_samples": None,           # rows for RMSE/MAE/poisoning (None = whole test set)
+            "attack_samples": None,         # rows for adversarial attacks + threat detection
+            "resume": True,
         }
         cfg = {**default_config, **(config or {})}
         super().__init__("QLSTM Forecaster", cfg)
@@ -130,26 +140,48 @@ class QLSTMForecaster(BaseForecastingModel):
         X_train, y_train = shift_for_one_step_ahead(np.asarray(X_train), np.asarray(y_train))
         X_val, y_val = shift_for_one_step_ahead(np.asarray(X_val), np.asarray(y_val))
 
-        train_ds = TensorDataset(torch.tensor(X_train, dtype=torch.float32),
-                                  torch.tensor(y_train, dtype=torch.float32))
-        train_loader = DataLoader(train_ds, batch_size=self.config["batch_size"], shuffle=True,
-                                   generator=seeded_generator(self.seed))
-        val_ds = TensorDataset(torch.tensor(X_val, dtype=torch.float32),
-                                torch.tensor(y_val, dtype=torch.float32))
-        val_loader = DataLoader(val_ds, batch_size=self.config["batch_size"], shuffle=False)
-
-        best_val_loss = float("inf")
-        patience_counter = 0
+        log = run_logger.info if run_logger else (lambda *_a, **_k: None)
+        batch_size = self.config["batch_size"]
+        max_batches = self.config.get("max_batches_per_epoch")
         n_epochs = self.config["epochs"]
-        total_batches = len(train_loader)
+        patience_limit = self.config["early_stopping_patience"]
+        fp = config_fingerprint(self.config, self.seed, "qlstm_forecaster")
+        ckpt_path = checkpoint_file("qlstm_forecaster", fp)
+        best_path = f"models/qlstm_forecaster_best_{fp}.pt"
+
+        X_t = torch.from_numpy(np.ascontiguousarray(X_train, dtype=np.float32))
+        y_t = torch.from_numpy(np.ascontiguousarray(y_train, dtype=np.float32))
+        n_val = self.config.get("val_samples")
+        if n_val and n_val < len(X_val):
+            sel = np.sort(np.random.default_rng(self.seed).choice(len(X_val), int(n_val), replace=False))
+            X_val, y_val = X_val[sel], y_val[sel]
+        Xv = torch.from_numpy(np.ascontiguousarray(X_val, dtype=np.float32))
+        yv = torch.from_numpy(np.ascontiguousarray(y_val, dtype=np.float32))
+
+        best_val_loss, patience_counter, start_epoch, finished = float("inf"), 0, 0, False
+        ckpt = load_checkpoint(ckpt_path, fp) if self.config.get("resume", True) else None
+        if ckpt is not None:
+            self.quantum_circuit.load_state_dict(ckpt["quantum_circuit"])
+            self.forecast_head.load_state_dict(ckpt["forecast_head"])
+            self.optimizer.load_state_dict(ckpt["optimizer"])
+            start_epoch, best_val_loss = int(ckpt["next_epoch"]), ckpt["best_val_loss"]
+            patience_counter, finished = int(ckpt["patience"]), bool(ckpt["finished"])
+            log(f"Resuming from {ckpt_path}: next_epoch={start_epoch}/{n_epochs}"
+                + (" (training complete)" if finished else ""))
 
         with progress_bar(total=n_epochs, desc=f"QLSTM Forecaster ({self.config['n_qubits']}q) epochs",
                           unit="epoch") as epoch_bar:
-            for epoch in range(n_epochs):
+            if start_epoch:
+                epoch_bar.update(start_epoch)
+            for epoch in range(start_epoch, 0 if finished else n_epochs):
+                torch.manual_seed(self.seed * 1_000_003 + epoch)
                 self.quantum_circuit.train()
+                idx = epoch_row_indices(len(X_t), batch_size, max_batches, self.seed, epoch)
+                total_batches = (len(idx) + batch_size - 1) // batch_size
                 epoch_loss, n_batches = 0.0, 0
                 batch_bar = progress_bar(total=total_batches, desc=f"  epoch {epoch} batches", unit="batch")
-                for X_batch, y_batch in train_loader:
+                for s_ in range(0, len(idx), batch_size):
+                    X_batch, y_batch = X_t[idx[s_:s_ + batch_size]], y_t[idx[s_:s_ + batch_size]]
                     self.optimizer.zero_grad()
                     pred = self._forecast_model(X_batch)
                     loss = self.criterion(pred.squeeze(-1), y_batch)
@@ -167,10 +199,10 @@ class QLSTMForecaster(BaseForecastingModel):
                 self.quantum_circuit.eval()
                 val_loss_total, n_val_batches = 0.0, 0
                 with torch.no_grad():
-                    for X_batch, y_batch in progress_bar(val_loader, total=len(val_loader),
-                                                          desc=f"  epoch {epoch} validation", unit="batch"):
-                        val_pred = self._forecast_model(X_batch)
-                        val_loss_total += self.criterion(val_pred.squeeze(-1), y_batch).item()
+                    for s_ in progress_bar(range(0, len(Xv), batch_size), total=-(-len(Xv) // batch_size),
+                                           desc=f"  epoch {epoch} validation", unit="batch"):
+                        val_pred = self._forecast_model(Xv[s_:s_ + batch_size])
+                        val_loss_total += self.criterion(val_pred.squeeze(-1), yv[s_:s_ + batch_size]).item()
                         n_val_batches += 1
                 val_loss = val_loss_total / max(n_val_batches, 1)
 
@@ -180,19 +212,28 @@ class QLSTMForecaster(BaseForecastingModel):
                 epoch_bar.set_postfix(train_loss=f"{train_loss:.3e}", val_loss=f"{val_loss:.3e}",
                                       best=f"{best_val_loss:.3e}", patience=patience_counter)
 
+                stop = False
                 if val_loss < best_val_loss:
-                    best_val_loss = val_loss
-                    patience_counter = 0
-                    self.save_model("models/qlstm_forecaster_best.pt")
+                    best_val_loss, patience_counter = val_loss, 0
+                    self.save_model(best_path)
                 else:
                     patience_counter += 1
-                    if patience_counter >= self.config["early_stopping_patience"]:
-                        if run_logger:
-                            run_logger.info(f"Early stopping at epoch {epoch}")
-                        break
+                    if patience_counter >= patience_limit:
+                        log(f"Early stopping at epoch {epoch}")
+                        stop = True
+                save_checkpoint(ckpt_path, {
+                    "fingerprint": fp, "next_epoch": epoch + 1, "best_val_loss": best_val_loss,
+                    "patience": patience_counter, "finished": stop or (epoch + 1 == n_epochs),
+                    "quantum_circuit": self.quantum_circuit.state_dict(),
+                    "forecast_head": self.forecast_head.state_dict(),
+                    "optimizer": self.optimizer.state_dict(),
+                })
+                if stop:
+                    break
 
         self.is_trained = True
-        self.load_model("models/qlstm_forecaster_best.pt")
+        if os.path.isfile(best_path):
+            self.load_model(best_path)
 
     def save_model(self, path: str):
         import os
@@ -261,6 +302,19 @@ class QLSTMForecaster(BaseForecastingModel):
         X_test, y_test = shift_for_one_step_ahead(np.asarray(X_test), np.asarray(y_test))
         if last_input_prices is not None:
             last_input_prices = np.asarray(last_input_prices)[:-1]  # keep row-aligned with the shift above
+        # Every row costs a real 20-qubit circuit evaluation (~0.3 s forward,
+        # ~2.5 s with input gradients), so evaluating all 744k test rows would
+        # take days. Use a fixed-seed random subsample (rows are independent
+        # after the one-step-ahead shift).
+        n_eval = self.config.get("eval_samples")
+        if n_eval and n_eval < len(X_test):
+            sel = np.sort(np.random.default_rng(self.seed).choice(len(X_test), int(n_eval), replace=False))
+            X_test, y_test = X_test[sel], y_test[sel]
+            if last_input_prices is not None:
+                last_input_prices = last_input_prices[sel]
+        self.results_n_eval = len(X_test)
+        n_att = int(self.config.get("attack_samples") or len(X_test))
+        n_att = min(n_att, len(X_test))
         predictions = self.predict(X_test)
         y_test_arr = np.array(y_test).flatten()
         predictions_arr = np.array(predictions).flatten()
@@ -269,13 +323,15 @@ class QLSTMForecaster(BaseForecastingModel):
             "rmse": rmse_fn(y_test_arr, predictions_arr),
             "mae": mae_fn(y_test_arr, predictions_arr),
             "model_type": "QLSTM Forecaster",
+            "eval_n_samples": len(X_test),
+            "attack_n_samples": n_att,
         }
 
         if attack_cfg is not None and last_input_prices is not None:
             self.quantum_circuit.eval()
-            X_test_t = torch.tensor(X_test, dtype=torch.float32)
-            y_test_t = torch.tensor(y_test, dtype=torch.float32)
-            last_prices_t = torch.tensor(last_input_prices, dtype=torch.float32)
+            X_test_t = torch.tensor(X_test[:n_att], dtype=torch.float32)
+            y_test_t = torch.tensor(y_test[:n_att], dtype=torch.float32)
+            last_prices_t = torch.tensor(last_input_prices[:n_att], dtype=torch.float32)
             asr_report = compute_attack_success_rate(
                 self._forecast_model, X_test_t, y_test_t, last_prices_t,
                 attack_cfg, attacks=attack_cfg.get("attacks", ["fgsm", "pgd", "cw"]),
@@ -303,7 +359,7 @@ class QLSTMForecaster(BaseForecastingModel):
         if attack_cfg is not None:
             self.quantum_circuit.eval()
             self.results.update(evaluate_threat_detection(
-                self._forecast_model, X_test, y_test, attack_cfg, seed=self.seed,
+                self._forecast_model, X_test[:n_att], y_test[:n_att], attack_cfg, seed=self.seed,
                 n_clean=attack_cfg.get("n_benign_samples", 1000),
             ))
 

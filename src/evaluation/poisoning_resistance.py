@@ -67,7 +67,8 @@ def _fit_linear_head(X: np.ndarray, y: np.ndarray, epochs: int = 20,
 
 def evaluate_poisoning_resistance(model, X_test: np.ndarray, y_test: np.ndarray,
                                    clean_rmse: float, seed: int = 0,
-                                   fraction: float = 0.05, epochs: int = 20) -> dict:
+                                   fraction: float = 0.05, epochs: int = 20,
+                                   max_synthetic: int = 5000) -> dict:
     """
     model: needs .config (dict, read for "synthetic_ratio") and, optionally,
     .generate_synthetic_data(n) -- if the model has neither (e.g. a plain
@@ -120,7 +121,7 @@ def evaluate_poisoning_resistance(model, X_test: np.ndarray, y_test: np.ndarray,
 
     if hasattr(model, "generate_synthetic_data"):
         try:
-            synth_for_mi = np.asarray(model.generate_synthetic_data(len(X_eval_diag)))
+            synth_for_mi = np.asarray(model.generate_synthetic_data(min(len(X_eval_diag), 5000)))  # MI uses <=5000 rows anyway
             mi = membership_inference_success(X_eval_diag, synth_for_mi, seed=seed)
             result["model_inversion_accuracy"] = mi["membership_inference_accuracy"]
             result["model_inversion_chance_level"] = mi["chance_level"]
