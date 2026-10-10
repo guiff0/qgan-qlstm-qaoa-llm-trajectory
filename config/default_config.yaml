@@ -108,7 +108,7 @@ classical_gan_llm:
   learning_rate: 0.0003
   # Adam optimizer learning rate, used for the generator, discriminator,
   # and forecast head alike.
-  batch_size: 64
+  batch_size: 16
   # Number of real rows per mini-batch during adversarial training.
   epochs: 30
   # Fixed number of training epochs — no early stopping for this baseline,
@@ -119,6 +119,17 @@ classical_gan_llm:
   n_critic: 2
   # Number of discriminator update steps performed per generator update
   # step, per batch.
+  # ---- COMPUTE BUDGET (identical in classical_gan_llm and qgan_llm on purpose) ----
+  max_batches_per_epoch: 20
+  # Batches drawn per epoch (null = full pass over all 3.7M rows). 30 epochs x 20
+  # batches x 16 rows = 600 generator steps. The 20-qubit generator costs ~2 s per
+  # row per step (single core), so a full pass (58k batches) would take years.
+  eval_samples: 20000
+  # Rows used for synthetic-fidelity metrics (FID/MMD/Wasserstein): same subsample
+  # size for both GANs.
+  resume: true
+  # Resume from / skip to a matching checkpoint in models/*.ckpt.
+
 
 qgan_llm:
   n_qubits: 20
@@ -142,7 +153,7 @@ qgan_llm:
   learning_rate: 0.0003
   # Adam optimizer learning rate for the generator, discriminator, and
   # forecast head.
-  batch_size: 64
+  batch_size: 16
   # Number of real rows per mini-batch; combined with n_qubits, this
   # determines the quantum circuit's per-step simulation cost.
   epochs: 30
@@ -159,6 +170,17 @@ qgan_llm:
   # PennyLane device backend for the quantum circuit; lightning.qubit avoids
   # default.qubit's OOM at this qubit count/batch size by expanding the
   # batch into per-sample executions instead of one large broadcasted tensor.
+  # ---- COMPUTE BUDGET (identical in classical_gan_llm and qgan_llm on purpose) ----
+  max_batches_per_epoch: 20
+  # Batches drawn per epoch (null = full pass over all 3.7M rows). 30 epochs x 20
+  # batches x 16 rows = 600 generator steps. The 20-qubit generator costs ~2 s per
+  # row per step (single core), so a full pass (58k batches) would take years.
+  eval_samples: 20000
+  # Rows used for synthetic-fidelity metrics (FID/MMD/Wasserstein): same subsample
+  # size for both GANs.
+  resume: true
+  # Resume from / skip to a matching checkpoint in models/*.ckpt.
+
 
 ablations:
 # Config-defined variants of qgan_llm, expanded in run_all.py's main() via
@@ -199,13 +221,24 @@ qlstm_forecaster:
   # Adam optimizer learning rate for this baseline's supervised regression
   # training (matches classical_lstm's value, not qgan_llm's, since there's
   # no adversarial loss here).
-  batch_size: 64
+  batch_size: 16
   # Number of rows per mini-batch.
-  epochs: 50
+  epochs: 30
   # Maximum training epochs, matching classical_lstm's budget.
   early_stopping_patience: 10
   # Epochs without val-loss improvement tolerated before stopping early,
   # matching classical_lstm.
+  # ---- COMPUTE BUDGET (every row = a real 20-qubit circuit run) ----
+  max_batches_per_epoch: 20
+  # 30 epochs x 20 batches x 16 rows = 600 steps, same as the GAN baselines.
+  val_samples: 320
+  # Fixed-seed validation subsample for early stopping (full split = 744k rows).
+  eval_samples: 2000
+  # Test rows for RMSE/MAE/poisoning (forward-only, ~10 min).
+  attack_samples: 50
+  # Test rows for FGSM/PGD/CW + threat detection (needs input gradients: the slow part).
+  resume: true
+
 
 qaoa_llm:
   # See src/baselines/qaoa_llm.py's module docstring for what "QAOA-Enhanced"

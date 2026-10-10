@@ -27,9 +27,12 @@ so the QNode is a differentiable PyTorch operation, and never call
 """
 from __future__ import annotations
 
+import numpy as np
 import pennylane as qml
 import torch
 import torch.nn as nn
+
+from .pqc_runner import PQCRunner
 
 
 def build_qlstm_qnode(n_qubits: int, n_layers: int, entanglement: str,
@@ -132,6 +135,40 @@ def apply_circuit_gates_only(inputs_np, weights_np, n_qubits: int, n_layers: int
     return lambda weights: _apply(weights if weights is not None else weights_np)
 
 
+class _PQCFunction(torch.autograd.Function):
+    """Differentiable wrapper around PQCRunner.
+
+    forward : per-sample <Z_k> values (no gradient work at all when called
+              under torch.no_grad(), e.g. synthetic-data generation).
+    backward: ONE adjoint sweep per sample for the contracted gradient
+              J^T g, instead of the full 20-observable Jacobian (~16x
+              cheaper at 20 qubits; mathematically identical -- verified
+              in tests/test_pqc_runner.py).
+    """
+
+    @staticmethod
+    def forward(ctx, inputs, theta, runner):
+        x = inputs.detach().cpu().numpy().astype(np.float64)
+        th = theta.detach().cpu().numpy().astype(np.float64)
+        out = runner.forward(x, th)
+        ctx.runner = runner
+        ctx.save_for_backward(inputs, theta)
+        return torch.as_tensor(out, dtype=inputs.dtype, device=inputs.device)
+
+    @staticmethod
+    def backward(ctx, grad_out):
+        inputs, theta = ctx.saved_tensors
+        need_x = bool(ctx.needs_input_grad[0])
+        gx, gth = ctx.runner.vjp(
+            inputs.detach().cpu().numpy().astype(np.float64),
+            theta.detach().cpu().numpy().astype(np.float64),
+            grad_out.detach().cpu().numpy().astype(np.float64),
+            need_input_grad=need_x,
+        )
+        gx_t = torch.as_tensor(gx, dtype=inputs.dtype, device=inputs.device) if need_x else None
+        return gx_t, torch.as_tensor(gth, dtype=theta.dtype, device=theta.device), None
+
+
 class QLSTMGenerator(nn.Module):
     """
     Quantum LSTM-style generator. Same architectural intent as the
@@ -154,6 +191,10 @@ class QLSTMGenerator(nn.Module):
         self.theta = nn.Parameter(torch.randn(self.n_params) * 0.1)
 
         self.qnode = build_qlstm_qnode(n_qubits, n_layers, entanglement, quantum_device)
+        # Fast path for lightning.* simulators (see _PQCFunction). Other
+        # devices (default.qubit backprop, real QPUs) keep the original QNode path.
+        self._runner = (PQCRunner(n_qubits, n_layers, entanglement, quantum_device)
+                        if quantum_device.startswith("lightning") else None)
         self.output_layer = nn.Linear(n_qubits, n_features)
 
     def forward(self, z: torch.Tensor) -> torch.Tensor:
@@ -173,10 +214,13 @@ class QLSTMGenerator(nn.Module):
             # effect on the trained parameters is real, not cosmetic.
             inputs = inputs + torch.randn_like(inputs) * self.noise_strength
 
-        # PennyLane's torch interface supports batched execution when the
-        # QNode's non-batch dims are consistent; broadcast over batch here.
-        weights = self.theta.unsqueeze(0).expand(batch_size, -1)
-        raw_outputs = self.qnode(inputs, weights)          # list of n_qubits tensors, each (batch,)
-        stacked = torch.stack(raw_outputs, dim=-1).float()  # (batch, n_qubits)
+        if self._runner is not None:
+            stacked = _PQCFunction.apply(inputs, self.theta, self._runner).float()
+        else:
+            # PennyLane's torch interface supports batched execution when the
+            # QNode's non-batch dims are consistent; broadcast over batch here.
+            weights = self.theta.unsqueeze(0).expand(batch_size, -1)
+            raw_outputs = self.qnode(inputs, weights)          # list of n_qubits tensors, each (batch,)
+            stacked = torch.stack(raw_outputs, dim=-1).float()  # (batch, n_qubits)
 
         return self.output_layer(stacked)

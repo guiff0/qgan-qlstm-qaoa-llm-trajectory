@@ -46,26 +46,43 @@ def frechet_distance(real_features: np.ndarray, synthetic_features: np.ndarray) 
     return float(fid)
 
 
-def maximum_mean_discrepancy(real: np.ndarray, synthetic: np.ndarray, gamma: float = 1.0) -> float:
+def maximum_mean_discrepancy(real: np.ndarray, synthetic: np.ndarray, gamma: float = 1.0,
+                             max_samples: int = 5000, seed: int = 0, chunk: int = 1024) -> float:
     """
     MMD^2 with an RBF kernel: unbiased estimator.
     Lower = distributions are more similar.
-    """
-    def rbf_kernel(a, b):
-        a2 = np.sum(a ** 2, axis=1, keepdims=True)
-        b2 = np.sum(b ** 2, axis=1, keepdims=True)
-        sq_dists = a2 + b2.T - 2 * a @ b.T
-        return np.exp(-gamma * sq_dists)
 
-    k_rr = rbf_kernel(real, real)
-    k_ss = rbf_kernel(synthetic, synthetic)
-    k_rs = rbf_kernel(real, synthetic)
+    FIX: the original built the full n x n kernel matrices. At the real test
+    size (744,785 rows) that is a 2.02 TiB float32 array -> ArrayMemoryError
+    after a 12-hour training run. MMD is an estimator, so it is computed on
+    a fixed-seed random subsample of at most `max_samples` rows per side
+    (standard practice; the estimator is unbiased for any subsample size) and
+    the kernel sums are accumulated in row chunks so memory stays O(chunk*n).
+    """
+    rng = np.random.default_rng(seed)
+    real = np.asarray(real, dtype=np.float64)
+    synthetic = np.asarray(synthetic, dtype=np.float64)
+    if max_samples and len(real) > max_samples:
+        real = real[rng.choice(len(real), max_samples, replace=False)]
+    if max_samples and len(synthetic) > max_samples:
+        synthetic = synthetic[rng.choice(len(synthetic), max_samples, replace=False)]
+
+    def kernel_sum(a, b, drop_diagonal: bool) -> float:
+        b2 = np.sum(b ** 2, axis=1)[None, :]
+        total = 0.0
+        for s in range(0, len(a), chunk):
+            blk = a[s:s + chunk]
+            sq = np.sum(blk ** 2, axis=1, keepdims=True) + b2 - 2.0 * blk @ b.T
+            k = np.exp(-gamma * np.maximum(sq, 0.0))
+            total += k.sum()
+            if drop_diagonal:
+                total -= len(blk)  # k(x, x) = 1 on the diagonal of the (a == b) case
+        return float(total)
 
     n, m = real.shape[0], synthetic.shape[0]
-    term_rr = (k_rr.sum() - np.trace(k_rr)) / (n * (n - 1))
-    term_ss = (k_ss.sum() - np.trace(k_ss)) / (m * (m - 1))
-    term_rs = k_rs.sum() / (n * m)
-
+    term_rr = kernel_sum(real, real, True) / (n * (n - 1))
+    term_ss = kernel_sum(synthetic, synthetic, True) / (m * (m - 1))
+    term_rs = kernel_sum(real, synthetic, False) / (n * m)
     return float(term_rr + term_ss - 2 * term_rs)
 
 
@@ -206,7 +223,8 @@ def mode_coverage(real: np.ndarray, synthetic: np.ndarray, n_bins: int = 20) -> 
     return float(coverages.mean())
 
 
-def synthetic_data_fidelity_report(real: np.ndarray, synthetic: np.ndarray) -> dict:
+def synthetic_data_fidelity_report(real: np.ndarray, synthetic: np.ndarray,
+                                   mmd_max_samples: int = 5000) -> dict:
     """One-call report matching the columns of Ch.4 Table 38
     (Comparison of Synthetic Data Fidelity Metrics), plus two mode-collapse
     diagnostics (see unique_sample_ratio and mode_coverage above) -- Ch.3
@@ -215,7 +233,7 @@ def synthetic_data_fidelity_report(real: np.ndarray, synthetic: np.ndarray) -> d
     transcription of a pre-existing result."""
     return {
         "fid": frechet_distance(real, synthetic),
-        "mmd": maximum_mean_discrepancy(real, synthetic),
+        "mmd": maximum_mean_discrepancy(real, synthetic, max_samples=mmd_max_samples),
         "wasserstein": mean_wasserstein_distance(real, synthetic),
         "unique_sample_ratio": unique_sample_ratio(synthetic),
         "mode_coverage": mode_coverage(real, synthetic),
