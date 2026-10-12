@@ -352,7 +352,9 @@ class ClassicalGANLLM(BaseForecastingModel):
         # Fidelity is an estimate; use a fixed-seed subsample of `eval_samples`
         # real test rows vs the same number of synthetic rows (identical for both
         # GAN baselines so FID/MMD/Wasserstein stay comparable).
-        n_eval = min(len(X_test), int(self.config.get("eval_samples", 20000)))
+        n_eval = min(len(X_test), int(os.environ.get("GAN_EVAL_SAMPLES") or self.config.get("eval_samples", 20000)))
+        # (env override GAN_EVAL_SAMPLES lets you shrink evaluation without touching the config,
+        #  which would change the checkpoint fingerprint and force retraining)
         sel = np.sort(np.random.default_rng(self.seed).choice(len(X_test), n_eval, replace=False))
         synthetic = self.generate_synthetic_data(n_eval)
         self.results.update(synthetic_data_fidelity_report(np.asarray(X_test)[sel], synthetic))

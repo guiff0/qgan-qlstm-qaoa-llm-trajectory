@@ -283,10 +283,13 @@ class QGANLLM(BaseForecastingModel):
 
     def generate_synthetic_data(self, n_samples: int) -> np.ndarray:
         self.generator.eval()
+        outs, chunk = [], 100
         with torch.no_grad():
-            z = torch.randn(n_samples, self.config["n_features"])
-            synthetic = self.generator(z)
-        return synthetic.numpy()
+            for s_ in progress_bar(range(0, n_samples, chunk), total=-(-n_samples // chunk),
+                                   desc=f"QGAN generate {n_samples:,} samples", unit="chunk"):
+                z = torch.randn(min(chunk, n_samples - s_), self.config["n_features"])
+                outs.append(self.generator(z).numpy())
+        return np.concatenate(outs, axis=0)
 
     def _forecast_model(self, X: torch.Tensor) -> torch.Tensor:
         """
@@ -377,7 +380,9 @@ class QGANLLM(BaseForecastingModel):
         # FIX: was len(X_test) (744,785 rows) -- an MMD memory error AND ~56 hours of
         # 20-qubit forward passes (~0.3 s/row). Same fixed-seed subsample as
         # Classical GAN-LLM so the fidelity numbers stay comparable.
-        n_eval = min(len(X_test), int(self.config.get("eval_samples", 20000)))
+        n_eval = min(len(X_test), int(os.environ.get("GAN_EVAL_SAMPLES") or self.config.get("eval_samples", 20000)))
+        # (env override GAN_EVAL_SAMPLES lets you shrink evaluation without touching the config,
+        #  which would change the checkpoint fingerprint and force retraining)
         sel = np.sort(np.random.default_rng(self.seed).choice(len(X_test), n_eval, replace=False))
         synthetic = self.generate_synthetic_data(n_eval)
         self.results.update(synthetic_data_fidelity_report(np.asarray(X_test)[sel], synthetic))
