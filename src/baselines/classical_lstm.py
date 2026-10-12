@@ -33,6 +33,7 @@ from .base import BaseForecastingModel
 from ..data.windowing import WindowedSequenceDataset
 from ..evaluation.metrics import rmse as rmse_fn, mae as mae_fn
 from ..evaluation.latency import measure_inference_latency
+from ..attacks.adversarial import compute_attack_success_rate, compute_clean_asr
 from ..utils.reproducibility import set_all_seeds, seeded_generator
 from ..utils.progress import progress_bar, log_progress_milestone
 
@@ -60,6 +61,7 @@ class ClassicalLSTM(BaseForecastingModel):
             # predict_batch_size * sequence_length * n_features * 4 bytes
             # (4096 * 60 * 32 * 4 = ~31 MB), independent of test-set size.
             "predict_batch_size": 4096,
+            "attack_samples": 2000,  # random windows attacked (fixed seed) -- needed for ASR / TaLIS
             # Heartbeat during training so a 50-minute epoch isn't silent.
             "log_every_batches": 5000,
         }
@@ -267,10 +269,18 @@ class ClassicalLSTM(BaseForecastingModel):
         pool = np.stack([view[i] for i in idx])  # (pool_size, seq_len, n_features)
         return measure_inference_latency(self._forward, pool, n_repeats=n_repeats)
 
-    def evaluate(self, X_test, y_test, **kwargs):
+    def evaluate(self, X_test, y_test, attack_cfg: dict = None, last_input_prices=None, **kwargs):
         """NOTE: predictions correspond to rows [sequence_length, len(X_test))
         of the input -- the first `sequence_length` rows have no full window
-        and are dropped, so y_test is trimmed to match before scoring."""
+        and are dropped, so y_test is trimmed to match before scoring.
+
+        ASR (needed for TaLIS, which is NaN without it): the attacks perturb
+        the whole input window (L-inf budget epsilon on every one of the
+        sequence_length x n_features entries) of `attack_samples` randomly
+        chosen windows (fixed seed). last_input_price is the first feature of
+        the window's final row, same convention as run_all.py's other models.
+        Threat detection is not run here: its classifier expects flat 2-D rows,
+        not windows."""
         seq_len = self.config["sequence_length"]
         predictions = self.predict(X_test)
         y_test_arr = np.array(y_test).flatten()[seq_len:]
@@ -281,4 +291,22 @@ class ClassicalLSTM(BaseForecastingModel):
             "mae": mae_fn(y_test_arr, predictions_arr),
             "model_type": "Classical LSTM",
         }
+
+        if attack_cfg is not None:
+            self.model.eval()
+            view = self._window_view(X_test)
+            n_att = min(int(self.config.get("attack_samples", 2000)), len(view))
+            sel = np.sort(np.random.default_rng(self.seed).choice(len(view), n_att, replace=False))
+            X_w = torch.from_numpy(np.ascontiguousarray(view[sel]))
+            y_w = torch.tensor(y_test_arr[sel], dtype=torch.float32)
+            X_np = np.asarray(X_test, dtype=np.float32)
+            last_w = torch.tensor(X_np[sel + seq_len - 1, 0], dtype=torch.float32)
+            asr_report = compute_attack_success_rate(
+                self._forward, X_w, y_w, last_w, attack_cfg,
+                attacks=attack_cfg.get("attacks", ["fgsm", "pgd", "cw"]),
+            )
+            self.results["asr"] = asr_report["overall_asr"]
+            self.results["asr_breakdown"] = asr_report
+            self.results["asr_clean"] = compute_clean_asr(self._forward, X_w, y_w, last_w, attack_cfg)
+            self.results["attack_n_samples"] = n_att
         return self.results
