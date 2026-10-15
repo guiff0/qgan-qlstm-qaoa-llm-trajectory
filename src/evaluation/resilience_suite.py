@@ -38,6 +38,10 @@ from ..quantum.decoherence import decoherence_rho_series, decoherence_rho_series
 from ..metrics.resilience import nlcs, ctr, check_ctr_tractable, MAX_QUBITS_FOR_DENSITY_MATRIX
 
 
+from ..utils.stage_log import apply_timing as _apply_timing
+_apply_timing(globals(), {'quantum_noise_injection_attack': 'resilience: QSFR (noise injection)', 'entanglement_disruption_attack': 'resilience: EER (entanglement disruption)', 'statevector_from_circuit': 'resilience: statevector (NLCS)', 'decoherence_rho_series': 'resilience: CTR dense decoherence series', 'decoherence_rho_series_trajectory': 'resilience: CTR trajectory series (10 traj x 5 steps)', 'qgom_d': 'resilience: QGOM', 'compute_m1_efi': 'resilience: M1_EFI'})
+
+
 def run_resilience_suite(forward_fn, weights_np: np.ndarray, X_single: np.ndarray,
                           y_single: float, X_batch: np.ndarray, n_qubits: int, n_layers: int,
                           entanglement: str, dev_name: str = "default.qubit",

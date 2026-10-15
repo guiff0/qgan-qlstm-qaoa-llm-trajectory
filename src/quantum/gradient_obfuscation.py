@@ -85,34 +85,51 @@ def _scalar_loss(circuit, weights: pnp.ndarray, inputs: np.ndarray, target: floa
 
 
 def measure_gradient_variance(circuit, weights: np.ndarray, inputs: np.ndarray,
-                               target: float, n_trials: int = 100, seed: int = 0) -> dict:
+                               target: float, n_trials: int = 100, seed: int = 0,
+                               n_weights_sampled: int = 12, weight_indices=None) -> dict:
     """
-    Runs the parameter-shift gradient of _scalar_loss w.r.t. `weights`
-    `n_trials` times (each trial re-executes the finite-shots circuit,
-    so shot noise varies trial to trial), and reports the resulting
-    gradient VECTOR's variance across trials -- one variance number per
-    weight is collapsed to a single scalar via mean variance across
-    weights, matching Var(g) in the QGOM_d formula.
-    """
-    weights_pnp = pnp.array(weights, requires_grad=True)
-    grad_fn = qml.grad(lambda w: _scalar_loss(circuit, w, inputs, target))
+    Parameter-shift gradient of _scalar_loss w.r.t. a SUBSET of the weights,
+    repeated `n_trials` times (shot noise varies trial to trial). Variance
+    across trials is averaged over the sampled weights, matching Var(g) in
+    QGOM_d.
 
-    rng = np.random.default_rng(seed)
+    Why a subset: a full gradient needs 2 circuit runs per weight (480 at
+    20 qubits x 4 layers), so 100 trials x 2 input sets cost ~96k
+    finite-shot 20-qubit simulations (hours). Mean per-weight variance over
+    a fixed random subset (the SAME indices for clean and attacked inputs)
+    is an unbiased estimate of the mean over all weights at ~1/20 the cost.
+    Every weight sits in a single RX/RY/RZ gate, so the pi/2 shift rule is
+    exact: dL/dw = 2 (f - t) * (f(w+pi/2) - f(w-pi/2)) / 2.
+    """
+    weights = np.asarray(weights, dtype=float).copy()
+    n_w = len(weights)
+    if weight_indices is None:
+        rng_idx = np.random.default_rng(12345)  # fixed: same weights for clean/attacked
+        k = min(n_weights_sampled, n_w)
+        weight_indices = np.sort(rng_idx.choice(n_w, size=k, replace=False))
+    weight_indices = list(weight_indices)
+
+    def f(w):
+        return float(circuit(inputs, pnp.array(w, requires_grad=False)))
+
     gradients = []
     for _ in range(n_trials):
-        # re-seed PennyLane's own sampling RNG per trial so repeated calls
-        # at IDENTICAL weights genuinely resample shot noise rather than
-        # reusing a cached result
-        qml.numpy.random.seed(int(rng.integers(0, 1_000_000)))
-        g = grad_fn(weights_pnp)
-        gradients.append(np.asarray(g, dtype=float))
+        out = f(weights)
+        g = []
+        for i in weight_indices:
+            wp, wm = weights.copy(), weights.copy()
+            wp[i] += np.pi / 2
+            wm[i] -= np.pi / 2
+            g.append(2.0 * (out - target) * 0.5 * (f(wp) - f(wm)))
+        gradients.append(g)
 
-    gradients = np.stack(gradients)  # (n_trials, n_weights)
+    gradients = np.asarray(gradients, dtype=float)  # (n_trials, n_sampled)
     per_weight_variance = np.var(gradients, axis=0, ddof=1)
     return {
         "mean_gradient_variance": float(np.mean(per_weight_variance)),
         "gradients": gradients,
         "n_trials": n_trials,
+        "weight_indices": weight_indices,
     }
 
 
@@ -133,7 +150,7 @@ def shot_noise_floor(circuit, weights: np.ndarray, inputs: np.ndarray, target: f
 
 def qgom_d(n_qubits: int, n_layers: int, entanglement: str, weights: np.ndarray,
            inputs_clean: np.ndarray, inputs_attacked: np.ndarray, target: float = 0.0,
-           shots: int = 1024, n_trials: int = 100, dev_name: str = "default.qubit",
+           shots: int = 1024, n_trials: int = 30, dev_name: str = "default.qubit",
            seed: int = 0) -> dict:
     """
     QGOM_d = 1 - Var(g_attacked) / Var(g_clean), shot-noise-floor corrected.

@@ -226,12 +226,27 @@ def fit_decay_constant(coherence_series: np.ndarray, dt: float = 1.0) -> float:
     def model(t, amplitude, decay_constant):
         return amplitude * np.exp(-t / np.maximum(decay_constant, 1e-12))
 
-    initial_guess = [coherence_series[0], dt * len(coherence_series) / 2]
+    coherence_series = np.asarray(coherence_series, dtype=float)
+    window = dt * len(coherence_series)
+    # Identifiability guard: if the series shows no measurable decay (e.g. a
+    # noise-free run, or too few steps to see any), T2 is unidentifiable and
+    # the fit returns an arbitrarily large number. A ratio of two such fits
+    # produced CTR values of 1e7 to 1e8 that then dominated CQRS. Return NaN
+    # instead; cqrs() already renormalises its weights when CTR is missing.
+    scale = float(np.max(np.abs(coherence_series))) if len(coherence_series) else 0.0
+    if scale <= 0.0 or float(np.ptp(coherence_series)) <= 1e-6 * scale:
+        return float("nan")
+    initial_guess = [coherence_series[0], window / 2]
     try:
         popt, _ = curve_fit(model, t, coherence_series, p0=initial_guess, maxfev=10000)
-        return float(popt[1])
+        t2 = float(popt[1])
     except Exception:
         return float("nan")
+    # A T2 more than 50x the observed window means the data carry no
+    # information about the decay time.
+    if not np.isfinite(t2) or t2 <= 0.0 or t2 > 50.0 * window:
+        return float("nan")
+    return t2
 
 
 def ctr(rho_clean_series: list[np.ndarray], rho_attacked_series: list[np.ndarray],

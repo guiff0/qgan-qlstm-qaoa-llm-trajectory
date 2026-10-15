@@ -67,6 +67,10 @@ from ..utils.gan_training import (
 )
 
 
+from ..utils.stage_log import apply_timing as _apply_timing
+_apply_timing(globals(), {'compute_attack_success_rate': 'attacks (FGSM/PGD/CW)', 'compute_clean_asr': 'clean-baseline ASR', 'synthetic_data_fidelity_report': 'fidelity metrics (FID/MMD/Wasserstein)', 'evaluate_poisoning_resistance': 'poisoning + model-inversion tests', 'evaluate_threat_detection': 'threat detection', 'run_resilience_suite': 'quantum resilience suite (total)', 'entanglement_metrics': 'entanglement tomography', 'measure_inference_latency': 'latency measurement'})
+
+
 class QLSTMForecaster(BaseForecastingModel):
     """
     THE QUANTUM CIRCUIT IS THE FORECASTER (no GAN, no discriminator).

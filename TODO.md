@@ -4,10 +4,65 @@ Prioritized per the 09/28-10/05 conversation. Check off as each lands;
 keep this file in sync with what's actually in the repo, not what's
 planned.
 
-**7 items waiting implementation** (everything under "Backlog" +
-"Recommended, not yet started" below). "Deliberately not code work" is
+**11 items waiting implementation** (everything under "Backlog" +
+"Recommended, not yet started" + "Found 10/12, still open" below). "Deliberately not code work" is
 a separate list — those are manuscript-text fixes, not implementation
 gaps, so they don't count toward that number.
+
+## Completed 10/12 — QGAN-LLM evaluation stall
+
+- [x] Diagnosed why QGAN-LLM evaluation never reached the results row:
+      the same 2,000 synthetic rows were generated 3x (fidelity,
+      poisoning, membership inference; ~34+28+27 min) and QGOM then ran
+      ~96k finite-shot 20-qubit circuits (full parameter-shift gradient,
+      100 trials x 2 input sets).
+- [x] `qgan_llm.py`: `generate_synthetic_data` caches rows in memory and
+      in `models/<ckpt>.synth.npy`; generation happens once and survives
+      a failed re-run.
+- [x] `gradient_obfuscation.py`: QGOM gradient over a fixed random
+      subset of 12 weights (same indices for clean/attacked), default
+      `n_trials` 100 -> 30 (~96,000 -> ~1,500 circuit runs).
+- [x] `gradient_obfuscation.py`: `shots` set via `qml.set_shots` on the
+      QNode instead of the deprecated device argument (falls back for
+      older PennyLane).
+- [ ] **Verify on your machine** (not run where patched: no PennyLane):
+      `pytest tests/test_resilience_framework.py`, then
+      `python run_pipeline.py` through M1_EFI.
+
+- [x] **CW attack never moved** (found 10/12): `delta` started at exactly 0
+      and the objective uses `-|adv - orig|`, whose gradient at 0 is 0, so
+      loss stayed `0.000e+00` and CW ASR was always 0. Now starts from a
+      tiny random delta (`attacks/adversarial.py`).
+- [x] **Poisoning degradation 56,265%** (found 10/12): compared a briefly
+      trained throwaway linear head against the fully trained model.
+      Now compared against a matched un-poisoned control head (same data,
+      recipe, seed); new `poisoning_control_rmse` column
+      (`evaluation/poisoning_resistance.py`).
+- [x] Attack suite now records `<attack>_mean_pred_shift` and
+      `<attack>_mean_input_delta` in `asr_breakdown`, to tell a broken
+      attack apart from a flip definition that never fires.
+- [x] Misleading "Trained ... from scratch | reused_checkpoint: False" log
+      line now reads "Resumed ... from a completed checkpoint" and records
+      `reused_checkpoint: True` (`run_all.py`, both GAN baselines).
+- [x] Checked "duplicate" resilience stages: NOT a bug. `statevector (NLCS)`
+      and `CTR trajectory series` each run once for clean and once for
+      attacked, by design.
+
+## Found 10/12, still open
+
+- [ ] **Re-run Classical GAN-LLM and QGAN-LLM evaluation** (results in
+      `all_results.csv` from before 10/12 have the broken CW attack and the
+      invalid poisoning degradation; both are stale). Checkpoints are reused,
+      so Classical GAN-LLM re-evaluates in ~1 min.
+- [ ] **Check `last_input_prices`**: `run_all.py` uses `X_test[:, 0]`, which
+      is only the last close if feature 0 is the raw price. With PCA-reduced
+      features it is a principal component, so the directional-flip test
+      compares a forecast to an unrelated number and may never fire. After
+      the re-run, look at `fgsm_mean_pred_shift`: if shifts are clearly > 0
+      but ASR is still 0, this is the cause.
+- [ ] Upgrade NumPy to >= 2.0 (PennyLane 0.44 deprecates NumPy < 2).
+- [ ] Publication-quality CTR (500-1000+ trajectories) still a one-off
+      manual run (see "Known limits").
 
 ## Backlog — not started
 

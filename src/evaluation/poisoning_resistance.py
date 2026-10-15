@@ -67,6 +67,10 @@ def _fit_linear_head(X: np.ndarray, y: np.ndarray, epochs: int = 20,
     return head
 
 
+from ..utils.stage_log import apply_timing as _apply_timing, stage
+_apply_timing(globals(), {'membership_inference_success': 'membership inference attack', 'invert_continuous_targets': 'label-poisoning construction'})
+
+
 def evaluate_poisoning_resistance(model, X_test: np.ndarray, y_test: np.ndarray,
                                    clean_rmse: float, seed: int = 0,
                                    fraction: float = 0.05, epochs: int = 20,
@@ -93,7 +97,15 @@ def evaluate_poisoning_resistance(model, X_test: np.ndarray, y_test: np.ndarray,
     n_synth = int(len(X_train_diag) * synthetic_ratio)
     X_mixed = X_train_diag.copy()
     if n_synth > 0 and hasattr(model, "generate_synthetic_data"):
-        synthetic = np.asarray(model.generate_synthetic_data(n_synth), dtype=np.float64)
+        # Cap generated rows and resample up to n_synth (a quantum generator costs
+        # ~0.8 s/row at 20 qubits; n_synth is ~149k -> ~35 h otherwise).
+        if max_synthetic is None:
+            max_synthetic = int(os.environ.get("GAN_EVAL_SAMPLES") or 5000)
+        n_gen = min(n_synth, max_synthetic)
+        with stage(f"poisoning: generate {n_gen:,} synthetic rows"):
+            synthetic = np.asarray(model.generate_synthetic_data(n_gen), dtype=np.float64)
+        if n_gen < n_synth:
+            synthetic = synthetic[rng.integers(0, n_gen, size=n_synth)]
         # Synthetic rows REPLACE the first n_synth rows' FEATURES only; the
         # real target at that position stays attached (standard GAN data-
         # augmentation scheme -- not a claim the generator predicts targets).
@@ -108,13 +120,24 @@ def evaluate_poisoning_resistance(model, X_test: np.ndarray, y_test: np.ndarray,
         pred = head(torch.as_tensor(X_eval_diag, dtype=torch.float32)).squeeze(-1).numpy()
     poisoned_rmse = float(np.sqrt(np.mean((pred - y_eval_diag) ** 2)))
 
+    # BUGFIX: degradation used to be (poisoned_head_rmse - full_model_rmse) /
+    # full_model_rmse, i.e. a briefly trained throwaway linear head vs. the
+    # fully trained model (-> e.g. 56,265%). That mostly measures head vs.
+    # model, not poisoning. The control below uses the IDENTICAL recipe, data
+    # mix and seed with un-poisoned targets, so the difference isolates poisoning.
+    control_head = _fit_linear_head(X_mixed, y_mixed, epochs=epochs, seed=seed)
+    with torch.no_grad():
+        control_pred = control_head(torch.as_tensor(X_eval_diag, dtype=torch.float32)).squeeze(-1).numpy()
+    control_rmse = float(np.sqrt(np.mean((control_pred - y_eval_diag) ** 2)))
+
     degradation_pct = (
-        (poisoned_rmse - clean_rmse) / clean_rmse * 100.0
-        if clean_rmse not in (None, 0) and not np.isnan(clean_rmse) else float("nan")
+        (poisoned_rmse - control_rmse) / control_rmse * 100.0
+        if control_rmse > 0 and not np.isnan(control_rmse) else float("nan")
     )
 
     result = {
         "poisoned_rmse": poisoned_rmse,
+        "poisoning_control_rmse": control_rmse,
         "poisoning_rmse_degradation_pct": degradation_pct,
         "poisoning_fraction": fraction,
         "poisoning_synthetic_ratio_used": synthetic_ratio,

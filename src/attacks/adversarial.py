@@ -94,9 +94,8 @@ def pgd_attack(model: nn.Module, X: torch.Tensor, y: torch.Tensor,
     return _directional_flip(orig_pred, adv_pred, last_input_price)
 
 
-def cw_attack(model: nn.Module, X: torch.Tensor, y: torch.Tensor,
-              c: float, steps: int, last_input_price: torch.Tensor,
-              lr: float = 0.01) -> torch.Tensor:
+def cw_perturbation(model: nn.Module, X: torch.Tensor, y: torch.Tensor,
+                    c: float, steps: int, lr: float = 0.01) -> torch.Tensor:
     """
     Simplified Carlini-Wagner L2 attack for regression outputs: minimizes
     ||delta||_2 while maximizing directional-forecast deviation, via a
@@ -104,7 +103,12 @@ def cw_attack(model: nn.Module, X: torch.Tensor, y: torch.Tensor,
     formulation adapted to a regression, not classification, target).
     """
     X_orig = X.clone().detach()
-    delta = torch.zeros_like(X_orig, requires_grad=True)
+    # BUGFIX: delta used to start at exactly 0. The objective's deviation term
+    # is -|adv_pred - orig_pred|, and d|x|/dx is 0 at x=0 in PyTorch, so the
+    # gradient was identically 0, delta never moved, loss stayed 0.000e+00 and
+    # CW ASR was always 0. A tiny random start breaks the tie.
+    gen = torch.Generator().manual_seed(0)
+    delta = (1e-3 * torch.randn(X_orig.shape, generator=gen)).to(X_orig.dtype).requires_grad_(True)
     optimizer = torch.optim.Adam([delta], lr=lr)
 
     with torch.no_grad():
@@ -126,8 +130,16 @@ def cw_attack(model: nn.Module, X: torch.Tensor, y: torch.Tensor,
         cw_bar.set_postfix(loss=f"{loss.item():.3e}")
     cw_bar.close()
 
+    return (X_orig + delta).detach()
+
+
+def cw_attack(model: nn.Module, X: torch.Tensor, y: torch.Tensor,
+              c: float, steps: int, last_input_price: torch.Tensor,
+              lr: float = 0.01) -> torch.Tensor:
+    """Simplified CW L2 attack; returns per-sample directional-flip success."""
+    X_adv = cw_perturbation(model, X, y, c, steps, lr)
     with torch.no_grad():
-        X_adv = (X_orig + delta).detach()
+        orig_pred = model(X.detach())
         adv_pred = model(X_adv)
     return _directional_flip(orig_pred, adv_pred, last_input_price)
 
@@ -166,21 +178,34 @@ def compute_attack_success_rate(model, X_test: torch.Tensor, y_test: torch.Tenso
     # progress bar fixes -- consider setting attack_cfg["n_benign_samples"]
     # (or subsampling X_test before calling this) if this is too slow for
     # QLSTMForecaster specifically.
+    with torch.no_grad():
+        orig_pred_all = model(X_test)
+
+    def _record(name, X_adv):
+        """Verdict + diagnostics from one perturbation. The mean prediction
+        shift and mean input change show whether the attack moves the model
+        at all; ASR==0 with a shift of ~0 means a broken/ineffective attack,
+        ASR==0 with a large shift means the directional-flip definition (not
+        the attack) is what never fires (e.g. last_input_prices not a price)."""
+        with torch.no_grad():
+            adv_pred = model(X_adv)
+        success = _directional_flip(orig_pred_all, adv_pred, last_input_prices)
+        results[f"{name}_asr"] = 100.0 * success.float().mean().item()
+        results[f"{name}_mean_pred_shift"] = (adv_pred - orig_pred_all).abs().mean().item()
+        results[f"{name}_mean_input_delta"] = (X_adv - X_test).abs().mean().item()
+        return success
+
     for name in progress_bar(list(attacks), total=len(attacks), desc="Attack suite", unit="attack"):
         if name == "fgsm":
-            success = fgsm_attack(model, X_test, y_test, attack_cfg["fgsm_epsilon"], last_input_prices)
-            results["fgsm_asr"] = 100.0 * success.float().mean().item()
-            all_success |= success
+            X_adv = fgsm_perturbation(model, X_test, y_test, attack_cfg["fgsm_epsilon"])
         elif name == "pgd":
-            success = pgd_attack(model, X_test, y_test, attack_cfg["pgd_epsilon"],
-                                 attack_cfg["pgd_alpha"], attack_cfg["pgd_steps"], last_input_prices)
-            results["pgd_asr"] = 100.0 * success.float().mean().item()
-            all_success |= success
+            X_adv = pgd_perturbation(model, X_test, y_test, attack_cfg["pgd_epsilon"],
+                                     attack_cfg["pgd_alpha"], attack_cfg["pgd_steps"])
         elif name == "cw":
-            success = cw_attack(model, X_test, y_test, attack_cfg["cw_c"],
-                                attack_cfg["cw_steps"], last_input_prices)
-            results["cw_asr"] = 100.0 * success.float().mean().item()
-            all_success |= success
+            X_adv = cw_perturbation(model, X_test, y_test, attack_cfg["cw_c"], attack_cfg["cw_steps"])
+        else:
+            continue
+        all_success |= _record(name, X_adv)
 
     results["overall_asr"] = 100.0 * all_success.float().mean().item()
     results["n_samples"] = n

@@ -88,6 +88,13 @@ Run:
 """
 from __future__ import annotations
 
+import time as _time
+
+
+def _ts():
+    return _time.strftime("[%Y-%m-%d %H:%M:%S]")
+
+
 import argparse
 import concurrent.futures
 import json
@@ -482,12 +489,12 @@ def run_step(step: dict, state: dict, skip_completed: bool, log_to_file: str | N
     if already_done:
         rec = state["steps"][step_id]
         with _print_lock:
-            print(f"[SKIP] {step_id} -- completed {rec.get('completed_utc', '?')} "
+            print(f"{_ts()} [SKIP] {step_id} -- completed {rec.get('completed_utc', '?')} "
                   f"({rec.get('duration_seconds', '?')}s). Artifact verified present.")
         return True
 
     with _print_lock:
-        print(f"\n{'=' * 70}\n[RUN ] {step_id} -- {step['desc']}\n"
+        print(f"\n{'=' * 70}\n{_ts()} [RUN ] {step_id} -- {step['desc']}\n"
               f"       $ {' '.join(step['cmd'])}"
               + (f"\n       (parallel; output -> {log_to_file})" if log_to_file else "")
               + f"\n{'=' * 70}")
@@ -511,11 +518,11 @@ def run_step(step: dict, state: dict, skip_completed: bool, log_to_file: str | N
                 return False
             mark_completed(state, step_id, duration,
                            detail="artifact verified" if ok else "optional step; no artifact produced")
-            print(f"[DONE] {step_id} in {duration:.1f}s")
+            print(f"{_ts()} [DONE] {step_id} in {duration:.1f}s")
             return True
 
         mark_failed(state, step_id, duration, result.returncode)
-        print(f"[FAIL] {step_id} exited with code {result.returncode} after {duration:.1f}s"
+        print(f"{_ts()} [FAIL] {step_id} exited with code {result.returncode} after {duration:.1f}s"
               + (f" -- see {log_to_file}" if log_to_file else ""))
         return False
 
