@@ -74,15 +74,23 @@ def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
     else:
         model.train(splits["X_train"], splits["y_train"], splits["X_val"], splits["y_val"], run_logger=run_logger)
         tracer.log_step("TRAIN", 1, (time.time() - t0) * 1000,
-                        {"reused_checkpoint": False, "n_train_rows": len(splits["X_train"])},
-                        f"Trained {model_name} from scratch")
+                        {"reused_checkpoint": bool(getattr(model, "resumed_from_checkpoint", False)),
+                         "n_train_rows": len(splits["X_train"])},
+                        (f"Resumed {model_name} from a completed checkpoint (no training run)"
+                         if getattr(model, "resumed_from_checkpoint", False)
+                         else f"Trained {model_name}"))
 
     attack_cfg = cfg["adversarial"]
-    # last_input_prices: last observed close price per test sequence — needed
-    # by the attack success metric's directional-flip definition. Assumes the
-    # first feature column is (or is derived from) the last observed close;
-    # adjust the index below if your feature ordering differs.
-    last_prices = splits["X_test"][:, 0]
+    # last_input_prices: last observed close per test row, needed by the
+    # attack success metric's directional-flip definition. This MUST be in the
+    # same units as the model's predictions. X_test's columns are PCA
+    # components, so X_test[:, 0] is NOT a price (it was used here before and
+    # made every directional-flip comparison meaningless, giving ASR = 0.0).
+    # y_test is the close series itself; each model's evaluate() applies
+    # shift_for_one_step_ahead (X[:-1], y[1:]) and trims last_input_prices
+    # with [:-1], so passing the UNSHIFTED y_test gives row k the close at
+    # row k, which is exactly the last observed value before the target.
+    last_prices = splits["y_test"]
 
     t0 = time.time()
     metrics = model.evaluate(

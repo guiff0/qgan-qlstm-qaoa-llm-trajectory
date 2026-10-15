@@ -79,6 +79,10 @@ from ..utils.gan_training import (
 )
 
 
+from ..utils.stage_log import apply_timing as _apply_timing
+_apply_timing(globals(), {'compute_attack_success_rate': 'attacks (FGSM/PGD/CW)', 'compute_clean_asr': 'clean-baseline ASR', 'synthetic_data_fidelity_report': 'fidelity metrics (FID/MMD/Wasserstein)', 'evaluate_poisoning_resistance': 'poisoning + model-inversion tests', 'evaluate_threat_detection': 'threat detection', 'run_resilience_suite': 'quantum resilience suite (total)', 'entanglement_metrics': 'entanglement tomography', 'measure_inference_latency': 'latency measurement'})
+
+
 class LSTMGenerator(nn.Module):
     """THE GENERATOR (classical side). noise z -> one synthetic feature
     vector. See the module docstring above for its role vs. the
@@ -232,6 +236,7 @@ class ClassicalGANLLM(BaseForecastingModel):
             start_epoch, head_mse = int(ckpt["next_epoch"]), ckpt.get("head_mse", float("nan"))
             log(f"Resuming from checkpoint {self.checkpoint_path}: next_epoch={start_epoch}/{n_epochs}"
                 + (" (training already complete -- skipping to evaluation)" if ckpt.get("completed") else ""))
+            self.resumed_from_checkpoint = bool(ckpt.get("completed"))
             if ckpt.get("completed"):
                 self.is_trained = True
                 return

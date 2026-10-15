@@ -12,4 +12,4 @@ models/*.ckpt at the last finished epoch.
 Changed: src/baselines/classical_lstm.py (adds ASR so TaLIS is defined), src/baselines/qlstm_forecaster.py, src/evaluation/metrics.py, src/evaluation/poisoning_resistance.py,
 src/quantum/circuits.py, src/baselines/classical_gan_llm.py,
 src/baselines/qgan_llm.py, config/default_config.yaml
-Added: src/quantum/pqc_runner.py, src/utils/gan_training.py, tests/test_pqc_runner.py
+Added: src/utils/stage_log.py (timestamps), src/quantum/pqc_runner.py, src/utils/gan_training.py, tests/test_pqc_runner.py
