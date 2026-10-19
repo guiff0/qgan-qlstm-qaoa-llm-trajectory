@@ -191,8 +191,12 @@ def expressibility_deficit(n_qubits: int, n_layers: int, entanglement: str,
     empirical = hist / hist.sum() if hist.sum() > 0 else np.ones(n_bins) / n_bins
     bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
 
-    haar_density = _haar_fidelity_pdf(bin_centers, dim)
-    haar_probs = haar_density / haar_density.sum()
+    # (dim-1)(1-F)^(dim-2) underflows to 0 for dim = 2^20, giving 0/0 = NaN.
+    # Normalise in log space instead.
+    log_pdf = np.log(dim - 1) + (dim - 2) * np.log1p(-np.clip(bin_centers, 0.0, 1.0 - 1e-12))
+    log_pdf = log_pdf - log_pdf.max()
+    haar_probs = np.exp(log_pdf)
+    haar_probs = haar_probs / haar_probs.sum()
 
     empirical = empirical + 1e-12
     haar_probs = haar_probs + 1e-12

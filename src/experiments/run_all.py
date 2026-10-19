@@ -97,6 +97,15 @@ def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
         splits["X_test"], splits["y_test"],
         attack_cfg=attack_cfg, last_input_prices=last_prices,
     )
+    # Naive benchmark every forecaster must beat: next close = current close.
+    # Logged on the same test split so RMSE is comparable (see Ch. 4).
+    _y = np.asarray(splits["y_test"], dtype=float).flatten()
+    if len(_y) > 1:
+        metrics["persistence_rmse"] = float(np.sqrt(np.mean((_y[1:] - _y[:-1]) ** 2)))
+        if metrics.get("rmse") is not None and metrics["persistence_rmse"] > 0:
+            metrics["rmse_over_persistence"] = float(metrics["rmse"]) / metrics["persistence_rmse"]
+    # Marks rows whose ASR was scored against the last close (legacy rows lack this).
+    metrics["asr_baseline"] = "last_close"
     tracer.log_step("EVALUATE", 2, (time.time() - t0) * 1000, metrics,
                     f"Evaluated {model_name} on {len(splits['X_test']):,} test rows")
 

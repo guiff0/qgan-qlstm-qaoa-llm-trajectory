@@ -298,7 +298,11 @@ def _model_has_result(cfg: dict, model_name: str) -> bool:
     try:
         import pandas as pd
         df = pd.read_csv(csv_path)
-        return bool((df.get("model_type") == model_name).any())
+        # Match on the run_id slug, not model_type: every QGAN-LLM ablation
+        # config is recorded as model_type "QGAN-LLM", so the old check never
+        # succeeded for "(12-qubit)", "(linear topology)" or "(no noise)".
+        from src.utils.run_identity import config_of_run_id, model_slug
+        return bool((df["run_id"].map(config_of_run_id) == model_slug(model_name)).any())
     except Exception:
         return False
 

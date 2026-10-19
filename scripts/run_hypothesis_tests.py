@@ -33,6 +33,7 @@ from src.evaluation.statistical_tests import (
 )
 from src.evaluation.mediation_pipelines import run_m2_dv2_mediation
 from src.metrics.resilience import cqrs, qar
+from src.utils.run_identity import config_of_run_id, latest_per_config
 
 QGAN, CGAN = "QGAN-LLM", "Classical GAN-LLM"
 
@@ -74,6 +75,8 @@ def test_h2_adversarial_resilience(df: pd.DataFrame) -> dict:
     if not cols.issubset(df.columns):
         return {"error": "need entanglement_entropy and asr columns"}
     sub = df.dropna(subset=list(cols))
+    if "asr_baseline" in sub.columns:
+        sub = sub[sub["asr_baseline"] == "last_close"]  # legacy rows used a PCA component
     return _safe(pearson_correlation_with_ci, sub["entanglement_entropy"].to_numpy(),
                  sub["asr"].to_numpy(), need_n=4)
 
@@ -82,9 +85,13 @@ def test_h3_poisoning_resistance(df: pd.DataFrame) -> dict:
     col = "poisoning_rmse_degradation_pct"
     if col not in df.columns:
         return {"error": f"need '{col}' column (see src/evaluation/poisoning_resistance.py)"}
-    is_no_noise = df["model_type"].str.contains("no noise", case=False, na=False)
-    no_noise = df.loc[is_no_noise, col].dropna().to_numpy()
-    noisy = df.loc[~is_no_noise, col].dropna().to_numpy()
+    # Group by the recorded noise_strength (model_type is "QGAN-LLM" for every
+    # ablation config and never contains "no noise").
+    if "noise_strength" not in df.columns:
+        return {"error": "need a 'noise_strength' column"}
+    q = df[(df["model_type"] == QGAN) & df["noise_strength"].notna()]
+    no_noise = q.loc[q["noise_strength"] == 0, col].dropna().to_numpy()
+    noisy = q.loc[q["noise_strength"] > 0, col].dropna().to_numpy()
     result = _safe(independent_ttest, no_noise, noisy, need_n=2)
     result["interpretation"] = ("positive t (no_noise mean > noisy mean) supports Ha3: "
                                  "noise injection -> lower poisoning degradation")
@@ -140,7 +147,7 @@ def test_m2_dv2_mediation(df: pd.DataFrame) -> dict:
     if len(sub) < 4:
         return {"error": f"insufficient data: need >= 4 observations, have {len(sub)}"}
     sub["model_config"] = sub["model_type"].str.contains("QGAN|QLSTM|QAOA", case=False, na=False).astype(int)
-    is_linear = sub["model_type"].str.contains("linear", case=False, na=False)
+    is_linear = sub["run_id"].map(config_of_run_id).str.contains("linear", na=False)
     sub["entanglement_topology"] = np.where(is_linear, "linear", "ring")
     try:
         result = run_m2_dv2_mediation(sub["model_config"].to_numpy(),
@@ -206,13 +213,23 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--results-csv", default="results/all_results.csv")
     ap.add_argument("--out", default="results/hypothesis_test_results.json")
+    ap.add_argument("--no-dedupe", action="store_true",
+                    help="count every row (re-evaluations included) as an observation")
     args = ap.parse_args()
 
     if not os.path.exists(args.results_csv):
         raise SystemExit(f"{args.results_csv} not found -- run the pipeline first.")
     df = pd.read_csv(args.results_csv)
+    n_raw = len(df)
+    if not args.no_dedupe:
+        # Re-evaluations of one checkpoint are not independent observations.
+        df = latest_per_config(df)
+    if "asr_baseline" in df.columns:
+        legacy = df["asr_baseline"].isna()
+        df.loc[legacy, ["asr", "asr_clean"]] = float("nan")  # scored against a non-price column
 
     out = {
+        "n_rows_raw": n_raw,
         "n_rows": len(df),
         "n_runs_per_model": df.groupby("model_type").size().to_dict() if "model_type" in df.columns else {},
         "H1_synthetic_data_fidelity": test_h1_synthetic_data_fidelity(df),

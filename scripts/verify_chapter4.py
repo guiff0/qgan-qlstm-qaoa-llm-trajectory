@@ -23,6 +23,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.experiments.results_collector import ResultsCollector
+from src.utils.run_identity import model_slug
 from src.utils.config import load_config
 
 
@@ -42,7 +43,7 @@ DISSERTATION_CLAIMS = {
 
 def compare_value(model, metric, claimed, actual):
     if claimed is None:
-        return f"  {model:<28} {metric:<6} claimed=(none given)   actual={actual}"
+        return f"  {model:<28} {metric:<6} claimed=(none given)   actual={actual}  [ASR is in percent]"
     if actual is None:
         return f"  {model:<28} {metric:<6} claimed={claimed:<10} actual=(no run found)"
     pct_diff = 100 * abs(actual - claimed) / claimed if claimed != 0 else float("inf")
@@ -54,7 +55,8 @@ def main():
     cfg = load_config()
     results_dir = cfg.get("logging", {}).get("results_dir", "results")
     collector = ResultsCollector(results_dir=results_dir)
-    summary = collector.summary_table().set_index("model_type")
+    # one row per CONFIGURATION (latest run), keyed by the run_id slug
+    summary = collector.summary_table().set_index("config")
 
     print("=" * 90)
     print("CHAPTER 4 VERIFICATION — actual run output vs. dissertation claims")
@@ -66,8 +68,9 @@ def main():
     for model, claims in DISSERTATION_CLAIMS.items():
         for metric, claimed_val in claims.items():
             actual_val = None
-            if model in summary.index and metric in summary.columns:
-                val = summary.loc[model, metric]
+            key = model_slug(model)
+            if key in summary.index and metric in summary.columns:
+                val = summary.loc[key, metric]
                 actual_val = None if (val != val) else float(val)  # NaN check
             line = compare_value(model, metric, claimed_val, actual_val)
             print(line)

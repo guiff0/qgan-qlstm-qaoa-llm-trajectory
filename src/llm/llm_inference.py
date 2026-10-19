@@ -6,7 +6,7 @@ a prediction. Without this, "an LLM forecasts" had no code path at all,
 fine-tuned or not.
 
 CANNOT BE VERIFIED FROM THIS SESSION: this sandbox has no
-NVIDIA_API_KEY and no network route to api.nvidia.com (its egress
+NVIDIA_API_KEY and no network route to integrate.api.nvidia.com (its egress
 allowlist is a fixed set of package/doc hosts — see the system
 prompt's network_configuration). Every function below is written
 against NVIDIA's standard OpenAI-compatible chat-completions shape
@@ -62,7 +62,7 @@ def parse_forecast_response(text: str) -> float | None:
 
 
 def query_llm_forecast(recent_closes: list[float], model_id: str, horizon_minutes: int = 1,
-                        api_base: str = "https://api.nvidia.com/v1", timeout: int = 30) -> float:
+                        api_base: str = "https://integrate.api.nvidia.com/v1", timeout: int = 30) -> float:
     """
     Queries model_id for a one-step-ahead forecast. Raises
     NvidiaApiKeyMissingError if NVIDIA_API_KEY isn't set (never falls
