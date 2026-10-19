@@ -4,106 +4,106 @@
   "steps": {
     "verify_environment": {
       "status": "completed",
-      "completed_utc": "2026-10-12T23:41:22Z",
-      "duration_seconds": 7.0,
+      "completed_utc": "2026-10-15T21:50:01Z",
+      "duration_seconds": 7.2,
       "detail": "optional step; no artifact produced"
     },
     "acquire_dukascopy": {
       "status": "completed",
-      "completed_utc": "2026-10-08T06:33:25Z",
-      "duration_seconds": 407.8,
+      "completed_utc": "2026-10-15T21:50:04Z",
+      "duration_seconds": 2.2,
       "detail": "artifact verified"
     },
     "acquire_xval": {
       "status": "completed",
-      "completed_utc": "2026-10-08T06:34:52Z",
-      "duration_seconds": 86.3,
+      "completed_utc": "2026-10-15T21:50:05Z",
+      "duration_seconds": 1.1,
       "detail": "artifact verified"
     },
     "acquire_fred": {
       "status": "completed",
-      "completed_utc": "2026-10-08T06:34:57Z",
-      "duration_seconds": 5.0,
+      "completed_utc": "2026-10-15T21:50:06Z",
+      "duration_seconds": 1.2,
       "detail": "artifact verified"
     },
     "prepare_data": {
       "status": "completed",
-      "completed_utc": "2026-10-08T06:35:55Z",
-      "duration_seconds": 58.2,
+      "completed_utc": "2026-10-15T21:51:02Z",
+      "duration_seconds": 56.4,
       "detail": "artifact verified"
     },
     "train_eval:Classical LSTM": {
       "status": "completed",
-      "completed_utc": "2026-10-09T04:14:14Z",
-      "duration_seconds": 77898.7,
+      "completed_utc": "2026-10-16T18:29:43Z",
+      "duration_seconds": 74320.5,
       "detail": "artifact verified"
     },
     "train_eval:Classical GAN-LLM": {
       "status": "completed",
-      "completed_utc": "2026-10-10T05:31:37Z",
-      "duration_seconds": 89.0,
+      "completed_utc": "2026-10-16T18:30:37Z",
+      "duration_seconds": 54.3,
       "detail": "artifact verified"
     },
     "train_eval:QGAN-LLM": {
       "status": "completed",
-      "completed_utc": "2026-10-13T00:39:37Z",
-      "duration_seconds": 3495.6,
+      "completed_utc": "2026-10-16T18:57:48Z",
+      "duration_seconds": 1630.6,
       "detail": "artifact verified"
     },
     "train_eval:QLSTM Forecaster": {
       "status": "completed",
-      "completed_utc": "2026-10-14T02:52:02Z",
-      "duration_seconds": 94344.9,
+      "completed_utc": "2026-10-17T08:54:47Z",
+      "duration_seconds": 50219.2,
       "detail": "artifact verified"
     },
     "train_eval:QGAN-LLM (12-qubit)": {
       "status": "failed",
-      "failed_utc": "2026-10-14T06:37:03Z",
-      "duration_seconds": 10485.0,
+      "failed_utc": "2026-10-17T12:31:19Z",
+      "duration_seconds": 9627.4,
       "returncode": 0
     },
     "train_eval:QGAN-LLM (linear topology)": {
       "status": "failed",
-      "failed_utc": "2026-10-14T20:01:12Z",
-      "duration_seconds": 48248.9,
+      "failed_utc": "2026-10-17T12:59:03Z",
+      "duration_seconds": 1664.3,
       "returncode": 0
     },
     "train_eval:QGAN-LLM (no noise)": {
       "status": "failed",
-      "failed_utc": "2026-10-15T08:26:49Z",
-      "duration_seconds": 44737.8,
+      "failed_utc": "2026-10-17T13:26:50Z",
+      "duration_seconds": 1667.1,
       "returncode": 0
     },
     "verify_chapter4": {
       "status": "completed",
-      "completed_utc": "2026-10-15T08:26:52Z",
-      "duration_seconds": 2.3,
+      "completed_utc": "2026-10-17T13:26:52Z",
+      "duration_seconds": 2.1,
       "detail": "artifact verified"
     },
     "train_eval:QAOA-Enhanced LLM": {
       "status": "completed",
-      "completed_utc": "2026-10-14T03:42:02Z",
-      "duration_seconds": 3000.0,
+      "completed_utc": "2026-10-17T09:50:31Z",
+      "duration_seconds": 3343.7,
       "detail": "artifact verified"
     },
     "train_eval:LLM Forecaster": {
       "status": "completed",
-      "completed_utc": "2026-10-14T03:42:18Z",
-      "duration_seconds": 15.7,
+      "completed_utc": "2026-10-17T09:50:51Z",
+      "duration_seconds": 20.5,
       "detail": "artifact verified"
     },
     "run_hypothesis_tests": {
       "status": "completed",
-      "completed_utc": "2026-10-15T08:26:59Z",
-      "duration_seconds": 7.2,
+      "completed_utc": "2026-10-17T13:27:00Z",
+      "duration_seconds": 7.6,
       "detail": "artifact verified"
     },
     "scan_logs_for_pii": {
       "status": "completed",
-      "completed_utc": "2026-10-15T08:27:00Z",
-      "duration_seconds": 1.2,
+      "completed_utc": "2026-10-17T13:27:01Z",
+      "duration_seconds": 1.3,
       "detail": "artifact verified"
     }
   },
-  "updated_utc": "2026-10-15T08:27:00Z"
+  "updated_utc": "2026-10-17T13:27:01Z"
 }

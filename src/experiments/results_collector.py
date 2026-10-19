@@ -57,11 +57,12 @@ class ResultsCollector:
         # column independently, so if the newest run had asr=NaN it silently
         # inherited asr from an OLDER run -- a row stitched from different runs,
         # contradicting this docstring. Keep the single newest row instead.
-        return (
-            self.df.sort_values("run_id")
-            .drop_duplicates(subset="model_type", keep="last")
-            .reset_index(drop=True)
-        )
+        from src.utils.run_identity import config_of_run_id
+        d = self.df.copy()
+        d["config"] = d["run_id"].map(config_of_run_id)
+        d["_ts"] = d["run_id"].astype(str).str.extract(r"(\d{8}T\d{6}Z)$")[0]
+        d = d.sort_values("_ts").drop_duplicates(subset="config", keep="last")
+        return d.drop(columns="_ts").reset_index(drop=True)
 
     def export_chapter4_tables(self) -> dict:
         """

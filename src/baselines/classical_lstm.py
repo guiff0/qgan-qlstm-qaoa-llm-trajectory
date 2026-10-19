@@ -281,8 +281,8 @@ class ClassicalLSTM(BaseForecastingModel):
         ASR (needed for TaLIS, which is NaN without it): the attacks perturb
         the whole input window (L-inf budget epsilon on every one of the
         sequence_length x n_features entries) of `attack_samples` randomly
-        chosen windows (fixed seed). last_input_price is the first feature of
-        the window's final row, same convention as run_all.py's other models.
+        chosen windows (fixed seed). last_input_price is the unshifted close at the window's
+        final row (run_all.py passes y_test), same as the other models.
         Threat detection is not run here: its classifier expects flat 2-D rows,
         not windows."""
         seq_len = self.config["sequence_length"]
@@ -304,7 +304,16 @@ class ClassicalLSTM(BaseForecastingModel):
             X_w = torch.from_numpy(np.ascontiguousarray(view[sel]))
             y_w = torch.tensor(y_test_arr[sel], dtype=torch.float32)
             X_np = np.asarray(X_test, dtype=np.float32)
-            last_w = torch.tensor(X_np[sel + seq_len - 1, 0], dtype=torch.float32)
+            if last_input_prices is not None:
+                # The window ending at row k predicts the close at row k+1, so the
+                # last observed close is the UNSHIFTED y_test value at row k.
+                lp = np.asarray(last_input_prices, dtype=np.float32).flatten()
+                last_w = torch.tensor(lp[sel + seq_len - 1], dtype=torch.float32)
+            else:
+                import warnings
+                warnings.warn("last_input_prices not given: falling back to PCA component 0, "
+                              "which is NOT a price; the resulting ASR is not valid.")
+                last_w = torch.tensor(X_np[sel + seq_len - 1, 0], dtype=torch.float32)
             asr_report = compute_attack_success_rate(
                 self._forward, X_w, y_w, last_w, attack_cfg,
                 attacks=attack_cfg.get("attacks", ["fgsm", "pgd", "cw"]),

@@ -371,7 +371,7 @@ llm_forecaster:
   # default, small test subsample, unverified against a live endpoint
   # from this development session).
   model_id: "meta/llama-3.3-70b-instruct"
-  api_base: "https://api.nvidia.com/v1"
+  api_base: "https://integrate.api.nvidia.com/v1"
   window_size: 10
   horizon_minutes: 1
   max_llm_calls: 20
