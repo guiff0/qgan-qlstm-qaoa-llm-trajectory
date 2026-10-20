@@ -1,0 +1,1 @@
+{"run_id": "qlstm_forecaster_20261020T042437Z", "timestamp_utc": "2026-10-20T04:24:40Z", "phase": "TRAIN", "step_id": 1, "execution_time_ms": 2510.818, "memory_usage_mb": 1222.89, "metrics": {"reused_checkpoint": false, "n_train_rows": 3715921}, "severity": "INFO", "message": "Trained QLSTM Forecaster"}

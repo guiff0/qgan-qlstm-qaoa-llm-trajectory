@@ -1,0 +1,39 @@
+{
+  "run_id": "llm_forecaster_20261017T095037Z",
+  "environment": {
+    "python_version": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.22000-SP0",
+    "timestamp_utc": "2026-10-17T09:50:37.778212+00:00",
+    "git_commit": "b0a6bcc03bd1b8b4b9cf506a890ffba1cfa47f4a",
+    "torch_version": "2.5.1+cu121",
+    "pennylane_version": "0.44.1",
+    "numpy_version": "1.26.4",
+    "scipy_version": "1.17.1",
+    "pandas_version": "3.0.6"
+  },
+  "config_used": {
+    "model_id": "meta/llama-3.3-70b-instruct",
+    "api_base": "https://api.nvidia.com/v1",
+    "window_size": 10,
+    "horizon_minutes": 1,
+    "max_llm_calls": 20,
+    "query_fn": null
+  },
+  "training_history": [],
+  "final_metrics": {
+    "n_llm_samples": 0,
+    "n_llm_errors": 20,
+    "llm_errors_sample": [
+      "HTTPSConnectionPool(host='api.nvidia.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by SSLError(SSLCertVerificationError(1, \"[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'api.nvidia.com'. (_ssl.c:1006)\")))",
+      "HTTPSConnectionPool(host='api.nvidia.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by SSLError(SSLCertVerificationError(1, \"[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'api.nvidia.com'. (_ssl.c:1006)\")))",
+      "HTTPSConnectionPool(host='api.nvidia.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by SSLError(SSLCertVerificationError(1, \"[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'api.nvidia.com'. (_ssl.c:1006)\")))",
+      "HTTPSConnectionPool(host='api.nvidia.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by SSLError(SSLCertVerificationError(1, \"[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'api.nvidia.com'. (_ssl.c:1006)\")))",
+      "HTTPSConnectionPool(host='api.nvidia.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by SSLError(SSLCertVerificationError(1, \"[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'api.nvidia.com'. (_ssl.c:1006)\")))"
+    ],
+    "model_id": "meta/llama-3.3-70b-instruct",
+    "rmse": NaN,
+    "mae": NaN,
+    "talis_score": NaN,
+    "seed": 42
+  }
+}

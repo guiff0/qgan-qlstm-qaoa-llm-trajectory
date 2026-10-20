@@ -72,13 +72,13 @@ models/*
 # ==============================================================================
 # Experiment Logs, Traces, and Execution Outputs
 # ==============================================================================
-logs/*
-!logs/.gitkeep
-*.log
-*.jsonl
-results/*.csv
-results/*.json
-!results/.gitkeep
+#logs/*
+#!logs/.gitkeep
+#*.log
+#*.jsonl
+#results/*.csv
+#results/*.json
+#!results/.gitkeep
 
 # ==============================================================================
 # API Keys, Environment Variables, and Secrets

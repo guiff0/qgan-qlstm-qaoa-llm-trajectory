@@ -140,6 +140,7 @@ class ClassicalGANLLM(BaseForecastingModel):
             "epochs": 30,
             "synthetic_ratio": 0.4,
             "n_critic": 2,
+            "mse_weight": 0.1,               # weight of the MSE-to-real-batch term; MUST equal qgan_llm.alpha
             "max_batches_per_epoch": None,   # None = full pass over the training set
             "eval_samples": 20000,           # rows used for synthetic-fidelity metrics
             "resume": True,                  # resume/skip from models/*.ckpt when config+seed match
@@ -195,7 +196,7 @@ class ClassicalGANLLM(BaseForecastingModel):
         fake_out = self.discriminator(fake)
         adv_loss = self.criterion(fake_out, torch.ones(batch_size, 1))
         mse_loss = self.mse_loss(fake, real_batch)
-        g_loss = adv_loss + 0.1 * mse_loss
+        g_loss = adv_loss + self.config["mse_weight"] * mse_loss
 
         self.g_optimizer.zero_grad()
         g_loss.backward()

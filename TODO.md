@@ -9,6 +9,13 @@ planned.
 a separate list — those are manuscript-text fixes, not implementation
 gaps, so they don't count toward that number.
 
+## Added 10/19 — no-advantage diagnosis
+
+- [x] Diagnosis, diagnostics module, feature-map experiment, alpha/mse_weight match (see CHANGES_OCT19.md).
+- [ ] **Run** `python -m scripts.run_feature_map_experiment` on data/processed (5 seeds) and report in Ch. 4.
+- [ ] Re-run GAN-LLM / QGAN-LLM after the alpha change (fingerprints changed).
+- [ ] Add ZZ read-out to QLSTMGenerator to lift the rank bound.
+
 ## Completed 10/12 — QGAN-LLM evaluation stall
 
 - [x] Diagnosed why QGAN-LLM evaluation never reached the results row:

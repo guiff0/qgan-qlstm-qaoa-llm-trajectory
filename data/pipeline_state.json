@@ -4,57 +4,55 @@
   "steps": {
     "verify_environment": {
       "status": "completed",
-      "completed_utc": "2026-10-15T21:50:01Z",
+      "completed_utc": "2026-10-19T02:55:00Z",
       "duration_seconds": 7.2,
       "detail": "optional step; no artifact produced"
     },
     "acquire_dukascopy": {
       "status": "completed",
-      "completed_utc": "2026-10-15T21:50:04Z",
+      "completed_utc": "2026-10-19T02:55:02Z",
       "duration_seconds": 2.2,
       "detail": "artifact verified"
     },
     "acquire_xval": {
       "status": "completed",
-      "completed_utc": "2026-10-15T21:50:05Z",
+      "completed_utc": "2026-10-19T02:55:03Z",
       "duration_seconds": 1.1,
       "detail": "artifact verified"
     },
     "acquire_fred": {
       "status": "completed",
-      "completed_utc": "2026-10-15T21:50:06Z",
-      "duration_seconds": 1.2,
+      "completed_utc": "2026-10-19T02:55:04Z",
+      "duration_seconds": 1.1,
       "detail": "artifact verified"
     },
     "prepare_data": {
       "status": "completed",
-      "completed_utc": "2026-10-15T21:51:02Z",
-      "duration_seconds": 56.4,
+      "completed_utc": "2026-10-19T02:56:01Z",
+      "duration_seconds": 56.8,
       "detail": "artifact verified"
     },
     "train_eval:Classical LSTM": {
       "status": "completed",
-      "completed_utc": "2026-10-16T18:29:43Z",
-      "duration_seconds": 74320.5,
+      "completed_utc": "2026-10-20T03:47:21Z",
+      "duration_seconds": 89479.5,
       "detail": "artifact verified"
     },
     "train_eval:Classical GAN-LLM": {
       "status": "completed",
-      "completed_utc": "2026-10-16T18:30:37Z",
-      "duration_seconds": 54.3,
+      "completed_utc": "2026-10-20T03:48:30Z",
+      "duration_seconds": 69.4,
       "detail": "artifact verified"
     },
     "train_eval:QGAN-LLM": {
       "status": "completed",
-      "completed_utc": "2026-10-16T18:57:48Z",
-      "duration_seconds": 1630.6,
+      "completed_utc": "2026-10-20T04:24:29Z",
+      "duration_seconds": 2158.7,
       "detail": "artifact verified"
     },
     "train_eval:QLSTM Forecaster": {
-      "status": "completed",
-      "completed_utc": "2026-10-17T08:54:47Z",
-      "duration_seconds": 50219.2,
-      "detail": "artifact verified"
+      "status": "running",
+      "started_utc": "2026-10-20T04:24:29Z"
     },
     "train_eval:QGAN-LLM (12-qubit)": {
       "status": "failed",
@@ -105,5 +103,5 @@
       "detail": "artifact verified"
     }
   },
-  "updated_utc": "2026-10-17T13:27:01Z"
+  "updated_utc": "2026-10-20T04:24:29Z"
 }
