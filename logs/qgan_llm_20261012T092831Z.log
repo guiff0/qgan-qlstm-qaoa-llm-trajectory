@@ -1,0 +1,3 @@
+2026-10-12 05:28:32,089 | INFO | Starting training run for QGAN-LLM (run_id=qgan_llm_20261012T092831Z)
+2026-10-12 05:28:35,413 | INFO | Resuming from checkpoint models\qgan_llm_79d5bd41bd.ckpt: next_epoch=30/30 (training already complete -- skipping to evaluation)
+2026-10-12 05:28:35,421 | INFO | [TRAIN] step 1 | 3323.9ms | Trained QGAN-LLM from scratch | {'reused_checkpoint': False, 'n_train_rows': 3715921}

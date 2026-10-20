@@ -119,6 +119,8 @@ classical_gan_llm:
   n_critic: 2
   # Number of discriminator update steps performed per generator update
   # step, per batch.
+  mse_weight: 0.1
+  # Weight of the generator's MSE-to-real-batch term; identical to qgan_llm.alpha on purpose.
   # ---- COMPUTE BUDGET (identical in classical_gan_llm and qgan_llm on purpose) ----
   max_batches_per_epoch: 20
   # Batches drawn per epoch (null = full pass over all 3.7M rows). 30 epochs x 20
@@ -163,7 +165,9 @@ qgan_llm:
   # comparability between the two baselines.
   n_critic: 2
   # Discriminator steps per generator step, matching classical_gan_llm.
-  alpha: 10.0                    # MSE loss weight in composite generator loss
+  alpha: 0.1                     # MSE loss weight in composite generator loss. MUST equal classical_gan_llm.mse_weight
+  # (was 10.0 while the classical generator used 0.1: a 100x mismatch that shrank the quantum
+  # generator's output variance and confounded the fidelity comparison; see CHANGES_OCT19.md).
   # Weight applied to the generator's MSE-to-real-data term relative to its
   # adversarial (fool-the-discriminator) loss term.
   quantum_device: "lightning.qubit"  # switched from default.qubit — see notes below on OOM at n_qubits=20/batch=64

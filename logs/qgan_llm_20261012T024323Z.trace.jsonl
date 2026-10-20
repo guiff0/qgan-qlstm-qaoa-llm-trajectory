@@ -1,0 +1,1 @@
+{"run_id": "qgan_llm_20261012T024323Z", "timestamp_utc": "2026-10-12T02:43:26Z", "phase": "TRAIN", "step_id": 1, "execution_time_ms": 1949.852, "memory_usage_mb": 1229.89, "metrics": {"reused_checkpoint": false, "n_train_rows": 3715921}, "severity": "INFO", "message": "Trained QGAN-LLM from scratch"}

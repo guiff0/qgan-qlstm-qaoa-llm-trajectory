@@ -34,6 +34,7 @@ from src.evaluation.statistical_tests import (
 from src.evaluation.mediation_pipelines import run_m2_dv2_mediation
 from src.metrics.resilience import cqrs, qar
 from src.utils.run_identity import config_of_run_id, latest_per_config
+from src.evaluation.advantage_diagnostics import find_degenerate_groups
 
 QGAN, CGAN = "QGAN-LLM", "Classical GAN-LLM"
 
@@ -106,13 +107,26 @@ def test_h4_quantum_advantage(df: pd.DataFrame) -> dict:
     if "rmse" in df.columns:
         a_rmse = df.loc[df["model_type"] == QGAN, "rmse"].dropna().to_numpy()
         b_rmse = df.loc[df["model_type"] == CGAN, "rmse"].dropna().to_numpy()
-        result["rmse"] = _safe(independent_ttest, a_rmse, b_rmse, need_n=2)
+        _deg = find_degenerate_groups({"quantum": a_rmse, "classical": b_rmse})
+        if _deg["degenerate"]:
+            # Identical RMSE in both groups means the forecast does not depend on the
+            # quantum circuit (GAN-LLM head is fitted on real rows only). Say so
+            # instead of emitting a NaN t-statistic.
+            result["rmse"] = {"status": "degenerate", "reason": _deg["reason"],
+                              "mean_a": float(np.mean(a_rmse)) if len(a_rmse) else None,
+                              "mean_b": float(np.mean(b_rmse)) if len(b_rmse) else None}
+        else:
+            result["rmse"] = _safe(independent_ttest, a_rmse, b_rmse, need_n=2)
     else:
         result["rmse"] = {"error": "no 'rmse' column"}
     if "asr" in df.columns:
         a_asr = df.loc[df["model_type"] == QGAN, "asr"].dropna().to_numpy()
         b_asr = df.loc[df["model_type"] == CGAN, "asr"].dropna().to_numpy()
-        result["asr"] = _safe(independent_ttest, a_asr, b_asr, need_n=2)
+        _dega = find_degenerate_groups({"quantum": a_asr, "classical": b_asr})
+        if _dega["degenerate"]:
+            result["asr"] = {"status": "degenerate", "reason": _dega["reason"]}
+        else:
+            result["asr"] = _safe(independent_ttest, a_asr, b_asr, need_n=2)
     else:
         result["asr"] = {"error": "no 'asr' column"}
     result["caveat"] = ("RMSE here now reflects the fixed one-step-ahead target "

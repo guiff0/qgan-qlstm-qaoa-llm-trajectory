@@ -1,0 +1,91 @@
+{
+  "C1_forecast_path": {
+    "rmse_degenerate": {
+      "degenerate": true,
+      "reason": "all 11 observations are identical (value=0.000612877); the quantity does not depend on the model under test, so no test statistic exists",
+      "n_unique": 1
+    },
+    "n_distinct_rmse_values_across_GAN_runs": 1,
+    "explanation": "forecast_head is fitted by closed-form least squares on REAL rows (utils/gan_training.fit_linear_head_closed_form) and is the only module used at inference; the generator never reaches it."
+  },
+  "C2_generator_rank": {
+    "n_features": 32,
+    "rank_bound_20q_z": 20,
+    "rank_bound_12q_z": 12,
+    "observed": [
+      {
+        "file": "qgan_llm_1dd753031b.synth.npy",
+        "shape": [
+          2000,
+          32
+        ],
+        "numerical_rank": 12,
+        "effective_rank": 6.04,
+        "per_feature_sd_min": 0.06889144331216812,
+        "per_feature_sd_max": 0.21839727461338043
+      },
+      {
+        "file": "qgan_llm_79d5bd41bd.synth.npy",
+        "shape": [
+          2000,
+          32
+        ],
+        "numerical_rank": 20,
+        "effective_rank": 6.53,
+        "per_feature_sd_min": 0.04720234498381615,
+        "per_feature_sd_max": 0.1334887146949768
+      },
+      {
+        "file": "qgan_llm_7b5dd2df6a.synth.npy",
+        "shape": [
+          2000,
+          32
+        ],
+        "numerical_rank": 20,
+        "effective_rank": 9.94,
+        "per_feature_sd_min": 0.10703383386135101,
+        "per_feature_sd_max": 0.23779506981372833
+      },
+      {
+        "file": "qgan_llm_a0fa7de375.synth.npy",
+        "shape": [
+          2000,
+          32
+        ],
+        "numerical_rank": 20,
+        "effective_rank": 6.55,
+        "per_feature_sd_min": 0.05257229134440422,
+        "per_feature_sd_max": 0.13149133324623108
+      }
+    ]
+  },
+  "C3_loss_weight": {
+    "qgan_alpha_in_current_config": 0.1,
+    "classical_mse_weight_in_current_config": 0.1,
+    "legacy_ratio_alpha_over_mse_weight": 100.0,
+    "note": "runs in all_results.csv used alpha=10.0 (QGAN) vs 0.1 (classical)."
+  },
+  "C4_capacity": {
+    "classical_generator_params": 87072,
+    "qgan_20q_params": 912,
+    "qgan_12q_params": 560,
+    "ratio_classical_over_qgan_20q": 95.5
+  },
+  "C5_budget": {
+    "gan": {
+      "rows_per_epoch": 320,
+      "max_row_visits": 9600,
+      "max_distinct_rows": 9600,
+      "fraction_of_train_set": 0.002583477958761771
+    },
+    "classical_lstm_for_contrast": "full pass, early stopping (12-19 epochs over 3.7M rows)"
+  },
+  "C6_replication": {
+    "n_seeds_in_results": 1,
+    "independent_configs": 9,
+    "note": "one seed -> no variance estimate for any quantum-vs-classical contrast"
+  },
+  "C7_simulation": {
+    "statement": "All circuits are classically simulated; wall-clock speed-up is impossible by construction. The only testable question is whether the circuit's function class helps at equal capacity."
+  }
+}

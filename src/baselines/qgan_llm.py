@@ -96,7 +96,7 @@ class QGANLLM(BaseForecastingModel):
             "epochs": 30,
             "synthetic_ratio": 0.4,
             "n_critic": 2,
-            "alpha": 10.0,
+            "alpha": 0.1,                    # = classical_gan_llm.mse_weight (was 10.0: 100x mismatch, see CHANGES_OCT19.md)
             "quantum_device": "default.qubit",
             "max_batches_per_epoch": None,   # None = full pass over the training set
             "eval_samples": 20000,           # rows used for synthetic-fidelity metrics
