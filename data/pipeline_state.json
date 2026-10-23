@@ -51,43 +51,45 @@
       "detail": "artifact verified"
     },
     "train_eval:QLSTM Forecaster": {
-      "status": "running",
-      "started_utc": "2026-10-20T04:24:29Z"
+      "status": "completed",
+      "completed_utc": "2026-10-20T23:59:47Z",
+      "duration_seconds": 70517.5,
+      "detail": "artifact verified"
     },
     "train_eval:QGAN-LLM (12-qubit)": {
-      "status": "failed",
-      "failed_utc": "2026-10-17T12:31:19Z",
-      "duration_seconds": 9627.4,
-      "returncode": 0
+      "status": "completed",
+      "completed_utc": "2026-10-21T06:01:34Z",
+      "duration_seconds": 16442.1,
+      "detail": "artifact verified"
     },
     "train_eval:QGAN-LLM (linear topology)": {
-      "status": "failed",
-      "failed_utc": "2026-10-17T12:59:03Z",
-      "duration_seconds": 1664.3,
-      "returncode": 0
+      "status": "completed",
+      "completed_utc": "2026-10-21T23:44:36Z",
+      "duration_seconds": 63782.0,
+      "detail": "artifact verified"
     },
     "train_eval:QGAN-LLM (no noise)": {
-      "status": "failed",
-      "failed_utc": "2026-10-17T13:26:50Z",
-      "duration_seconds": 1667.1,
-      "returncode": 0
+      "status": "completed",
+      "completed_utc": "2026-10-22T17:46:00Z",
+      "duration_seconds": 64883.5,
+      "detail": "artifact verified"
     },
     "verify_chapter4": {
-      "status": "completed",
-      "completed_utc": "2026-10-17T13:26:52Z",
-      "duration_seconds": 2.1,
-      "detail": "artifact verified"
+      "status": "failed",
+      "failed_utc": "2026-10-22T17:46:03Z",
+      "duration_seconds": 3.8,
+      "returncode": 1
     },
     "train_eval:QAOA-Enhanced LLM": {
       "status": "completed",
-      "completed_utc": "2026-10-17T09:50:31Z",
-      "duration_seconds": 3343.7,
+      "completed_utc": "2026-10-21T01:27:09Z",
+      "duration_seconds": 5242.4,
       "detail": "artifact verified"
     },
     "train_eval:LLM Forecaster": {
       "status": "completed",
-      "completed_utc": "2026-10-17T09:50:51Z",
-      "duration_seconds": 20.5,
+      "completed_utc": "2026-10-21T01:27:32Z",
+      "duration_seconds": 22.9,
       "detail": "artifact verified"
     },
     "run_hypothesis_tests": {
@@ -103,5 +105,5 @@
       "detail": "artifact verified"
     }
   },
-  "updated_utc": "2026-10-20T04:24:29Z"
+  "updated_utc": "2026-10-22T17:46:03Z"
 }

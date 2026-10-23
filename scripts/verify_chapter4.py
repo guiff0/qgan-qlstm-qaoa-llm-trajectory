@@ -36,7 +36,12 @@ DISSERTATION_CLAIMS = {
     "Classical LSTM":     {"rmse": 0.523, "asr": None},
     "Classical GAN-LLM":  {"rmse": 0.492, "asr": 31.0},
     "QGAN-LLM":           {"rmse": 0.364, "asr": 8.7},
-    "QGAN-LLM (12-qubit)": {"rmse": 0.432, "asr": 11.3},
+    # Manuscript text (Alternative Configurations): 12-qubit RMSE 0.452 (the
+    # previous value here, 0.432, does not appear in the manuscript); linear
+    # topology RMSE 0.350, ASR 12.1. The 12-qubit ASR of 11.3 is not found in
+    # the manuscript text -- confirm its source or set it to None.
+    "QGAN-LLM (12-qubit)":        {"rmse": 0.452, "asr": 11.3},
+    "QGAN-LLM (linear topology)": {"rmse": 0.350, "asr": 12.1},
 }
 # ---------------------------------------------------------------------------
 
@@ -76,6 +81,26 @@ def main():
             print(line)
             if "<--" in line:
                 any_flagged = True
+
+    # ---- sanity checks on the ACTUAL results, independent of the claims ----
+    gan_cfgs = [c for c in summary.index if c.startswith(("classical_gan_llm", "qgan_llm"))]
+    gan_rmse = summary.loc[gan_cfgs, "rmse"].dropna().round(12).unique() if gan_cfgs else []
+    print("\nSanity checks on the actual run output:")
+    if len(gan_cfgs) > 1 and len(gan_rmse) == 1:
+        print(f"  [WARN] All {len(gan_cfgs)} GAN-based configurations have the SAME rmse "
+              f"({gan_rmse[0]:.6f}). The forecast head does not use the generator, so these "
+              "numbers cannot show a quantum (or classical) generator effect.")
+    if "classical_lstm" in summary.index:
+        print("  [WARN] Classical LSTM asr is scored against principal component 0 in "
+              "runs before the October 19 fix; re-evaluate the checkpoint before using it.")
+    if "persistence_rmse" in summary.columns:
+        pers = summary["persistence_rmse"].dropna()
+        if len(pers):
+            print(f"  [INFO] Test-split persistence RMSE = {pers.iloc[-1]:.6f}; every model's "
+                  "rmse should be read against it (rmse_over_persistence > 1 means worse).")
+    print("  [INFO] Claimed values are on a different scale from the processed target "
+          "series (rmse ~1e-3 to 1e-1), so large percentage differences reflect unsupported "
+          "claims, not a small tolerance miss.")
 
     print("\n" + "=" * 90)
     if any_flagged:
