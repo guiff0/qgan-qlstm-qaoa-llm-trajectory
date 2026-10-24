@@ -48,7 +48,7 @@ from ..evaluation.one_step_ahead import shift_for_one_step_ahead
 class LLMForecaster(BaseForecastingModel):
     def __init__(self, config: Dict = None, seed: int = 42):
         default_config = {
-            "model_id": "nvidia/llama-3.3-nemotron-super-49b-v1.5",  # meta/llama-3.3-70b-instruct was retired 2026-08-26
+            "model_id": "nvidia/llama-3.1-nemotron-70b-instruct",  # Llama 3.3 models are no longer served (Oct 2026)
             "api_base": "https://integrate.api.nvidia.com/v1",
             "window_size": 10,   # how many recent closes go into the prompt
             "horizon_minutes": 1,

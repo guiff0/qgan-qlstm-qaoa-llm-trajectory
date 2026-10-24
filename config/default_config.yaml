@@ -374,19 +374,22 @@ llm_pipeline:
   # (with the generator's nearest synthetic rows as context). Runs on a stratified SAMPLE: each
   # window costs 2 live calls (clean + attacked). Needs NVIDIA_API_KEY; skipped otherwise.
   enabled: true
-  # meta/llama-3.3-70b-instruct reached end of life on 2026-08-26 (HTTP 410 in the Oct 21 run). The
-  # run resolves the first id below that the endpoint actually lists and stops early otherwise.
+  # meta/llama-3.3-70b-instruct reached end of life on 2026-08-26 (HTTP 410 in the Oct 21 run) and no
+  # Llama 3.3 model is served any more (Oct 24 listing). The run resolves the first id below that the endpoint actually lists and stops early otherwise.
   # Any change of model must be reported in the manuscript.
-  model_id: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
-  fallback_model_ids: ["meta/llama-3.3-70b-instruct", "meta/llama-3.1-70b-instruct"]
+  model_id: "meta/llama-3.2-90b-vision-instruct"
+  fallback_model_ids: ["meta/llama-3.2-11b-vision-instruct", "nvidia/llama-3.1-nemotron-ultra-253b-v1"]
   api_base: "https://integrate.api.nvidia.com/v1"
-  nothink: true            # prepend /no_think (Nemotron reasoning toggle); <think> blocks are stripped anyway
+  nothink: true            # adds the reasoning-off switch for models that have one (see reasoning_prefix); <think> blocks are stripped anyway
   max_tokens: 64
+  timeout: 120             # seconds per call; the first call to a large hosted model can be slow (cold start)
   window_size: 10          # real closes per prompt
   horizon_minutes: 1
   n_windows: 102           # stratified over n_regimes volatility terciles (34 each)
   n_regimes: 3
-  max_workers: 4           # parallel calls; 429s are retried with backoff
+  max_workers: 2           # parallel calls PER PROCESS; several models run at once, 429s are retried
+  retries: 6
+  backoff: 5.0
   use_synthetic_context: true
   synthetic_pool: 2000     # generator rows searched for neighbours (reuses the evaluation cache)
   synthetic_neighbors: 5
@@ -394,3 +397,11 @@ llm_pipeline:
   price_attack_k: 2.0      # epsilon = k x std of 1-minute close changes
   pgd_alpha_frac: 0.1
   pgd_steps: 10
+
+feature_llm:
+  # QAOA-LLM and Classical-Features-LLM (src/baselines/context_llm.py): the selector picks target_k named
+  # engineered features that go into the LLM prompt. QAOA settings come from qaoa_llm above.
+  n_candidates: 16
+  target_k: 8
+  max_selection_rows: 200000
+  exclude_features: [open, high, low, close]   # price levels add nothing the close window does not show
