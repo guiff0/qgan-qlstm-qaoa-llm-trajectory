@@ -153,3 +153,130 @@ def test_evaluate_if_enabled_paths(monkeypatch):
     assert lp.evaluate_if_enabled({"enabled": True}, None, c[1:], None, 0)["llm_pipeline_status"].startswith("skipped")
     monkeypatch.delenv("NVIDIA_API_KEY")
     assert "NVIDIA_API_KEY" in lp.evaluate_if_enabled({"enabled": True}, *args)["llm_pipeline_status"]
+
+
+def test_reasoning_prefix_per_model():
+    assert lp.reasoning_prefix("nvidia/llama-3.3-nemotron-super-49b-v1.5") == "/no_think\n"
+    assert lp.reasoning_prefix("nvidia/llama-3.1-nemotron-ultra-253b-v1") == "detailed thinking off\n"
+    assert lp.reasoning_prefix("nvidia/llama-3.1-nemotron-70b-instruct") == ""
+    msgs = lp.build_dual_messages([1.1] * 10, None, 1, prefix="/no_think\n")
+    assert msgs[0]["content"].startswith("/no_think")
+
+
+def test_key_sanitising_and_description(monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", ' "nvapi-abc123" ')
+    assert lp.get_api_key() == "nvapi-abc123"
+    monkeypatch.setenv("NVIDIA_API_KEY", "Bearer nvapi-abc123")
+    assert lp.get_api_key() == "nvapi-abc123"
+    d = lp.describe_key()
+    assert "nvapi-abc123" not in d and "length 12" in d and "removed" in d
+    monkeypatch.setenv("NVIDIA_API_KEY", "your-key-here")
+    assert "does NOT start with 'nvapi-'" in lp.describe_key()
+
+
+def test_401_raises_auth_error_with_fix_and_propagates(tmp_path):
+    bad = FakeResp(401, '{"detail":"Invalid JWT serialization"}')
+    with pytest.raises(lp.LLMAuthError) as e:
+        lp.chat([], "m", post=lambda *a, **k: bad)
+    assert "nvapi-" in str(e.value) and "without quotes" in str(e.value).lower()
+    with pytest.raises(lp.LLMAuthError):
+        lp.verify_auth("m", post=lambda *a, **k: bad)
+    c = _series(); closes, y_next = c[:-1], c[1:]
+
+    def reject(msgs):
+        raise lp.LLMAuthError("401")
+
+    with pytest.raises(lp.LLMAuthError):
+        lp.evaluate_llm_pipeline(closes, y_next, None, {"model_id": "m", "n_windows": 6}, chat_fn=reject, cache_dir=str(tmp_path))
+
+
+def test_evaluate_if_enabled_reports_rejected_key(monkeypatch):
+    c = _series()
+    monkeypatch.setattr(lp, "evaluate_llm_pipeline", lambda *a, **k: (_ for _ in ()).throw(lp.LLMAuthError("401")))
+    out = lp.evaluate_if_enabled({"enabled": True, "model_id": "m"}, c[:-1], c[1:], None, 0)
+    assert out["llm_pipeline_status"].startswith("key rejected")
+
+
+def _post_by_model(table):
+    """fake requests.post: status per model id"""
+    def post(url, headers=None, json=None, timeout=None):
+        status = table.get(json["model"], 200)
+        if status == 200:
+            return _ok("pong")
+        if status == 404:
+            return FakeResp(404, '{"detail":"Function \'x\': Not found for account \'y\'"}')
+        return FakeResp(status, "err")
+    return post
+
+
+def test_probe_model_distinguishes_missing_rate_limited_and_ok():
+    post = _post_by_model({"a": 200, "b": 404, "c": 429})
+    assert lp.probe_model("a", post=post)[0] is True
+    ok, detail = lp.probe_model("b", post=post)
+    assert ok is False and "Not found for account" in detail
+    assert lp.probe_model("c", post=post, sleep=lambda s: None)[0] is True
+    with pytest.raises(lp.LLMAuthError):
+        lp.probe_model("d", post=_post_by_model({"d": 401}))
+
+
+def test_resolve_skips_listed_but_uncallable_models():
+    post = _post_by_model({"p": 404, "f1": 404, "f2": 200})
+    avail = lambda base: ["p", "f1", "f2"]  # noqa: E731
+    probe = lambda m: lp.probe_model(m, post=post)  # noqa: E731
+    assert lp.resolve_model_id("p", ["f1", "f2"], list_fn=avail, probe_fn=probe) == "f2"
+    with pytest.raises(lp.LLMModelUnavailableError) as e:
+        lp.resolve_model_id("p", ["f1"], list_fn=avail, probe_fn=probe)
+    msg = str(e.value)
+    assert "listed but not callable" in msg and "--probe-all" in msg
+
+
+def test_discover_models_filters_non_chat_and_reports_status():
+    avail = lambda base: ["meta/llama-3.2-90b-vision-instruct", "nvidia/llama-3.2-nv-embedqa-1b-v1",  # noqa: E731
+                          "meta/llama-guard-4-12b", "nvidia/llama-3.1-nemotron-70b-instruct", "other/model"]
+    rows = lp.discover_models(list_fn=avail, probe_fn=lambda m: (m.endswith("instruct"), "x"))
+    names = [m for m, _ in rows]
+    assert names == ["meta/llama-3.2-90b-vision-instruct", "nvidia/llama-3.1-nemotron-70b-instruct"]
+
+
+def test_chat_retries_timeouts_then_raises_runtime_error():
+    import requests
+    calls = {"n": 0}
+
+    def flaky(*a, **k):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise requests.exceptions.ReadTimeout("slow")
+        return _ok("pong")
+
+    assert lp.chat([], "m", post=flaky, sleep=lambda s: None, retries=2) == "pong" and calls["n"] == 2
+
+    def dead(*a, **k):
+        raise requests.exceptions.ConnectionError("down")
+
+    with pytest.raises(RuntimeError) as e:
+        lp.chat([], "m", post=dead, sleep=lambda s: None, retries=1)
+    assert "network error" in str(e.value)
+
+
+def test_probe_reports_timeout_instead_of_crashing():
+    import requests
+
+    def dead(*a, **k):
+        raise requests.exceptions.ReadTimeout("slow")
+
+    ok, detail = lp.probe_model("m", post=dead, sleep=lambda s: None)
+    assert ok is False and "cold start" in detail
+
+
+def test_discover_contains_per_model_errors_and_reports_progress():
+    seen = []
+
+    def probe(m):
+        if m.endswith("boom"):
+            raise ValueError("kaput")
+        return (True, "ok")
+
+    rows = lp.discover_models(list_fn=lambda b: ["a/llama-x", "a/llama-boom"], probe_fn=probe, on_result=lambda m, r: seen.append(m))
+    d = dict(rows)
+    assert d["a/llama-x"][0] is True and d["a/llama-boom"][0] is False and "kaput" in d["a/llama-boom"][1]
+    assert sorted(seen) == ["a/llama-boom", "a/llama-x"]

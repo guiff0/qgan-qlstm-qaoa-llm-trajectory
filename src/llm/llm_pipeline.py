@@ -43,7 +43,7 @@ from typing import Callable, Dict, List, Optional, Sequence
 import numpy as np
 import requests
 
-from .nvidia_finetune import NvidiaApiKeyMissingError, _get_api_key  # noqa: F401
+from .nvidia_finetune import NvidiaApiKeyMissingError
 from .threat_scoring import parse_threat_probability
 
 DEFAULT_API_BASE = "https://integrate.api.nvidia.com/v1"
@@ -63,31 +63,122 @@ class LLMModelUnavailableError(RuntimeError):
     """The hosted model is gone (HTTP 404/410) or not in the account's model list."""
 
 
+class LLMAuthError(RuntimeError):
+    """The endpoint rejected the API key (HTTP 401/403)."""
+
+
+def get_api_key() -> str:
+    """NVIDIA_API_KEY with the usual copy/paste damage removed: surrounding whitespace and quotes
+    (PowerShell and cmd keep quotes that are typed inside `set X="..."`) and a pasted 'Bearer ' prefix."""
+    key = os.environ.get("NVIDIA_API_KEY", "").strip().strip("\"'").strip()
+    if key.lower().startswith("bearer "):
+        key = key[7:].strip()
+    if not key:
+        raise NvidiaApiKeyMissingError("NVIDIA_API_KEY is not set (or is empty after removing quotes and spaces).")
+    return key
+
+
+def describe_key() -> str:
+    """Shape of the key for diagnostics. Never prints the secret itself."""
+    raw = os.environ.get("NVIDIA_API_KEY", "")
+    key = get_api_key()
+    notes = [f"length {len(key)}"]
+    notes.append("starts with 'nvapi-'" if key.startswith("nvapi-") else "does NOT start with 'nvapi-' (keys from build.nvidia.com do)")
+    if raw != key:
+        notes.append("the environment value had quotes, spaces or a 'Bearer ' prefix (removed before use)")
+    if any(c.isspace() for c in key):
+        notes.append("contains whitespace inside the key")
+    return "; ".join(notes)
+
+
 # ----------------------------------------------------------------------------
 # HTTP layer
 # ----------------------------------------------------------------------------
 def list_models(api_base: str = DEFAULT_API_BASE, timeout: int = 20, get: Callable = requests.get) -> List[str]:
     """Model ids the endpoint currently serves (GET {api_base}/models)."""
-    r = get(f"{api_base}/models", headers={"Authorization": f"Bearer {_get_api_key()}"}, timeout=timeout)
+    r = get(f"{api_base}/models", headers={"Authorization": f"Bearer {get_api_key()}"}, timeout=timeout)
     if r.status_code >= 400:
         raise RuntimeError(f"GET /models returned {r.status_code}: {r.text[:300]}")
     return [m["id"] for m in r.json().get("data", []) if "id" in m]
 
 
+def verify_auth(model_id: str, api_base: str = DEFAULT_API_BASE, **kw) -> None:
+    """One 1-token authenticated call. Run it before any expensive work: /models is public, so
+    resolve_model_id() alone passes with an invalid key."""
+    chat([{"role": "user", "content": "ping"}], model_id, api_base, max_tokens=1, retries=1, **kw)
+
+
+def probe_model(model_id: str, api_base: str = DEFAULT_API_BASE, timeout: int = 45, **kw) -> tuple:
+    """(ok, detail). /models lists the whole catalog, including models this account cannot call
+    (HTTP 404 "Function ... Not found for account"), so only a real 1-token call proves a model is usable.
+    A 429 counts as usable (it exists, it is just rate-limited). A rejected key raises LLMAuthError."""
+    try:
+        chat([{"role": "user", "content": "ping"}], model_id, api_base, max_tokens=1, retries=1, timeout=timeout,
+             backoff=kw.pop("backoff", 2.0), **kw)
+        return True, "ok"
+    except LLMAuthError:
+        raise
+    except LLMModelUnavailableError as exc:
+        return False, str(exc)[:200]
+    except RuntimeError as exc:
+        if "HTTP 429" in str(exc):
+            return True, "rate limited (exists)"
+        if "network error" in str(exc):
+            return False, f"no answer ({str(exc)[:120]}); cold start or overloaded, retry later"
+        return False, str(exc)[:200]
+
+
+_NOT_CHAT = ("embed", "guard", "safety", "retriev", "rerank", "reward", "clip", "parse", "topic-control", "content-safety")
+
+
+def discover_models(api_base: str = DEFAULT_API_BASE, list_fn: Callable = None, probe_fn: Callable = None,
+                    needle: str = "llama", limit: int = 40, max_workers: int = 4,
+                    on_result: Optional[Callable] = None) -> list:
+    """Chat-capable models whose name contains `needle` that this account can actually call. Probed in parallel;
+    `on_result(model, (ok, detail))` is called as each finishes so a long run shows progress. A failure on one
+    model never stops the others; a rejected key (LLMAuthError) does."""
+    list_fn = list_fn or list_models
+    probe_fn = probe_fn or (lambda m: probe_model(m, api_base))
+    cands = sorted(m for m in list_fn(api_base) if needle in m.lower() and not any(x in m.lower() for x in _NOT_CHAT))[:limit]
+
+    def one(m):
+        try:
+            res = probe_fn(m)
+        except LLMAuthError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            res = (False, f"error: {type(exc).__name__}: {str(exc)[:120]}")
+        if on_result:
+            on_result(m, res)
+        return m, res
+
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        return list(ex.map(one, cands))
+
+
 def resolve_model_id(preferred: str, fallbacks: Sequence[str] = (), api_base: str = DEFAULT_API_BASE,
-                     list_fn: Callable = list_models) -> str:
-    """Return the first of [preferred, *fallbacks] the endpoint lists. Fails BEFORE any
-    expensive work, naming the Llama-family ids that are available. This exists because
-    meta/llama-3.3-70b-instruct reached end of life on 2026-08-26 and every call returned 410."""
+                     list_fn: Callable = list_models, probe_fn: Optional[Callable] = None) -> str:
+    """First of [preferred, *fallbacks] that is listed AND (when probe_fn is given) callable by this account.
+    Fails BEFORE any expensive work. History: meta/llama-3.3-70b-instruct reached end of life on 2026-08-26
+    and returned 410; nvidia/llama-3.1-nemotron-70b-instruct is listed but returned 404 for this account."""
     available = list_fn(api_base)
+    tried = []
     for mid in [preferred, *fallbacks]:
-        if mid in available:
+        if mid not in available:
+            tried.append(f"{mid}: not listed")
+            continue
+        if probe_fn is None:
             return mid
+        ok, detail = probe_fn(mid)
+        if ok:
+            return mid
+        tried.append(f"{mid}: listed but not callable ({detail})")
     llama_like = sorted(m for m in available if "llama" in m.lower())
     raise LLMModelUnavailableError(
-        f"None of {[preferred, *fallbacks]} is served at {api_base}. "
-        f"Llama-family models available now: {llama_like[:20]}. Set llm_pipeline.model_id to one of them "
-        f"and record the change in the manuscript (the proposal names Llama 3.3 70B)."
+        f"No usable model among {[preferred, *fallbacks]} at {api_base}:\n  " + "\n  ".join(tried) +
+        f"\nLlama-family ids in the catalog: {llama_like[:20]}\n"
+        f"Run `python scripts/check_llm_endpoint.py --probe-all` to find which ones THIS account can call, then set "
+        f"llm_pipeline.model_id (and record the change in the manuscript; the proposal names Llama 3.3 70B)."
     )
 
 
@@ -96,11 +187,25 @@ def chat(messages: List[dict], model_id: str, api_base: str = DEFAULT_API_BASE, 
          post: Callable = requests.post, sleep: Callable = time.sleep) -> str:
     """One chat completion. Retries 429 and 5xx with increasing waits; 404/410 raise
     LLMModelUnavailableError; any other 4xx raises RuntimeError. Never fabricates text."""
-    headers = {"Authorization": f"Bearer {_get_api_key()}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {get_api_key()}", "Content-Type": "application/json"}
     payload = {"model": model_id, "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
     last = ""
     for attempt in range(retries + 1):
-        r = post(f"{api_base}/chat/completions", headers=headers, json=payload, timeout=timeout)
+        try:
+            r = post(f"{api_base}/chat/completions", headers=headers, json=payload, timeout=timeout)
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
+            # A first call to a large hosted model can take longer than the timeout (cold start); retry.
+            last = f"{type(exc).__name__} after {timeout}s"
+            if attempt < retries:
+                sleep(backoff * (attempt + 1))
+                continue
+            raise RuntimeError(f"network error after {retries + 1} attempt(s): {last}") from exc
+        if r.status_code in (401, 403):
+            raise LLMAuthError(
+                f"HTTP {r.status_code}: the key was rejected ({r.text[:200]}). Key shape: {describe_key()}. "
+                f"Create a key at build.nvidia.com (it starts with 'nvapi-') and set it WITHOUT quotes inside the value: "
+                f"PowerShell  $env:NVIDIA_API_KEY = 'nvapi-...'   (the quotes are PowerShell's, not part of the key). "
+                f"Note that GET /models needs no key, so a model listing succeeding does not prove the key works.")
         if r.status_code in (404, 410):
             raise LLMModelUnavailableError(f"HTTP {r.status_code} for model {model_id!r}: {r.text[:300]}")
         if r.status_code == 429 or r.status_code >= 500:
@@ -121,16 +226,28 @@ def chat(messages: List[dict], model_id: str, api_base: str = DEFAULT_API_BASE, 
 # ----------------------------------------------------------------------------
 # Prompt / parsing
 # ----------------------------------------------------------------------------
+def reasoning_prefix(model_id: str) -> str:
+    """System-prompt switch that turns a reasoning model's thinking off. Plain instruct models get none."""
+    m = model_id.lower()
+    if "nemotron-super" in m or "nemotron-nano" in m:
+        return "/no_think\n"
+    if "nemotron-ultra" in m:
+        return "detailed thinking off\n"
+    return ""
+
+
 def build_dual_messages(closes: Sequence[float], synthetic_closes: Optional[Sequence[float]] = None,
-                        horizon_minutes: int = 1, nothink: bool = False) -> List[dict]:
+                        horizon_minutes: int = 1, prefix: str = "", extra_context: Optional[str] = None) -> List[dict]:
     hist = ", ".join(f"{c:.5f}" for c in closes)
     user = f"The last {len(closes)} 1-minute EUR/USD closes, oldest first: {hist}.\n"
     if synthetic_closes is not None and len(synthetic_closes):
         syn = ", ".join(f"{c:.5f}" for c in synthetic_closes)
         user += (f"A generative model of this market produced {len(synthetic_closes)} nearby synthetic "
                  f"market states with closes: {syn}.\n")
+    if extra_context:
+        user += extra_context.strip() + "\n"
     user += f"Predict the close {horizon_minutes} minute(s) ahead and the threat probability."
-    sys_prompt = ("/no_think\n" if nothink else "") + SYSTEM_PROMPT
+    sys_prompt = prefix + SYSTEM_PROMPT
     return [{"role": "system", "content": sys_prompt}, {"role": "user", "content": user}]
 
 
@@ -166,14 +283,19 @@ class SyntheticPriceMapper:
             self.pca = joblib.load(os.path.join(processed_dir, "pca.joblib"))
             with open(os.path.join(processed_dir, "feature_cols.json"), encoding="utf8") as fh:
                 cols = json.load(fh)
+            self.feature_cols = cols
             self.close_idx = cols.index("close")
             self.available = True
         except Exception as exc:  # noqa: BLE001
             self.reason = f"{type(exc).__name__}: {exc}"
 
+    def to_raw(self, pca_rows: np.ndarray) -> np.ndarray:
+        """Approximate named engineered features (columns = feature_cols) reconstructed from PCA rows.
+        32 of ~54 components are kept, so these are approximations, not the original values."""
+        return self.scaler.inverse_transform(self.pca.inverse_transform(np.asarray(pca_rows, dtype=float)))
+
     def to_close(self, pca_rows: np.ndarray) -> np.ndarray:
-        raw = self.scaler.inverse_transform(self.pca.inverse_transform(np.asarray(pca_rows, dtype=float)))
-        return raw[:, self.close_idx]
+        return self.to_raw(pca_rows)[:, self.close_idx]
 
 
 def nearest_synthetic_closes(x_row: np.ndarray, pool_rows: np.ndarray, pool_closes: np.ndarray, k: int) -> np.ndarray:
@@ -242,7 +364,8 @@ def stratified_indices(closes: np.ndarray, window: int, n_windows: int, n_regime
 def evaluate_llm_pipeline(closes_aligned: np.ndarray, targets: np.ndarray, X_rows: Optional[np.ndarray],
                           cfg: Dict, seed: int = 42, generator_fn: Optional[Callable[[int], np.ndarray]] = None,
                           mapper: Optional[SyntheticPriceMapper] = None, chat_fn: Optional[Callable] = None,
-                          cache_dir: Optional[str] = "results/llm_cache") -> Dict:
+                          cache_dir: Optional[str] = "results/llm_cache",
+                          context_fn: Optional[Callable[[int], str]] = None) -> Dict:
     """
     closes_aligned[k] = last observed close at row k; targets[k] = the NEXT close (already shifted, so
     targets[k] == closes_aligned[k + 1]); X_rows[k] = PCA features of row k (for nearest-synthetic lookup).
@@ -277,7 +400,8 @@ def evaluate_llm_pipeline(closes_aligned: np.ndarray, targets: np.ndarray, X_row
 
     if chat_fn is None:
         chat_fn = lambda msgs: chat(msgs, model_id, api_base, max_tokens=int(cfg.get("max_tokens", 64)),  # noqa: E731
-                                    timeout=int(cfg.get("timeout", 60)))
+                                    timeout=int(cfg.get("timeout", 60)), retries=int(cfg.get("retries", 6)),
+                                    backoff=float(cfg.get("backoff", 5.0)))
     if cache_dir:
         os.makedirs(cache_dir, exist_ok=True)
 
@@ -300,9 +424,10 @@ def evaluate_llm_pipeline(closes_aligned: np.ndarray, targets: np.ndarray, X_row
         syn = nearest_synthetic_closes(np.asarray(X_rows)[idx], pool_rows, pool_closes, k_syn) if use_syn else None
         kind = "fgsm" if j % 2 == 0 else "pgd"; attack_kind[j] = kind
         w_adv = attack_window(w, closes[idx], coef, kind, eps, alpha, steps, rng)
-        nothink = bool(cfg.get("nothink", False)) and "nemotron" in model_id.lower()
-        jobs.append((j, "clean", build_dual_messages(w, syn, horizon, nothink)))
-        jobs.append((j, kind, build_dual_messages(w_adv, syn, horizon, nothink)))
+        prefix = reasoning_prefix(model_id) if cfg.get("nothink", True) else ""
+        ctx = context_fn(int(idx)) if context_fn is not None else None   # from the REAL row; never attacked
+        jobs.append((j, "clean", build_dual_messages(w, syn, horizon, prefix, ctx)))
+        jobs.append((j, kind, build_dual_messages(w_adv, syn, horizon, prefix, ctx)))
 
     out = {}; errors = []; n_cached = 0
 
@@ -311,7 +436,7 @@ def evaluate_llm_pipeline(closes_aligned: np.ndarray, targets: np.ndarray, X_row
         try:
             res, cached = ask(msgs)
             return j, kind, res, cached, None
-        except LLMModelUnavailableError:
+        except (LLMModelUnavailableError, LLMAuthError):
             raise
         except Exception as exc:  # noqa: BLE001
             return j, kind, None, False, str(exc)[:200]
@@ -330,6 +455,7 @@ def evaluate_llm_pipeline(closes_aligned: np.ndarray, targets: np.ndarray, X_row
     res = {"llm_model_id": model_id, "llm_n_windows": len(idxs), "llm_n_calls": len(jobs), "llm_n_errors": len(errors),
            "llm_n_cached": n_cached, "llm_parse_failures": parse_fail, "llm_errors_sample": errors[:3],
            "llm_regime_counts": regime_counts, "llm_synthetic_context_used": use_syn,
+           "llm_extra_context_used": context_fn is not None,
            "llm_price_attack_eps": eps, "llm_threat_threshold": QACL_THRESHOLD}
     if clean:
         p = np.array([v["forecast"] for _, v in clean]); y = tgt[idxs[[j for j, _ in clean]]]
@@ -396,3 +522,5 @@ def evaluate_if_enabled(llm_cfg: Optional[Dict], last_prices: np.ndarray, y_next
         return res
     except LLMModelUnavailableError as exc:
         return {"llm_pipeline_status": f"model unavailable: {str(exc)[:300]}"}
+    except LLMAuthError as exc:
+        return {"llm_pipeline_status": f"key rejected: {str(exc)[:300]}"}

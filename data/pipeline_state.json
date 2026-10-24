@@ -4,93 +4,91 @@
   "steps": {
     "verify_environment": {
       "status": "completed",
-      "completed_utc": "2026-10-23T08:36:38Z",
-      "duration_seconds": 12.8,
+      "completed_utc": "2026-10-24T22:56:29Z",
+      "duration_seconds": 5.9,
       "detail": "optional step; no artifact produced"
     },
     "acquire_dukascopy": {
       "status": "completed",
-      "completed_utc": "2026-10-19T02:55:02Z",
-      "duration_seconds": 2.2,
+      "completed_utc": "2026-10-24T17:55:54Z",
+      "duration_seconds": 347.5,
       "detail": "artifact verified"
     },
     "acquire_xval": {
       "status": "completed",
-      "completed_utc": "2026-10-19T02:55:03Z",
-      "duration_seconds": 1.1,
+      "completed_utc": "2026-10-24T17:57:01Z",
+      "duration_seconds": 67.8,
       "detail": "artifact verified"
     },
     "acquire_fred": {
       "status": "completed",
-      "completed_utc": "2026-10-19T02:55:04Z",
-      "duration_seconds": 1.1,
+      "completed_utc": "2026-10-24T17:57:05Z",
+      "duration_seconds": 3.5,
       "detail": "artifact verified"
     },
     "prepare_data": {
       "status": "completed",
-      "completed_utc": "2026-10-19T02:56:01Z",
-      "duration_seconds": 56.8,
+      "completed_utc": "2026-10-24T17:57:52Z",
+      "duration_seconds": 47.2,
       "detail": "artifact verified"
     },
     "train_eval:Classical LSTM": {
-      "status": "completed",
-      "completed_utc": "2026-10-20T03:47:21Z",
-      "duration_seconds": 89479.5,
-      "detail": "artifact verified"
+      "status": "running",
+      "started_utc": "2026-10-24T22:56:29Z"
     },
     "train_eval:Classical GAN-LLM": {
-      "status": "completed",
-      "completed_utc": "2026-10-20T03:48:30Z",
-      "duration_seconds": 69.4,
-      "detail": "artifact verified"
+      "status": "failed",
+      "failed_utc": "2026-10-24T22:46:54Z",
+      "duration_seconds": 8.3,
+      "returncode": 1
     },
     "train_eval:QGAN-LLM": {
-      "status": "completed",
-      "completed_utc": "2026-10-20T04:24:29Z",
-      "duration_seconds": 2158.7,
-      "detail": "artifact verified"
+      "status": "failed",
+      "failed_utc": "2026-10-24T22:47:03Z",
+      "duration_seconds": 8.4,
+      "returncode": 1
     },
     "train_eval:QLSTM Forecaster": {
-      "status": "completed",
-      "completed_utc": "2026-10-20T23:59:47Z",
-      "duration_seconds": 70517.5,
-      "detail": "artifact verified"
+      "status": "failed",
+      "failed_utc": "2026-10-24T22:47:11Z",
+      "duration_seconds": 8.2,
+      "returncode": 1
     },
     "train_eval:QGAN-LLM (12-qubit)": {
-      "status": "completed",
-      "completed_utc": "2026-10-21T06:01:34Z",
-      "duration_seconds": 16442.1,
-      "detail": "artifact verified"
+      "status": "failed",
+      "failed_utc": "2026-10-24T22:48:01Z",
+      "duration_seconds": 8.3,
+      "returncode": 1
     },
     "train_eval:QGAN-LLM (linear topology)": {
-      "status": "completed",
-      "completed_utc": "2026-10-21T23:44:36Z",
-      "duration_seconds": 63782.0,
-      "detail": "artifact verified"
+      "status": "failed",
+      "failed_utc": "2026-10-24T22:48:09Z",
+      "duration_seconds": 8.5,
+      "returncode": 1
     },
     "train_eval:QGAN-LLM (no noise)": {
-      "status": "completed",
-      "completed_utc": "2026-10-22T17:46:00Z",
-      "duration_seconds": 64883.5,
-      "detail": "artifact verified"
+      "status": "failed",
+      "failed_utc": "2026-10-24T22:48:18Z",
+      "duration_seconds": 8.4,
+      "returncode": 1
     },
     "verify_chapter4": {
-      "status": "completed",
-      "completed_utc": "2026-10-23T08:36:40Z",
-      "duration_seconds": 1.6,
-      "detail": "artifact verified"
+      "status": "failed",
+      "failed_utc": "2026-10-24T22:48:19Z",
+      "duration_seconds": 1.0,
+      "returncode": 1
     },
     "train_eval:QAOA-Enhanced LLM": {
-      "status": "completed",
-      "completed_utc": "2026-10-21T01:27:09Z",
-      "duration_seconds": 5242.4,
-      "detail": "artifact verified"
+      "status": "failed",
+      "failed_utc": "2026-10-24T22:47:19Z",
+      "duration_seconds": 8.3,
+      "returncode": 1
     },
     "train_eval:LLM Forecaster": {
-      "status": "completed",
-      "completed_utc": "2026-10-21T01:27:32Z",
-      "duration_seconds": 22.9,
-      "detail": "artifact verified"
+      "status": "failed",
+      "failed_utc": "2026-10-24T22:47:27Z",
+      "duration_seconds": 8.3,
+      "returncode": 1
     },
     "run_hypothesis_tests": {
       "status": "completed",
@@ -103,7 +101,25 @@
       "completed_utc": "2026-10-17T13:27:01Z",
       "duration_seconds": 1.3,
       "detail": "artifact verified"
+    },
+    "train_eval:QLSTM-LLM": {
+      "status": "failed",
+      "failed_utc": "2026-10-24T22:47:36Z",
+      "duration_seconds": 8.3,
+      "returncode": 1
+    },
+    "train_eval:QAOA-LLM": {
+      "status": "failed",
+      "failed_utc": "2026-10-24T22:47:44Z",
+      "duration_seconds": 8.4,
+      "returncode": 1
+    },
+    "train_eval:Classical-Features-LLM": {
+      "status": "failed",
+      "failed_utc": "2026-10-24T22:47:53Z",
+      "duration_seconds": 8.4,
+      "returncode": 1
     }
   },
-  "updated_utc": "2026-10-23T08:36:40Z"
+  "updated_utc": "2026-10-24T22:56:29Z"
 }
