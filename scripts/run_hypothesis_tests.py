@@ -137,16 +137,25 @@ def test_h4_quantum_advantage(df: pd.DataFrame) -> dict:
 
 
 def test_h5_tomography_correlation(df: pd.DataFrame) -> dict:
-    cols = {"entanglement_entropy", "accuracy"}
-    if not cols.issubset(df.columns):
-        return {"error": "need entanglement_entropy and accuracy columns (from threat_detection.py)"}
-    sub = df.dropna(subset=list(cols))
-    result = _safe(pearson_correlation_with_ci, sub["entanglement_entropy"].to_numpy(),
-                    sub["accuracy"].to_numpy(), need_n=4)
-    result["note"] = ("'accuracy' here comes from the interim classical detector in "
-                       "src/evaluation/threat_detection.py, not the manuscript's LLM-based "
-                       "threat_scoring.py pathway -- see TODO.md's LLM-wiring item")
-    return result
+    """Prefers the LLM-based detector (llm_threat_accuracy, from src/llm/llm_pipeline.py via
+    threat_scoring.py) when at least 4 configurations have it; otherwise falls back to the interim
+    classical detector's 'accuracy' and says so in the result."""
+    if "entanglement_entropy" not in df.columns:
+        return {"error": "need an entanglement_entropy column"}
+    for col, detector in (("llm_threat_accuracy", "LLM threat probability (threat_scoring.py)"),
+                          ("accuracy", "interim classical RandomForest (threat_detection.py)")):
+        if col not in df.columns:
+            continue
+        sub = df.dropna(subset=["entanglement_entropy", col])
+        if len(sub) >= 4 or col == "accuracy":
+            result = _safe(pearson_correlation_with_ci, sub["entanglement_entropy"].to_numpy(),
+                           sub[col].to_numpy(), need_n=4)
+            result["detector"] = detector
+            result["note"] = (f"accuracy column used: {col}. "
+                              + ("" if col == "llm_threat_accuracy" else
+                                 "No LLM-based detection results yet; this is the stopgap detector."))
+            return result
+    return {"error": "no detection-accuracy column available"}
 
 
 def test_m2_dv2_mediation(df: pd.DataFrame) -> dict:

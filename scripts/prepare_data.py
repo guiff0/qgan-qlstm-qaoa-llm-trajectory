@@ -242,6 +242,15 @@ def main():
     print(f" -> Cumulative Variance Retained: {cum_var:.4%}")
     print(f" -> Step completed in {time.time() - t0:.2f}s | RAM: {get_mem_mb():.2f} MB")
 
+    # Persist the fitted preprocessors so generator rows (PCA space) can be mapped back to close
+    # prices for the LLM's synthetic context (src/llm/llm_pipeline.SyntheticPriceMapper).
+    import joblib, json as _json
+    os.makedirs(data_cfg["processed_dir"], exist_ok=True)
+    joblib.dump(scaler, os.path.join(data_cfg["processed_dir"], "scaler.joblib"))
+    joblib.dump(pca, os.path.join(data_cfg["processed_dir"], "pca.joblib"))
+    with open(os.path.join(data_cfg["processed_dir"], "feature_cols.json"), "w", encoding="utf8") as _fh:
+        _json.dump(list(feature_cols), _fh)
+
     log_step(7, total_steps, "Array Export & Verification")
     t0 = time.time()
     os.makedirs(data_cfg["processed_dir"], exist_ok=True)

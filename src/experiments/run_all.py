@@ -96,6 +96,7 @@ def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
     metrics = model.evaluate(
         splits["X_test"], splits["y_test"],
         attack_cfg=attack_cfg, last_input_prices=last_prices,
+        llm_cfg=cfg.get("llm_pipeline"), processed_dir=cfg["data"]["processed_dir"],
     )
     # Naive benchmark every forecaster must beat: next close = current close.
     # Logged on the same test split so RMSE is comparable (see Ch. 4).
@@ -190,7 +191,7 @@ def main():
     # (and fails loudly, per llm_inference.py, if the key turns out to be
     # invalid or the endpoint rejects the request).
     if os.environ.get("NVIDIA_API_KEY"):
-        models_to_run["LLM Forecaster"] = lambda: LLMForecaster(cfg.get("llm_forecaster", {}), seed=seed)
+        models_to_run["LLM Forecaster"] = lambda: LLMForecaster(cfg.get("llm_pipeline", {}), seed=seed)
     for ablation in cfg["ablations"]:
         ablation_cfg = merge_override(cfg["qgan_llm"], {k: v for k, v in ablation.items() if k != "name"})
         models_to_run[ablation["name"]] = (lambda c=ablation_cfg: QGANLLM(c, seed=seed))
@@ -203,6 +204,15 @@ def main():
         import json
         print(json.dumps(list(models_to_run.keys())))
         return
+
+    # Fail BEFORE any training if the configured LLM is no longer served (meta/llama-3.3-70b-instruct
+    # returned HTTP 410 after its 2026-08-26 end of life, and the failure only surfaced after hours of GAN work).
+    llm_cfg = cfg.get("llm_pipeline", {})
+    if os.environ.get("NVIDIA_API_KEY") and llm_cfg.get("enabled", False):
+        from src.llm.llm_pipeline import resolve_model_id
+        llm_cfg["model_id"] = resolve_model_id(llm_cfg["model_id"], llm_cfg.get("fallback_model_ids", []),
+                                               llm_cfg.get("api_base", "https://integrate.api.nvidia.com/v1"))
+        print(f"[llm] using model {llm_cfg['model_id']}")
 
     processed_dir = cfg["data"]["processed_dir"]
     splits = {}

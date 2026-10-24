@@ -13,7 +13,8 @@ dissertation's own design for this is src/llm/threat_scoring.py, which
 parses an LLM's text output into a threat probability. No LLM is
 currently wired into the forecasting path (see TODO.md's LLM-wiring
 item), so there is no text output for threat_scoring.py to parse yet.
-Until that lands, this module trains a lightweight, classical
+UPDATE 2026-10-24: the LLM pathway now exists (src/llm/llm_pipeline.py -> threat_scoring.py, columns
+llm_threat_*). This module remains as the classical comparison detector. Until that lands, this module trains a lightweight, classical
 (RandomForest) threat/benign classifier directly on
 attacks/threat_labels.py's labeled dataset instead, purely so H5 has
 SOME real, honestly-labeled detection-accuracy number to test rather
