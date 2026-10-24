@@ -36,16 +36,16 @@ venv.bak/
 # Data Files (Raw, Processed, Caches, and Large Datasets)
 # ==============================================================================
 # Exclude data outputs and caches
-data/raw/*
-data/processed/*
-data/synthetic/*
-data/raw/dukascopy_cache/
-data/raw/forexsb_chunks/
+#data/raw/*
+#data/processed/*
+#data/synthetic/*
+#data/raw/dukascopy_cache/
+#data/raw/forexsb_chunks/
 
 # Keep directory structure via .gitkeep
-!data/raw/.gitkeep
-!data/processed/.gitkeep
-!data/synthetic/.gitkeep
+#!data/raw/.gitkeep
+#!data/processed/.gitkeep
+#!data/synthetic/.gitkeep
 
 # Common data file extensions
 *.csv
@@ -62,8 +62,8 @@ data/raw/forexsb_chunks/
 # ==============================================================================
 models/*
 !.gitkeep
-*.pt
-*.pth
+#*.pt
+#*.pth
 *.bin
 *.onnx
 *.ckpt
