@@ -454,4 +454,14 @@ class QGANLLM(BaseForecastingModel):
             dev_name=self.config["quantum_device"], seed=self.seed,
         ))
 
+        # LLM pipeline (dissertation design): the LLM -- not forecast_head -- produces the forecast and
+        # the threat probability on a stratified sample; the generator reaches it through synthetic
+        # context. forecast_head's metrics above remain as the closed-form head baseline.
+        from ..llm.llm_pipeline import evaluate_if_enabled
+        self.results.update(evaluate_if_enabled(
+            kwargs.get("llm_cfg"), last_input_prices, y_test, X_test, self.seed,
+            generator_fn=self.generate_synthetic_data,
+            processed_dir=kwargs.get("processed_dir", "data/processed"),
+        ))
+
         return self.results

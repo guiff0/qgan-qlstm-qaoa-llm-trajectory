@@ -1,56 +1,41 @@
+import re
+
 import numpy as np
 
 from src.baselines.llm_forecaster import LLMForecaster
 
 
-def _toy_data(n=200, f=8, seed=0):
+def _data(n=3000, seed=0):
     rng = np.random.default_rng(seed)
-    X = rng.standard_normal((n, f)).astype(np.float32)
-    y = (X[:, 0] + 0.01 * rng.standard_normal(n)).astype(np.float32)
-    return X, y
+    closes = 1.10 + np.cumsum(rng.normal(0, 5e-5, n))
+    X = rng.standard_normal((n, 8)).astype(np.float32)
+    return X, closes.astype(np.float64)
 
 
-def test_evaluate_with_mocked_query_fn_produces_metrics():
-    X, y = _toy_data()
+def test_prompt_uses_real_closes_not_pca_component(tmp_path):
+    X, y = _data(); seen = []
 
-    def fake_query(recent_closes, model_id, horizon_minutes=1, api_base=None):
-        return recent_closes[-1] + 0.001
+    def chat_fn(msgs):
+        seen.append(msgs[-1]["content"]); return "Forecast: 1.10000\nThreat probability: 0.1"
 
-    model = LLMForecaster({"max_llm_calls": 15, "query_fn": fake_query}, seed=1)
-    model.build()
-    model.train(None, None, None, None)
-    result = model.evaluate(X, y)
-
-    assert result["n_llm_samples"] == 15
-    assert result["n_llm_errors"] == 0
-    assert np.isfinite(result["rmse"])
-
-
-def test_evaluate_caps_calls_at_max_llm_calls():
-    X, y = _toy_data(n=500)
-
-    calls = []
-
-    def fake_query(recent_closes, model_id, horizon_minutes=1, api_base=None):
-        calls.append(1)
-        return recent_closes[-1]
-
-    model = LLMForecaster({"max_llm_calls": 5, "query_fn": fake_query}, seed=1)
-    model.evaluate(X, y)
-    assert len(calls) == 5
+    cfg = {"model_id": "m", "n_windows": 6, "n_regimes": 3, "max_workers": 1, "chat_fn": chat_fn, "cache_dir": None}
+    model = LLMForecaster(cfg, seed=1)
+    import src.llm.llm_pipeline as lp
+    orig = lp.evaluate_llm_pipeline
+    lp.evaluate_llm_pipeline = lambda *a, **k: orig(*a, **{**k, "cache_dir": str(tmp_path)})
+    try:
+        out = model.evaluate(X, y, last_input_prices=y)
+    finally:
+        lp.evaluate_llm_pipeline = orig
+    nums = [float(v) for s in seen for v in re.findall(r"\d\.\d{5}", s)]
+    assert nums and all(1.0 < v < 1.2 for v in nums)          # prices, never PCA components
+    assert out["n_llm_samples"] == 6 and out["n_llm_errors"] == 0 and np.isfinite(out["rmse"])
+    assert out["llm_synthetic_context_used"] is False         # control condition
 
 
-def test_evaluate_handles_query_errors_without_crashing():
-    X, y = _toy_data(n=100)
-
-    def flaky_query(recent_closes, model_id, horizon_minutes=1, api_base=None):
-        raise RuntimeError("simulated API failure")
-
-    model = LLMForecaster({"max_llm_calls": 5, "query_fn": flaky_query}, seed=1)
-    result = model.evaluate(X, y)
-    assert result["n_llm_errors"] == 5
-    assert result["n_llm_samples"] == 0
-    assert np.isnan(result["rmse"])
+def test_requires_real_close_series():
+    X, y = _data(50)
+    assert "error" in LLMForecaster({"model_id": "m"}, seed=1).evaluate(X, y)
 
 
 def test_predict_raises_not_implemented():
