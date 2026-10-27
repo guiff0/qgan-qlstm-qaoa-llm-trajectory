@@ -50,8 +50,8 @@ def load_processed_split(processed_dir: str, split: str) -> tuple[np.ndarray, np
 def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
                   reuse_checkpoint: bool = False):
     set_all_seeds(seed)
-    run_id = make_run_id(model_name)
     log_cfg = cfg.get("logging", {})
+    run_id = make_run_id(model_name, log_cfg.get("log_dir", "logs"))
     run_logger = RunLogger(
         run_id,
         log_dir=log_cfg.get("log_dir", "logs"),
@@ -149,6 +149,11 @@ def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
     # exactly what's needed to check a claim like "97% of runs fall below
     # 40ms" against the real distribution rather than assuming normality
     # from mean/SD alone.
+    from src.utils.run_identity import archive_file
+    if ckpt_path and os.path.isfile(ckpt_path):
+        _kept = archive_file(ckpt_path, tag=run_id)     # checkpoint file is rewritten by the next run
+        if _kept:
+            run_logger.info(f"Checkpoint archived to {_kept}")
     run_logger.save_json()
     return metrics
 

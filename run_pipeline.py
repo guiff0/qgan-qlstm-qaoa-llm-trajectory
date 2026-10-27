@@ -144,7 +144,12 @@ def save_state(state: dict) -> None:
     EVERY step, not just at the end -- so if the process is killed mid-
     pipeline, the state file on disk always reflects every step that
     genuinely finished, never a partially-written or stale file."""
+    from src.utils.run_identity import pipeline_run_id
     state["updated_utc"] = _now()
+    state["pipeline_run_id"] = pipeline_run_id()
+    state.setdefault("pipeline_runs", [])
+    if state["pipeline_run_id"] not in state["pipeline_runs"]:
+        state["pipeline_runs"].append(state["pipeline_run_id"])
     os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
     atomic_write_text(STATE_PATH, json.dumps(state, indent=2, default=str))
 
@@ -342,7 +347,10 @@ def decide_skip_policy(state: dict, steps: list[dict], args) -> bool:
     """
     if args.reset:
         if os.path.isfile(STATE_PATH):
+            from src.utils.run_identity import archive_file
+            kept = archive_file(STATE_PATH)           # archived, never just deleted
             os.remove(STATE_PATH)
+            print(f"[run_pipeline] --reset: previous state kept at {kept}")
         print(f"[run_pipeline] --reset: removed {STATE_PATH}. Starting fresh; nothing to skip.")
         return False
 
@@ -701,7 +709,9 @@ def run_pipeline(argv=None) -> int:
         print("=" * 70)
         return 1
 
-    print(f"PIPELINE COMPLETE in {total / 60:.1f} min. State: {STATE_PATH}")
+    from src.utils.run_identity import archive_file, pipeline_run_id
+    archive_file(STATE_PATH, tag=pipeline_run_id())
+    print(f"PIPELINE COMPLETE in {total / 60:.1f} min. State: {STATE_PATH} (copy: data/history/, run {pipeline_run_id()})")
     print("=" * 70)
     return 0
 

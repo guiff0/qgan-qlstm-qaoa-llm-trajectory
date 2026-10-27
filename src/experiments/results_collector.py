@@ -136,7 +136,7 @@ class ResultsCollector:
 
         os.makedirs(self.results_dir, exist_ok=True)
         out_path = os.path.join(self.results_dir, "chapter4_numbers.json")
-        with open(out_path, "w") as f:
-            json.dump(tables, f, indent=2, default=str)
+        from src.utils.run_identity import save_json_versioned, pipeline_run_id
+        save_json_versioned(out_path, tables, tag=pipeline_run_id())   # old file kept in results/history/
 
         return tables
