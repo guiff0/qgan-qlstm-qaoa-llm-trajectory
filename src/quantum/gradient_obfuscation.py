@@ -170,11 +170,19 @@ def qgom_d(n_qubits: int, n_layers: int, entanglement: str, weights: np.ndarray,
     var_attacked = measure_gradient_variance(circuit, weights, inputs_attacked, target, n_trials, seed + 1)["mean_gradient_variance"]
 
     noise_floor = shot_noise_floor(circuit, weights, inputs_clean, target, n_repeats=20, seed=seed + 2)
-    var_clean_corrected = max(var_clean - noise_floor, 1e-12)
-    var_attacked_corrected = max(var_attacked - noise_floor, 1e-12)
+    var_clean_corrected = var_clean - noise_floor
+    var_attacked_corrected = var_attacked - noise_floor
+    # If either variance is not above the shot-noise floor the ratio is not
+    # identifiable. The earlier clamp (max(.., 1e-12) on both) returned an
+    # exact 0.0 in that case, which reads as "no obfuscation" when the truth
+    # is "not measurable" (all logged runs of Oct 12-25 show qgom == 0.0).
+    identifiable = var_clean_corrected > 0.0 and var_attacked_corrected > 0.0
+    qgom_value = (float(1.0 - var_attacked_corrected / var_clean_corrected)
+                  if identifiable else float("nan"))
 
     return {
-        "QGOM_d": float(1.0 - var_attacked_corrected / var_clean_corrected),
+        "QGOM_d": qgom_value,
+        "identifiable": bool(identifiable),
         "var_clean": var_clean,
         "var_attacked": var_attacked,
         "noise_floor": noise_floor,

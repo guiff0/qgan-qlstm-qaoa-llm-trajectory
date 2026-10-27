@@ -119,3 +119,82 @@ class file_lock:
         if self._acquired and os.path.exists(self.lock_path):
             os.remove(self.lock_path)
         return False
+
+
+def _pid_alive(pid: int) -> bool:
+    """Best-effort liveness check that works on POSIX and Windows."""
+    if pid <= 0:
+        return False
+    try:
+        import psutil  # optional
+        return psutil.pid_exists(pid)
+    except ImportError:
+        pass
+    if os.name == "nt":
+        import ctypes
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        h = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if h:
+            ctypes.windll.kernel32.CloseHandle(h)
+            return True
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+class training_lock:
+    """Exclusive, stale-aware lock around TRAINING of one checkpoint.
+
+    Why: on Oct 25 two pipeline processes trained/evaluated the same
+    no-noise QGAN-LLM checkpoint concurrently (run ids ...T085629Z and
+    ...T124139Z share one config fingerprint and one .pt file), so both
+    wrote the same checkpoint and the duplicate evaluation cost ~6 h.
+    file_lock only protected the results CSV, not training.
+
+    Lock file `<path>.train.lock` holds "pid\nUTC-timestamp". If it exists
+    and its pid is alive, acquisition fails fast with RuntimeError (we do not
+    wait hours). If the pid is dead the lock is stale and is taken over.
+    """
+
+    def __init__(self, path: str | Path):
+        self.lock_path = Path(str(path) + ".train.lock")
+
+    def _read_owner(self):
+        try:
+            return int(self.lock_path.read_text().split()[0])
+        except Exception:
+            return -1
+
+    def __enter__(self):
+        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
+        for _ in range(2):
+            try:
+                fd = os.open(str(self.lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                with os.fdopen(fd, "w") as f:
+                    f.write(f"{os.getpid()}\n{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\n")
+                return self
+            except FileExistsError:
+                owner = self._read_owner()
+                if owner != os.getpid() and _pid_alive(owner):
+                    raise RuntimeError(
+                        f"Another process (pid {owner}) is already training this checkpoint "
+                        f"({self.lock_path}). Refusing to run a concurrent duplicate."
+                    )
+                try:  # stale -> take over
+                    os.remove(self.lock_path)
+                except FileNotFoundError:
+                    pass
+        raise RuntimeError(f"Could not acquire {self.lock_path}")
+
+    def __exit__(self, *exc):
+        try:
+            if self._read_owner() == os.getpid():
+                os.remove(self.lock_path)
+        except FileNotFoundError:
+            pass
+        return False

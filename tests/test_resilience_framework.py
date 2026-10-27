@@ -308,6 +308,10 @@ def test_qgom_d_identical_inputs_give_near_zero_obfuscation():
 
     result = qgom_d(N_QUBITS, N_LAYERS, "ring", weights, inputs, inputs,
                      target=0.0, shots=256, n_trials=15, seed=8)
+    if not result["identifiable"]:
+        # variance at/below the shot-noise floor -> honest NaN, never a fake 0.0
+        assert np.isnan(result["QGOM_d"])
+        return
     assert abs(result["QGOM_d"]) < 0.9, f"Identical clean/attacked inputs gave an extreme QGOM_d={result['QGOM_d']}"
 
 

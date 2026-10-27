@@ -144,3 +144,19 @@ def test_append_to_results_csv_concurrent_via_run_logger(tmp_path):
     df = pd.read_csv(os.path.join(results_dir, "all_results.csv"))
     assert len(df) == 16
     assert sorted(df["model_type"]) == sorted(f"Model_{i}" for i in range(16))
+
+
+def test_training_lock_blocks_live_owner_and_takes_over_stale(tmp_path):
+    import os
+    import pytest
+    from src.utils.io import training_lock
+    ckpt = str(tmp_path / "m.pt")
+    lock = ckpt + ".train.lock"
+    open(lock, "w").write("1\nx\n")  # pid 1 is alive
+    with pytest.raises(RuntimeError):
+        with training_lock(ckpt):
+            pass
+    open(lock, "w").write("99999999\nx\n")  # dead pid -> stale
+    with training_lock(ckpt):
+        assert os.path.exists(lock)
+    assert not os.path.exists(lock)

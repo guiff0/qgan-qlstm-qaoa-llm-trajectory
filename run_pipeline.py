@@ -476,7 +476,8 @@ def watch_pipeline(args) -> int:
 _print_lock = threading.Lock()
 
 
-def run_step(step: dict, state: dict, skip_completed: bool, log_to_file: str | None = None) -> bool:
+def run_step(step: dict, state: dict, skip_completed: bool, log_to_file: str | None = None,
+             env: dict | None = None) -> bool:
     """Returns True on success (including a skip), False on failure.
 
     log_to_file: when set (used by run_batch_parallel below), the
@@ -507,9 +508,9 @@ def run_step(step: dict, state: dict, skip_completed: bool, log_to_file: str | N
     if log_to_file:
         os.makedirs(os.path.dirname(log_to_file), exist_ok=True)
         with open(log_to_file, "w") as f:
-            result = subprocess.run(step["cmd"], stdout=f, stderr=subprocess.STDOUT)
+            result = subprocess.run(step["cmd"], stdout=f, stderr=subprocess.STDOUT, env=env)
     else:
-        result = subprocess.run(step["cmd"])
+        result = subprocess.run(step["cmd"], env=env)
     duration = time.time() - t0
 
     with _print_lock:
@@ -529,6 +530,37 @@ def run_step(step: dict, state: dict, skip_completed: bool, log_to_file: str | N
         print(f"{_ts()} [FAIL] {step_id} exited with code {result.returncode} after {duration:.1f}s"
               + (f" -- see {log_to_file}" if log_to_file else ""))
         return False
+
+
+def _child_env(n_jobs: int, step: dict) -> dict:
+    """Environment for a parallel child: cap BLAS/torch threads so N jobs do
+    not each grab every core (oversubscription makes parallel slower than
+    sequential), and tell the child how many jobs ran at once so latency
+    figures can be flagged as measured under contention."""
+    env = dict(os.environ)
+    if step.get("parallel_group") == "train_eval":
+        threads = str(max(1, (os.cpu_count() or 1) // max(1, n_jobs)))
+        for k in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS"):
+            env.setdefault(k, threads)
+    env["PIPELINE_CONCURRENT_JOBS"] = str(n_jobs)
+    return env
+
+
+def auto_jobs(batch: list[dict]) -> int:
+    """Default parallelism: acquire steps are network-bound (run them all);
+    train_eval steps are CPU/RAM-bound (~2-3 GB each), so use at most half
+    the cores and what RAM allows, never more than the batch size."""
+    group = batch[0].get("parallel_group")
+    if group == "acquire":
+        return len(batch)
+    cpu = os.cpu_count() or 1
+    jobs = max(1, cpu // 2)
+    try:
+        import psutil
+        jobs = min(jobs, max(1, int(psutil.virtual_memory().available / 3e9)))
+    except Exception:
+        pass
+    return max(1, min(jobs, len(batch)))
 
 
 def run_batch_parallel(batch: list[dict], state: dict, skip_completed: bool,
@@ -572,7 +604,8 @@ def run_batch_parallel(batch: list[dict], state: dict, skip_completed: bool,
             safe_names = {s["id"]: s["id"].replace(":", "_").replace(" ", "_").replace("/", "_") for s in batch}
             futures = {
                 ex.submit(run_step, s, state, skip_completed,
-                         log_to_file=os.path.join(log_dir, f"{safe_names[s['id']]}.log")): s
+                         log_to_file=os.path.join(log_dir, f"{safe_names[s['id']]}.log"),
+                         env=_child_env(max_workers, s)): s
                 for s in batch
             }
             for fut in concurrent.futures.as_completed(futures):
@@ -612,10 +645,11 @@ def run_pipeline(argv=None) -> int:
                               "affect anything itself.")
     parser.add_argument("--watch-interval", type=float, default=3.0, metavar="SECONDS",
                          help="Refresh interval for --watch (default: 3s)")
-    parser.add_argument("--jobs", type=int, default=1, metavar="N",
+    parser.add_argument("--jobs", type=int, default=0, metavar="N",
                          help="Run independent steps within the acquire_* group and within the "
-                              "train_eval:* group up to N at a time (default: 1 = fully "
-                              "sequential, identical to earlier behavior). prepare_data and "
+                              "train_eval:* group up to N at a time. Default 0 = AUTO (acquire: all "
+                              "at once; train_eval: min(cores/2, free RAM/3GB, models)); "
+                              "use --jobs 1 for fully sequential. prepare_data and "
                               "verify_chapter4 always run alone since they depend on every "
                               "member of the group before/after them. Parallel steps write to "
                               "logs/pipeline/<step_id>.log instead of the terminal, since several "
@@ -663,13 +697,14 @@ def run_pipeline(argv=None) -> int:
             j += 1
         i = j
 
-        if group is not None and args.jobs > 1 and len(batch) > 1:
+        jobs = args.jobs if args.jobs > 0 else (auto_jobs(batch) if group is not None else 1)
+        if group is not None and jobs > 1 and len(batch) > 1:
             print(f"\n[run_pipeline] Running '{group}' group in parallel "
-                  f"(--jobs {args.jobs}): {[s['id'] for s in batch]}")
+                  f"(--jobs {jobs}{' auto' if args.jobs <= 0 else ''}): {[s['id'] for s in batch]}")
             print(f"[run_pipeline] Live status will refresh below every few seconds. To watch from "
                   f"another terminal instead: python run_pipeline.py --watch"
                   + (f" --config {args.config}" if args.config else ""))
-            results = run_batch_parallel(batch, state, skip_completed, args.jobs, log_dir)
+            results = run_batch_parallel(batch, state, skip_completed, jobs, log_dir)
         else:
             results = {s["id"]: run_step(s, state, skip_completed) for s in batch}
 

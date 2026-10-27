@@ -86,7 +86,7 @@ python run_pipeline.py --config path/to/other_config.yaml
 
 ## Parallelism: `--jobs N`
 
-`--jobs 1` (the default) is fully sequential — identical to running each
+`--jobs 0` (the default) picks the parallelism automatically (acquire group: all at once; train_eval group: min(cores/2, free RAM/3 GB, number of models), with BLAS/torch threads divided among jobs). `--jobs 1` is fully sequential — identical to running each
 script by hand in order, one at a time.
 
 `--jobs N` (N > 1) runs the independent steps **within** the acquire
@@ -107,6 +107,8 @@ dukascopy  xval  fred          <- parallelizable with --jobs
    └────┼────┴─────┴─────┘
    verify_chapter4              <- barrier: needs every model's result
 ```
+
+**Caveat on latency:** latency is timed inside each job, so parallel runs inflate it. Results record `concurrent_jobs`; for a latency number worth reporting, re-run that model alone with `--jobs 1`.
 
 **Caveat:** the quantum models (`QGAN-LLM`, `QLSTM Forecaster`, and their
 ablations) all run on PennyLane's `default.qubit` CPU simulator. Running

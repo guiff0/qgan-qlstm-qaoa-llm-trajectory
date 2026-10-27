@@ -45,6 +45,15 @@ def get_environment_fingerprint() -> dict:
         ).decode().strip()
     except Exception:
         fingerprint["git_commit"] = "not_a_git_repo"
+    # A bare commit hash is not reproducible if the working tree had edits
+    # (the Sept LSTM runs differed 2.3x between "same" hyperparameters).
+    try:
+        porcelain = subprocess.check_output(
+            ["git", "status", "--porcelain"], stderr=subprocess.DEVNULL
+        ).decode()
+        fingerprint["git_dirty"] = bool(porcelain.strip())
+    except Exception:
+        fingerprint["git_dirty"] = None
     for pkg in ["torch", "pennylane", "numpy", "scipy", "pandas"]:
         try:
             mod = __import__(pkg)

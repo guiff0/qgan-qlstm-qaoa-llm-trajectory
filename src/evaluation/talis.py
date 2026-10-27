@@ -75,20 +75,20 @@ class TaLISConfig:
     latency_cap: float = 5.0
 
 
-def compute_talis(asr, latency_mean_ms, config: TaLISConfig = None) -> float:
+def compute_talis(asr, latency_mean_ms, config: TaLISConfig = None, asr_unit: str = "percent") -> float:
     """
-    asr: Attack Success Rate. Accepts either a fraction in [0, 1] or a
-    percentage in [0, 100] -- values > 1 are assumed to be a percentage
-    and divided by 100 (ASR is reported both ways across this codebase
-    depending on the code path, e.g. 8.7 meaning 8.7% vs. 0.087).
-    latency_mean_ms: this model's measured mean single-sample inference
-    latency, in milliseconds (as produced by measure_inference_latency).
+    asr: Attack Success Rate in the unit named by ``asr_unit``.
+    The pipeline stores ASR in PERCENT (0.2356 means 0.2356%, not 23.56%),
+    so "percent" is the default. The earlier magnitude heuristic ("values
+    > 1 are percentages") misread every percent value <= 1 as a fraction
+    and overstated the impact term 100-fold for those runs (for example
+    QAOA-Enhanced LLM, asr=0.00067%). The unit is now explicit.
+    latency_mean_ms: mean single-sample inference latency in milliseconds.
 
-    Returns float('nan') if either input is missing/NaN -- e.g.
-    Classical LSTM reports asr=NaN since the adversarial-attack
-    evaluation doesn't apply to it; TaLIS is correspondingly undefined
-    for that row, not silently zero.
+    Returns NaN if either input is missing/NaN (undefined, not zero).
     """
+    if asr_unit not in ("percent", "fraction"):
+        raise ValueError("asr_unit must be 'percent' or 'fraction'")
     cfg = config or TaLISConfig()
     if asr is None or latency_mean_ms is None:
         return float("nan")
@@ -97,6 +97,6 @@ def compute_talis(asr, latency_mean_ms, config: TaLISConfig = None) -> float:
     if math.isnan(asr) or math.isnan(latency_mean_ms):
         return float("nan")
 
-    asr_fraction = asr / 100.0 if asr > 1.0 else asr
+    asr_fraction = asr / 100.0 if asr_unit == "percent" else asr
     latency_ratio = min(latency_mean_ms / cfg.latency_reference_ms, cfg.latency_cap)
     return cfg.impact_weight * asr_fraction + cfg.latency_weight * latency_ratio
