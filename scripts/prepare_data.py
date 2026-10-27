@@ -242,6 +242,15 @@ def main():
     print(f" -> Cumulative Variance Retained: {cum_var:.4%}")
     print(f" -> Step completed in {time.time() - t0:.2f}s | RAM: {get_mem_mb():.2f} MB")
 
+    # Persist the fitted preprocessors so generator rows (PCA space) can be mapped back to close
+    # prices for the LLM's synthetic context (src/llm/llm_pipeline.SyntheticPriceMapper).
+    import joblib, json as _json
+    os.makedirs(data_cfg["processed_dir"], exist_ok=True)
+    joblib.dump(scaler, os.path.join(data_cfg["processed_dir"], "scaler.joblib"))
+    joblib.dump(pca, os.path.join(data_cfg["processed_dir"], "pca.joblib"))
+    with open(os.path.join(data_cfg["processed_dir"], "feature_cols.json"), "w", encoding="utf8") as _fh:
+        _json.dump(list(feature_cols), _fh)
+
     log_step(7, total_steps, "Array Export & Verification")
     t0 = time.time()
     os.makedirs(data_cfg["processed_dir"], exist_ok=True)
@@ -273,12 +282,25 @@ def main():
         print(f" -> [TRACE] Writing arrays to disk for split '{split_name}'...")
         np.save(x_path, X_pca)
         np.save(y_path, y)
+        # VIX per row (lagged series already merged in step 3), kept so evaluation can be
+        # split by VIX regime and used as the ANCOVA covariate (src/evaluation/regime_eval.py).
+        np.save(os.path.join(data_cfg["processed_dir"], f"vix_{split_name}.npy"),
+                split_df["vix"].to_numpy(dtype=np.float32))
 
         x_size_mb = os.path.getsize(x_path) / (1024 * 1024)
         y_size_mb = os.path.getsize(y_path) / (1024 * 1024)
 
         print(f"    [EXPORTED] X_{split_name}.npy -> Shape: {X_pca.shape} | Size: {x_size_mb:.2f} MB")
         print(f"    [EXPORTED] y_{split_name}.npy -> Shape: {y.shape}    | Size: {y_size_mb:.2f} MB")
+
+    # Dated manifest: what exactly was exported, from which code and config. Never overwritten.
+    from src.utils.run_identity import pipeline_run_id, utc_stamp, config_sha256, file_sha256
+    _man = {"pipeline_run_id": pipeline_run_id(), "created_utc": utc_stamp(), "config_sha256": config_sha256(cfg),
+            "files": {fn: {"bytes": os.path.getsize(os.path.join(data_cfg["processed_dir"], fn)),
+                           "sha256": file_sha256(os.path.join(data_cfg["processed_dir"], fn))}
+                      for fn in sorted(os.listdir(data_cfg["processed_dir"])) if fn.endswith((".npy", ".joblib"))}}
+    with open(os.path.join(data_cfg["processed_dir"], f"manifest__{utc_stamp()}.json"), "w") as _fh:
+        _json.dump(_man, _fh, indent=2)
 
     print(" -> Leakage check on exported arrays (expected to still flag the "
           "RAW same-row pairing -- see leakage_check's docstring; the three "

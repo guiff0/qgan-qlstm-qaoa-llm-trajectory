@@ -1,0 +1,42 @@
+{
+  "run_id": "llm_forecaster_20261021T012719Z",
+  "environment": {
+    "python_version": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.22000-SP0",
+    "timestamp_utc": "2026-10-21T01:27:19.262466+00:00",
+    "git_commit": "abeff9ea13aad00e10a9d6b13adfd5241d89ecdc",
+    "torch_version": "2.5.1+cu121",
+    "pennylane_version": "0.44.1",
+    "numpy_version": "1.26.4",
+    "scipy_version": "1.17.1",
+    "pandas_version": "3.0.6"
+  },
+  "config_used": {
+    "model_id": "meta/llama-3.3-70b-instruct",
+    "api_base": "https://integrate.api.nvidia.com/v1",
+    "window_size": 10,
+    "horizon_minutes": 1,
+    "max_llm_calls": 20,
+    "query_fn": null
+  },
+  "training_history": [],
+  "final_metrics": {
+    "n_llm_samples": 0,
+    "n_llm_errors": 20,
+    "llm_errors_sample": [
+      "NVIDIA inference API returned 410: {\"type\":\"about:blank\",\"title\":\"Gone\",\"status\":410,\"detail\":\"The model 'meta/llama-3.3-70b-instruct' has reached its end of life on 2026-08-26T09:00:00Z and is no longer available.\"}\n\nCheck your API key, model_id='meta/llama-3.3-70b-instruct', and that it's actually deployed for inference (not just fine-tuning) on your account.",
+      "NVIDIA inference API returned 410: {\"type\":\"about:blank\",\"title\":\"Gone\",\"status\":410,\"detail\":\"The model 'meta/llama-3.3-70b-instruct' has reached its end of life on 2026-08-26T09:00:00Z and is no longer available.\"}\n\nCheck your API key, model_id='meta/llama-3.3-70b-instruct', and that it's actually deployed for inference (not just fine-tuning) on your account.",
+      "NVIDIA inference API returned 410: {\"type\":\"about:blank\",\"title\":\"Gone\",\"status\":410,\"detail\":\"The model 'meta/llama-3.3-70b-instruct' has reached its end of life on 2026-08-26T09:00:00Z and is no longer available.\"}\n\nCheck your API key, model_id='meta/llama-3.3-70b-instruct', and that it's actually deployed for inference (not just fine-tuning) on your account.",
+      "NVIDIA inference API returned 410: {\"type\":\"about:blank\",\"title\":\"Gone\",\"status\":410,\"detail\":\"The model 'meta/llama-3.3-70b-instruct' has reached its end of life on 2026-08-26T09:00:00Z and is no longer available.\"}\n\nCheck your API key, model_id='meta/llama-3.3-70b-instruct', and that it's actually deployed for inference (not just fine-tuning) on your account.",
+      "NVIDIA inference API returned 410: {\"type\":\"about:blank\",\"title\":\"Gone\",\"status\":410,\"detail\":\"The model 'meta/llama-3.3-70b-instruct' has reached its end of life on 2026-08-26T09:00:00Z and is no longer available.\"}\n\nCheck your API key, model_id='meta/llama-3.3-70b-instruct', and that it's actually deployed for inference (not just fine-tuning) on your account."
+    ],
+    "model_id": "meta/llama-3.3-70b-instruct",
+    "rmse": NaN,
+    "mae": NaN,
+    "persistence_rmse": 0.00013581233003341633,
+    "rmse_over_persistence": NaN,
+    "asr_baseline": "last_close",
+    "talis_score": NaN,
+    "seed": 42
+  }
+}
