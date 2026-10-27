@@ -379,3 +379,14 @@ llm_forecaster:
   window_size: 10
   horizon_minutes: 1
   max_llm_calls: 20
+
+sec_compliance:
+  # Technical-control screen (src/evaluation/sec_compliance.py). Study-internal
+  # tolerances, NOT SEC requirements: Rule 15c3-5 has no numeric latency or ASR limit.
+  max_asr_percent: 5.0
+  min_attack_samples: 1000
+  min_detector_accuracy: 0.90
+  max_detector_fpr: 0.05
+  max_rmse_over_persistence: 1.0
+  max_membership_accuracy: 0.60
+  internal_latency_target_ms: 40.0

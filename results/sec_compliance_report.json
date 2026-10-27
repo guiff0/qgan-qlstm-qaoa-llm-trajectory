@@ -1,0 +1,497 @@
+{
+  "runs": [
+    {
+      "run_id": "qgan_llm_no_noise_20261025T085629Z",
+      "model": "QGAN-LLM",
+      "overall": "NOT_READY",
+      "counts": {
+        "PASS": 1,
+        "FAIL": 3,
+        "NOT_EVIDENCED": 3,
+        "MANUAL": 1,
+        "NOT_IMPLEMENTED": 1
+      },
+      "checks": [
+        {
+          "id": "DOC-1",
+          "title": "Run is reproducible from recorded code, seed and versions",
+          "status": "NOT_EVIDENCED",
+          "evidence": "commit abeff9ea recorded but no git_dirty flag (uncommitted edits cannot be ruled out); seed=42",
+          "reference": "15c3-5(b)/(c) documented controls; record-keeping"
+        },
+        {
+          "id": "MR-1",
+          "title": "Forecast beats a naive persistence baseline",
+          "status": "FAIL",
+          "evidence": "RMSE is 4.513x the one-step persistence RMSE (limit 1.0)",
+          "reference": "model-risk validation (SR 11-7 style); 15c3-5(c) financial risk controls"
+        },
+        {
+          "id": "CTRL-1",
+          "title": "Adversarial input robustness (FGSM/PGD/CW directional flips)",
+          "status": "PASS",
+          "evidence": "ASR=0.2356% over 744785 samples (tolerance 5.0%)",
+          "reference": "15c3-5(c)(2) regulatory/erroneous-order controls (analogue)"
+        },
+        {
+          "id": "CTRL-2",
+          "title": "Threat detection performance",
+          "status": "NOT_EVIDENCED",
+          "evidence": "detector=interim_classical_randomforest, accuracy=0.998, FPR=0.001; interim classical detector, identical across models so it does not test this model",
+          "reference": "15c3-5(b) systemic risk monitoring (analogue)"
+        },
+        {
+          "id": "PRIV-1",
+          "title": "Synthetic data not trivially distinguishable from real (membership test)",
+          "status": "FAIL",
+          "evidence": "accuracy=1.000 (chance 0.5); higher = synthetic data trivially distinguishable from real, so it is not a privacy-preserving substitute",
+          "reference": "Reg S-P safeguards expectation (analogue); GDPR/CCPA minimisation"
+        },
+        {
+          "id": "LAT-1",
+          "title": "Latency vs study-internal target",
+          "status": "NOT_EVIDENCED",
+          "evidence": "0.03233 ms times only a linear head; the quantum generator is not on the inference path, so this says nothing about quantum latency",
+          "reference": "none: internal target, not a rule requirement"
+        },
+        {
+          "id": "MET-1",
+          "title": "Reported resilience metrics are interpretable",
+          "status": "FAIL",
+          "evidence": "QGOM exactly 0.0 (old clamp artifact; below noise floor, not 'no obfuscation'); CTR undefined (no identifiable decay); CTR is a 10-trajectory x 5-step rough estimate; TaLIS stored before the percent/fraction fix; recompute",
+          "reference": "supervisory review of control outputs"
+        },
+        {
+          "id": "NI-1",
+          "title": "Pre-trade order/credit limits, kill switch, erroneous-order blocks",
+          "status": "NOT_IMPLEMENTED",
+          "evidence": "The pipeline forecasts prices; it has no order path or hard limits. Required for any live market access.",
+          "reference": "15c3-5(c)(1)-(2)"
+        },
+        {
+          "id": "MAN-1",
+          "title": "Documentation, supervisory procedures, annual review and CEO certification",
+          "status": "MANUAL",
+          "evidence": "missing attestations: risk_control_documentation, supervisory_procedures, annual_review_date, ceo_certification",
+          "reference": "15c3-5(e)(1)-(2)"
+        }
+      ],
+      "disclaimer": "Technical screen of logged evidence; not legal advice or a compliance certification.",
+      "rmse": 0.000612876785453409
+    },
+    {
+      "run_id": "qgan_llm_linear_topology_20261024T124334Z",
+      "model": "QGAN-LLM",
+      "overall": "NOT_READY",
+      "counts": {
+        "PASS": 1,
+        "FAIL": 3,
+        "NOT_EVIDENCED": 3,
+        "MANUAL": 1,
+        "NOT_IMPLEMENTED": 1
+      },
+      "checks": [
+        {
+          "id": "DOC-1",
+          "title": "Run is reproducible from recorded code, seed and versions",
+          "status": "NOT_EVIDENCED",
+          "evidence": "commit abeff9ea recorded but no git_dirty flag (uncommitted edits cannot be ruled out); seed=42",
+          "reference": "15c3-5(b)/(c) documented controls; record-keeping"
+        },
+        {
+          "id": "MR-1",
+          "title": "Forecast beats a naive persistence baseline",
+          "status": "FAIL",
+          "evidence": "RMSE is 4.513x the one-step persistence RMSE (limit 1.0)",
+          "reference": "model-risk validation (SR 11-7 style); 15c3-5(c) financial risk controls"
+        },
+        {
+          "id": "CTRL-1",
+          "title": "Adversarial input robustness (FGSM/PGD/CW directional flips)",
+          "status": "PASS",
+          "evidence": "ASR=0.2356% over 744785 samples (tolerance 5.0%)",
+          "reference": "15c3-5(c)(2) regulatory/erroneous-order controls (analogue)"
+        },
+        {
+          "id": "CTRL-2",
+          "title": "Threat detection performance",
+          "status": "NOT_EVIDENCED",
+          "evidence": "detector=interim_classical_randomforest, accuracy=0.998, FPR=0.001; interim classical detector, identical across models so it does not test this model",
+          "reference": "15c3-5(b) systemic risk monitoring (analogue)"
+        },
+        {
+          "id": "PRIV-1",
+          "title": "Synthetic data not trivially distinguishable from real (membership test)",
+          "status": "FAIL",
+          "evidence": "accuracy=1.000 (chance 0.5); higher = synthetic data trivially distinguishable from real, so it is not a privacy-preserving substitute",
+          "reference": "Reg S-P safeguards expectation (analogue); GDPR/CCPA minimisation"
+        },
+        {
+          "id": "LAT-1",
+          "title": "Latency vs study-internal target",
+          "status": "NOT_EVIDENCED",
+          "evidence": "0.0215 ms times only a linear head; the quantum generator is not on the inference path, so this says nothing about quantum latency",
+          "reference": "none: internal target, not a rule requirement"
+        },
+        {
+          "id": "MET-1",
+          "title": "Reported resilience metrics are interpretable",
+          "status": "FAIL",
+          "evidence": "QGOM exactly 0.0 (old clamp artifact; below noise floor, not 'no obfuscation'); CTR is a 10-trajectory x 5-step rough estimate; TaLIS stored before the percent/fraction fix; recompute",
+          "reference": "supervisory review of control outputs"
+        },
+        {
+          "id": "NI-1",
+          "title": "Pre-trade order/credit limits, kill switch, erroneous-order blocks",
+          "status": "NOT_IMPLEMENTED",
+          "evidence": "The pipeline forecasts prices; it has no order path or hard limits. Required for any live market access.",
+          "reference": "15c3-5(c)(1)-(2)"
+        },
+        {
+          "id": "MAN-1",
+          "title": "Documentation, supervisory procedures, annual review and CEO certification",
+          "status": "MANUAL",
+          "evidence": "missing attestations: risk_control_documentation, supervisory_procedures, annual_review_date, ceo_certification",
+          "reference": "15c3-5(e)(1)-(2)"
+        }
+      ],
+      "disclaimer": "Technical screen of logged evidence; not legal advice or a compliance certification.",
+      "rmse": 0.000612876785453409
+    },
+    {
+      "run_id": "qgan_llm_12_qubit_20261024T095145Z",
+      "model": "QGAN-LLM",
+      "overall": "NOT_READY",
+      "counts": {
+        "PASS": 1,
+        "FAIL": 3,
+        "NOT_EVIDENCED": 3,
+        "MANUAL": 1,
+        "NOT_IMPLEMENTED": 1
+      },
+      "checks": [
+        {
+          "id": "DOC-1",
+          "title": "Run is reproducible from recorded code, seed and versions",
+          "status": "NOT_EVIDENCED",
+          "evidence": "commit abeff9ea recorded but no git_dirty flag (uncommitted edits cannot be ruled out); seed=42",
+          "reference": "15c3-5(b)/(c) documented controls; record-keeping"
+        },
+        {
+          "id": "MR-1",
+          "title": "Forecast beats a naive persistence baseline",
+          "status": "FAIL",
+          "evidence": "RMSE is 4.513x the one-step persistence RMSE (limit 1.0)",
+          "reference": "model-risk validation (SR 11-7 style); 15c3-5(c) financial risk controls"
+        },
+        {
+          "id": "CTRL-1",
+          "title": "Adversarial input robustness (FGSM/PGD/CW directional flips)",
+          "status": "PASS",
+          "evidence": "ASR=0.2356% over 744785 samples (tolerance 5.0%)",
+          "reference": "15c3-5(c)(2) regulatory/erroneous-order controls (analogue)"
+        },
+        {
+          "id": "CTRL-2",
+          "title": "Threat detection performance",
+          "status": "NOT_EVIDENCED",
+          "evidence": "detector=interim_classical_randomforest, accuracy=0.998, FPR=0.001; interim classical detector, identical across models so it does not test this model",
+          "reference": "15c3-5(b) systemic risk monitoring (analogue)"
+        },
+        {
+          "id": "PRIV-1",
+          "title": "Synthetic data not trivially distinguishable from real (membership test)",
+          "status": "FAIL",
+          "evidence": "accuracy=1.000 (chance 0.5); higher = synthetic data trivially distinguishable from real, so it is not a privacy-preserving substitute",
+          "reference": "Reg S-P safeguards expectation (analogue); GDPR/CCPA minimisation"
+        },
+        {
+          "id": "LAT-1",
+          "title": "Latency vs study-internal target",
+          "status": "NOT_EVIDENCED",
+          "evidence": "0.02513 ms times only a linear head; the quantum generator is not on the inference path, so this says nothing about quantum latency",
+          "reference": "none: internal target, not a rule requirement"
+        },
+        {
+          "id": "MET-1",
+          "title": "Reported resilience metrics are interpretable",
+          "status": "FAIL",
+          "evidence": "QGOM exactly 0.0 (old clamp artifact; below noise floor, not 'no obfuscation'); TaLIS stored before the percent/fraction fix; recompute",
+          "reference": "supervisory review of control outputs"
+        },
+        {
+          "id": "NI-1",
+          "title": "Pre-trade order/credit limits, kill switch, erroneous-order blocks",
+          "status": "NOT_IMPLEMENTED",
+          "evidence": "The pipeline forecasts prices; it has no order path or hard limits. Required for any live market access.",
+          "reference": "15c3-5(c)(1)-(2)"
+        },
+        {
+          "id": "MAN-1",
+          "title": "Documentation, supervisory procedures, annual review and CEO certification",
+          "status": "MANUAL",
+          "evidence": "missing attestations: risk_control_documentation, supervisory_procedures, annual_review_date, ceo_certification",
+          "reference": "15c3-5(e)(1)-(2)"
+        }
+      ],
+      "disclaimer": "Technical screen of logged evidence; not legal advice or a compliance certification.",
+      "rmse": 0.000612876785453409
+    },
+    {
+      "run_id": "qgan_llm_20261022T060051Z",
+      "model": "QGAN-LLM",
+      "overall": "NOT_READY",
+      "counts": {
+        "PASS": 1,
+        "FAIL": 3,
+        "NOT_EVIDENCED": 3,
+        "MANUAL": 1,
+        "NOT_IMPLEMENTED": 1
+      },
+      "checks": [
+        {
+          "id": "DOC-1",
+          "title": "Run is reproducible from recorded code, seed and versions",
+          "status": "NOT_EVIDENCED",
+          "evidence": "commit abeff9ea recorded but no git_dirty flag (uncommitted edits cannot be ruled out); seed=42",
+          "reference": "15c3-5(b)/(c) documented controls; record-keeping"
+        },
+        {
+          "id": "MR-1",
+          "title": "Forecast beats a naive persistence baseline",
+          "status": "FAIL",
+          "evidence": "RMSE is 4.513x the one-step persistence RMSE (limit 1.0)",
+          "reference": "model-risk validation (SR 11-7 style); 15c3-5(c) financial risk controls"
+        },
+        {
+          "id": "CTRL-1",
+          "title": "Adversarial input robustness (FGSM/PGD/CW directional flips)",
+          "status": "PASS",
+          "evidence": "ASR=0.2356% over 744785 samples (tolerance 5.0%)",
+          "reference": "15c3-5(c)(2) regulatory/erroneous-order controls (analogue)"
+        },
+        {
+          "id": "CTRL-2",
+          "title": "Threat detection performance",
+          "status": "NOT_EVIDENCED",
+          "evidence": "detector=interim_classical_randomforest, accuracy=0.998, FPR=0.001; interim classical detector, identical across models so it does not test this model",
+          "reference": "15c3-5(b) systemic risk monitoring (analogue)"
+        },
+        {
+          "id": "PRIV-1",
+          "title": "Synthetic data not trivially distinguishable from real (membership test)",
+          "status": "FAIL",
+          "evidence": "accuracy=1.000 (chance 0.5); higher = synthetic data trivially distinguishable from real, so it is not a privacy-preserving substitute",
+          "reference": "Reg S-P safeguards expectation (analogue); GDPR/CCPA minimisation"
+        },
+        {
+          "id": "LAT-1",
+          "title": "Latency vs study-internal target",
+          "status": "NOT_EVIDENCED",
+          "evidence": "0.03023 ms times only a linear head; the quantum generator is not on the inference path, so this says nothing about quantum latency",
+          "reference": "none: internal target, not a rule requirement"
+        },
+        {
+          "id": "MET-1",
+          "title": "Reported resilience metrics are interpretable",
+          "status": "FAIL",
+          "evidence": "QGOM exactly 0.0 (old clamp artifact; below noise floor, not 'no obfuscation'); CTR undefined (no identifiable decay); CTR is a 10-trajectory x 5-step rough estimate; TaLIS stored before the percent/fraction fix; recompute",
+          "reference": "supervisory review of control outputs"
+        },
+        {
+          "id": "NI-1",
+          "title": "Pre-trade order/credit limits, kill switch, erroneous-order blocks",
+          "status": "NOT_IMPLEMENTED",
+          "evidence": "The pipeline forecasts prices; it has no order path or hard limits. Required for any live market access.",
+          "reference": "15c3-5(c)(1)-(2)"
+        },
+        {
+          "id": "MAN-1",
+          "title": "Documentation, supervisory procedures, annual review and CEO certification",
+          "status": "MANUAL",
+          "evidence": "missing attestations: risk_control_documentation, supervisory_procedures, annual_review_date, ceo_certification",
+          "reference": "15c3-5(e)(1)-(2)"
+        }
+      ],
+      "disclaimer": "Technical screen of logged evidence; not legal advice or a compliance certification.",
+      "rmse": 0.000612876785453409
+    },
+    {
+      "run_id": "qaoa_enhanced_llm_20261024T085701Z",
+      "model": "QAOA-Enhanced LLM",
+      "overall": "NOT_READY",
+      "counts": {
+        "PASS": 2,
+        "FAIL": 2,
+        "NOT_EVIDENCED": 3,
+        "MANUAL": 1,
+        "NOT_IMPLEMENTED": 1
+      },
+      "checks": [
+        {
+          "id": "DOC-1",
+          "title": "Run is reproducible from recorded code, seed and versions",
+          "status": "NOT_EVIDENCED",
+          "evidence": "commit abeff9ea recorded but no git_dirty flag (uncommitted edits cannot be ruled out); seed=42",
+          "reference": "15c3-5(b)/(c) documented controls; record-keeping"
+        },
+        {
+          "id": "MR-1",
+          "title": "Forecast beats a naive persistence baseline",
+          "status": "FAIL",
+          "evidence": "RMSE is 687.1x the one-step persistence RMSE (limit 1.0)",
+          "reference": "model-risk validation (SR 11-7 style); 15c3-5(c) financial risk controls"
+        },
+        {
+          "id": "CTRL-1",
+          "title": "Adversarial input robustness (FGSM/PGD/CW directional flips)",
+          "status": "PASS",
+          "evidence": "ASR=0.0006713% over 744786 samples (tolerance 5.0%)",
+          "reference": "15c3-5(c)(2) regulatory/erroneous-order controls (analogue)"
+        },
+        {
+          "id": "CTRL-2",
+          "title": "Threat detection performance",
+          "status": "NOT_EVIDENCED",
+          "evidence": "no detector result",
+          "reference": "15c3-5(b) systemic risk monitoring (analogue)"
+        },
+        {
+          "id": "PRIV-1",
+          "title": "Synthetic data not trivially distinguishable from real (membership test)",
+          "status": "NOT_EVIDENCED",
+          "evidence": "no membership/inversion accuracy logged",
+          "reference": "Reg S-P safeguards expectation (analogue); GDPR/CCPA minimisation"
+        },
+        {
+          "id": "LAT-1",
+          "title": "Latency vs study-internal target",
+          "status": "PASS",
+          "evidence": "0.1124 ms (unknown) vs STUDY-INTERNAL target 40.0 ms (no SEC numeric threshold exists)",
+          "reference": "none: internal target, not a rule requirement"
+        },
+        {
+          "id": "MET-1",
+          "title": "Reported resilience metrics are interpretable",
+          "status": "FAIL",
+          "evidence": "TaLIS stored before the percent/fraction fix; recompute",
+          "reference": "supervisory review of control outputs"
+        },
+        {
+          "id": "NI-1",
+          "title": "Pre-trade order/credit limits, kill switch, erroneous-order blocks",
+          "status": "NOT_IMPLEMENTED",
+          "evidence": "The pipeline forecasts prices; it has no order path or hard limits. Required for any live market access.",
+          "reference": "15c3-5(c)(1)-(2)"
+        },
+        {
+          "id": "MAN-1",
+          "title": "Documentation, supervisory procedures, annual review and CEO certification",
+          "status": "MANUAL",
+          "evidence": "missing attestations: risk_control_documentation, supervisory_procedures, annual_review_date, ceo_certification",
+          "reference": "15c3-5(e)(1)-(2)"
+        }
+      ],
+      "disclaimer": "Technical screen of logged evidence; not legal advice or a compliance certification.",
+      "rmse": 0.09331835061311722
+    },
+    {
+      "run_id": "qlstm_forecaster_20261023T023234Z",
+      "model": "QLSTM Forecaster",
+      "overall": "NOT_READY",
+      "counts": {
+        "PASS": 0,
+        "FAIL": 4,
+        "NOT_EVIDENCED": 3,
+        "MANUAL": 1,
+        "NOT_IMPLEMENTED": 1
+      },
+      "checks": [
+        {
+          "id": "DOC-1",
+          "title": "Run is reproducible from recorded code, seed and versions",
+          "status": "NOT_EVIDENCED",
+          "evidence": "commit abeff9ea recorded but no git_dirty flag (uncommitted edits cannot be ruled out); seed=42",
+          "reference": "15c3-5(b)/(c) documented controls; record-keeping"
+        },
+        {
+          "id": "MR-1",
+          "title": "Forecast beats a naive persistence baseline",
+          "status": "FAIL",
+          "evidence": "RMSE is 849.5x the one-step persistence RMSE (limit 1.0)",
+          "reference": "model-risk validation (SR 11-7 style); 15c3-5(c) financial risk controls"
+        },
+        {
+          "id": "CTRL-1",
+          "title": "Adversarial input robustness (FGSM/PGD/CW directional flips)",
+          "status": "NOT_EVIDENCED",
+          "evidence": "ASR=2% but only 50 attacked samples (< 1000): one sample moves ASR by 2 points",
+          "reference": "15c3-5(c)(2) regulatory/erroneous-order controls (analogue)"
+        },
+        {
+          "id": "CTRL-2",
+          "title": "Threat detection performance",
+          "status": "FAIL",
+          "evidence": "detector=interim_classical_randomforest, accuracy=0.755, FPR=0.0; interim classical detector, identical across models so it does not test this model",
+          "reference": "15c3-5(b) systemic risk monitoring (analogue)"
+        },
+        {
+          "id": "PRIV-1",
+          "title": "Synthetic data not trivially distinguishable from real (membership test)",
+          "status": "NOT_EVIDENCED",
+          "evidence": "no membership/inversion accuracy logged",
+          "reference": "Reg S-P safeguards expectation (analogue); GDPR/CCPA minimisation"
+        },
+        {
+          "id": "LAT-1",
+          "title": "Latency vs study-internal target",
+          "status": "FAIL",
+          "evidence": "933.6 ms (quantum_circuit_in_path) vs STUDY-INTERNAL target 40.0 ms (no SEC numeric threshold exists)",
+          "reference": "none: internal target, not a rule requirement"
+        },
+        {
+          "id": "MET-1",
+          "title": "Reported resilience metrics are interpretable",
+          "status": "FAIL",
+          "evidence": "QGOM exactly 0.0 (old clamp artifact; below noise floor, not 'no obfuscation'); CTR is a 10-trajectory x 5-step rough estimate; TaLIS stored before the percent/fraction fix; recompute",
+          "reference": "supervisory review of control outputs"
+        },
+        {
+          "id": "NI-1",
+          "title": "Pre-trade order/credit limits, kill switch, erroneous-order blocks",
+          "status": "NOT_IMPLEMENTED",
+          "evidence": "The pipeline forecasts prices; it has no order path or hard limits. Required for any live market access.",
+          "reference": "15c3-5(c)(1)-(2)"
+        },
+        {
+          "id": "MAN-1",
+          "title": "Documentation, supervisory procedures, annual review and CEO certification",
+          "status": "MANUAL",
+          "evidence": "missing attestations: risk_control_documentation, supervisory_procedures, annual_review_date, ceo_certification",
+          "reference": "15c3-5(e)(1)-(2)"
+        }
+      ],
+      "disclaimer": "Technical screen of logged evidence; not legal advice or a compliance certification.",
+      "rmse": 0.11536994576454163
+    }
+  ],
+  "cross_run": [
+    {
+      "id": "X-1",
+      "title": "GAN-based variants produce distinguishable forecasts",
+      "status": "FAIL",
+      "evidence": "4 GAN-based runs share RMSE=0.000612876785; forecasts come from one closed-form head, so no comparison between them (or quantum effect) is testable",
+      "reference": "model-risk validation: comparison must be able to discriminate"
+    }
+  ],
+  "paper_claims": [
+    {
+      "why": "latency 'mandate' is not in any SEC rule",
+      "text": " as MiFID II and SEC Rule 15c3-5, which require transparency, explainability, and sub-millisecond latency (M. M. Karim et al., 2025). The"
+    },
+    {
+      "why": "latency 'mandate' is not in any SEC rule",
+      "text": "oseconds. This directly contradicts the requirement for sub-40ms latency used as a reference value in th"
+    }
+  ]
+}

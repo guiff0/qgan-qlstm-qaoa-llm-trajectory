@@ -71,37 +71,52 @@ class ResultsCollector:
         whatever is actually in all_results.csv — not copied from any
         pre-existing table.
         """
-        summary = self.summary_table().set_index("model_type")
+        # Key by configuration slug (run_id minus timestamp), NOT model_type:
+        # every QGAN-LLM ablation (ring / 12-qubit / linear / no-noise) is
+        # recorded as model_type "QGAN-LLM", so .loc["QGAN-LLM", col] returned
+        # a Series and float() raised "The truth value of a Series is
+        # ambiguous" / TypeError, which aborted verify_chapter4 (Oct 27 log).
+        summary = self.summary_table().set_index("config")
         tables = {}
 
-        def safe_get(model, col):
-            if model in summary.index and col in summary.columns:
-                val = summary.loc[model, col]
+        def safe_get(config, col):
+            if config in summary.index and col in summary.columns:
+                val = summary.loc[config, col]
+                if isinstance(val, pd.Series):  # defensive: duplicate index
+                    val = val.iloc[-1]
                 return None if pd.isna(val) else float(val)
             return None
 
-        model_names = list(summary.index)
         tables["model_comparison"] = summary.reset_index().to_dict(orient="records")
 
-        primary = "QGAN-LLM"
-        baseline = "Classical GAN-LLM"
-        if primary in model_names and baseline in model_names:
+        primary = "qgan_llm"
+        baseline = "classical_gan_llm"
+        if primary in summary.index and baseline in summary.index:
             qgan_rmse = safe_get(primary, "rmse")
             base_rmse = safe_get(baseline, "rmse")
             qgan_asr = safe_get(primary, "asr")
             base_asr = safe_get(baseline, "asr")
             tables["primary_vs_baseline"] = {
                 "rmse_reduction_pct": (
-                    100 * (base_rmse - qgan_rmse) / base_rmse if qgan_rmse and base_rmse else None
+                    100 * (base_rmse - qgan_rmse) / base_rmse
+                    if qgan_rmse is not None and base_rmse else None
                 ),
                 "asr_reduction_pct": (
-                    100 * (base_asr - qgan_asr) / base_asr if qgan_asr and base_asr else None
+                    100 * (base_asr - qgan_asr) / base_asr
+                    if qgan_asr is not None and base_asr else None
                 ),
                 "qgan_rmse": qgan_rmse,
                 "baseline_rmse": base_rmse,
                 "qgan_asr": qgan_asr,
                 "baseline_asr": base_asr,
             }
+
+        # Flag the structural finding rather than hiding it: all GAN-based
+        # configurations share one closed-form head, so identical RMSE is a
+        # property of the architecture, not evidence about the circuit.
+        gan = summary[summary.index.str.contains("gan_llm")]
+        if "rmse" in gan.columns and len(gan) > 1:
+            tables["gan_rmse_degenerate"] = bool(gan["rmse"].round(12).nunique() == 1)
 
         os.makedirs(self.results_dir, exist_ok=True)
         out_path = os.path.join(self.results_dir, "chapter4_numbers.json")

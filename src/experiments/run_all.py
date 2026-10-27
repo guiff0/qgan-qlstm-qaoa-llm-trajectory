@@ -114,6 +114,15 @@ def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
         metrics["latency_mean_ms"] = latency_report["mean_latency_ms"]
         metrics["latency_sd_ms"] = latency_report["sd_latency_ms"]
         metrics["latency_raw_samples_ms"] = latency_report["raw_samples_ms"]
+        # Scope label: GAN-based models time only the closed-form linear head
+        # (generator not on the inference path), so their ~0.02-0.04 ms is
+        # NOT a quantum-circuit latency. Only the QLSTM times a circuit.
+        metrics["concurrent_jobs"] = int(os.environ.get("PIPELINE_CONCURRENT_JOBS", "1"))
+        metrics["latency_scope"] = (
+            "quantum_circuit_in_path" if model_name.startswith("QLSTM")
+            else "forecast_head_only" if "GAN-LLM" in model_name
+            else "full_model_forward"
+        )
         run_logger.info(
             f"Latency: mean={latency_report['mean_latency_ms']:.3f}ms "
             f"SD={latency_report['sd_latency_ms']:.3f}ms "
@@ -125,7 +134,7 @@ def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
     # substitutes (ASR for dollar-impact, inference latency for detection
     # latency) since neither is measured directly by this pipeline.
     talis_cfg = TaLISConfig(**cfg.get("talis", {}))
-    metrics["talis_score"] = compute_talis(metrics.get("asr"), metrics.get("latency_mean_ms"), talis_cfg)
+    metrics["talis_score"] = compute_talis(metrics.get("asr"), metrics.get("latency_mean_ms"), talis_cfg, asr_unit="percent")
 
     # Passthrough for mediation_pipelines.py's M3->DV3 pathway (quantum
     # noise injection level mediating FPR) -- not wired into a full

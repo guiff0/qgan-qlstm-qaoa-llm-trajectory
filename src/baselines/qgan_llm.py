@@ -168,6 +168,14 @@ class QGANLLM(BaseForecastingModel):
         return loss.item()
 
     def train(self, X_train, y_train, X_val, y_val, run_logger=None):
+        """Locks the checkpoint so two pipeline processes cannot train/overwrite
+        the same config concurrently (observed Oct 25: two no-noise runs)."""
+        from src.utils.io import training_lock
+        fp = config_fingerprint(self.config, self.seed, "qgan_llm")
+        with training_lock(checkpoint_file("qgan_llm", fp)):
+            return self._train_locked(X_train, y_train, X_val, y_val, run_logger)
+
+    def _train_locked(self, X_train, y_train, X_val, y_val, run_logger=None):
         self.build()
         # Fixes the same-row target leakage flagged in the earlier audit:
         # see src/evaluation/one_step_ahead.py's module docstring for why this
