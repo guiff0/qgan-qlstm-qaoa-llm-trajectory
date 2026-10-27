@@ -108,3 +108,76 @@ def pearson_correlation_with_ci(x: np.ndarray, y: np.ndarray, alpha: float = 0.0
         "ci_low": float(ci_low),
         "ci_high": float(ci_high),
     }
+
+
+# ---------------------------------------------------------------------------
+# Assumption checks and multiplicity control (Ch.3, Table 14)
+#
+# Ch.3 names Shapiro-Wilk, Levene, homogeneity of regression slopes and a
+# Bonferroni-adjusted alpha for the ANCOVA / t-test / chi-square family, but
+# none of those checks existed in this file. They are implemented here from
+# their standard definitions; nothing in results/ has been run through them
+# yet (the logged runs are too few -- see TODO.md).
+# ---------------------------------------------------------------------------
+
+def shapiro_wilk(x: np.ndarray) -> dict:
+    """Shapiro-Wilk normality test. Needs 3 <= n <= 5000 (scipy's limit)."""
+    x = np.asarray(x, dtype=float)
+    x = x[np.isfinite(x)]
+    if len(x) < 3:
+        return {"error": f"need >= 3 observations, have {len(x)}"}
+    if len(x) > 5000:
+        x = np.random.default_rng(0).choice(x, 5000, replace=False)
+    w, p = stats.shapiro(x)
+    return {"w_statistic": float(w), "p_value": float(p), "n": int(len(x))}
+
+
+def levene_test(*groups: np.ndarray, center: str = "median") -> dict:
+    """Levene / Brown-Forsythe test of equal variances across groups."""
+    gs = [np.asarray(g, dtype=float)[np.isfinite(np.asarray(g, dtype=float))] for g in groups]
+    if len(gs) < 2 or any(len(g) < 2 for g in gs):
+        return {"error": "need >= 2 groups with >= 2 observations each"}
+    f, p = stats.levene(*gs, center=center)
+    return {"f_statistic": float(f), "p_value": float(p), "n_groups": len(gs)}
+
+
+def bonferroni_alpha(alpha: float, n_tests: int) -> float:
+    """Per-test alpha under a Bonferroni correction for n_tests tests."""
+    if n_tests < 1:
+        raise ValueError("n_tests must be >= 1")
+    return alpha / n_tests
+
+
+def holm_bonferroni(p_values, alpha: float = 0.05) -> dict:
+    """Holm step-down procedure (uniformly more powerful than plain Bonferroni).
+    Returns adjusted p-values (input order) and the reject flags."""
+    p = np.asarray(p_values, dtype=float)
+    m = len(p)
+    order = np.argsort(p)
+    adj = np.empty(m)
+    running = 0.0
+    for rank, idx in enumerate(order):
+        running = max(running, (m - rank) * p[idx])
+        adj[idx] = min(running, 1.0)
+    return {"adjusted_p": adj.tolist(), "reject": (adj < alpha).tolist(), "alpha": alpha, "n_tests": m}
+
+
+def ancova_assumption_checks(dv: np.ndarray, group: np.ndarray, covariate: np.ndarray) -> dict:
+    """The three checks Ch.3 lists before an ANCOVA:
+    (1) normality of residuals (Shapiro-Wilk), (2) homogeneity of variance
+    across groups (Levene), (3) homogeneity of regression slopes (the
+    group x covariate interaction must be non-significant)."""
+    df = pd.DataFrame({"dv": np.asarray(dv, float), "group": np.asarray(group), "covariate": np.asarray(covariate, float)}).dropna()
+    if df["group"].nunique() < 2 or len(df) < 6:
+        return {"error": f"need >= 2 groups and >= 6 rows, have {df['group'].nunique()} groups / {len(df)} rows"}
+    if df["covariate"].nunique() < 2:
+        return {"error": "covariate is constant, so the ANCOVA is not identified"}
+    full = smf.ols("dv ~ C(group) * covariate", data=df).fit()
+    base = smf.ols("dv ~ C(group) + covariate", data=df).fit()
+    inter = sm.stats.anova_lm(base, full)
+    slopes_p = float(inter["Pr(>F)"].iloc[1]) if len(inter) > 1 and np.isfinite(inter["Pr(>F)"].iloc[1]) else float("nan")
+    return {
+        "residual_normality": shapiro_wilk(base.resid.to_numpy()),
+        "variance_homogeneity": levene_test(*[g["dv"].to_numpy() for _, g in df.groupby("group")]),
+        "slope_homogeneity": {"interaction_p_value": slopes_p, "assumption_met": bool(slopes_p > 0.05) if np.isfinite(slopes_p) else None},
+    }

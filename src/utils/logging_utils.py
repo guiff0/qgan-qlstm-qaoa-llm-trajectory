@@ -25,16 +25,19 @@ from datetime import datetime, timezone
 from .io import file_lock
 
 
-def make_run_id(model_name: str) -> str:
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    safe_name = model_name.lower().replace(" ", "_").replace("(", "").replace(")", "").replace("-", "_")
-    return f"{safe_name}_{ts}"
+def make_run_id(model_name: str, log_dir: str = "logs") -> str:
+    """"<model slug>_<UTC timestamp>", guaranteed not to collide with an existing log
+    (see run_identity.unique_run_id)."""
+    from .run_identity import unique_run_id
+    return unique_run_id(model_name, log_dir)
 
 
 def get_environment_fingerprint() -> dict:
     """Captures exactly what ran, so results can't be second-guessed later as
     'maybe it was a different version of X'."""
+    from .run_identity import pipeline_run_id
     fingerprint = {
+        "pipeline_run_id": pipeline_run_id(),
         "python_version": sys.version,
         "platform": platform.platform(),
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
@@ -89,7 +92,9 @@ class RunLogger:
         self.logger.warning(msg)
 
     def log_config(self, config: dict):
+        from .run_identity import config_sha256
         self.record["config_used"] = config
+        self.record["config_sha256"] = config_sha256(config)
 
     def log_epoch(self, epoch: int, **metrics):
         row = {"epoch": epoch, **metrics}
@@ -136,7 +141,10 @@ class RunLogger:
         Verified: 8 processes appending concurrently to a fresh CSV all
         landed intact (see tests/test_logging_utils.py)."""
         csv_path = os.path.join(self.results_dir, "all_results.csv")
-        row = {"run_id": self.run_id, "model_type": model_type, **metrics}
+        env = self.record.get("environment", {})
+        row = {"run_id": self.run_id, "model_type": model_type,
+               "pipeline_run_id": env.get("pipeline_run_id"), "run_utc": env.get("timestamp_utc"),
+               "git_commit": env.get("git_commit"), **metrics}
 
         with file_lock(csv_path):
             existing_rows = []
@@ -159,4 +167,7 @@ class RunLogger:
                     writer.writerow(r)
                 writer.writerow(row)
 
-        self.info(f"Appended results row to {csv_path}")
+        # Append-only copy that no later rewrite, filter or reset of all_results.csv can erase.
+        from .run_identity import append_ledger
+        append_ledger(self.results_dir, row)
+        self.info(f"Appended results row to {csv_path} and to results/history/all_results_ledger.csv")

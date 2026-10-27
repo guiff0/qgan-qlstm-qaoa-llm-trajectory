@@ -266,8 +266,12 @@ def main():
     }
 
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
+    from src.utils.run_identity import archive_file, pipeline_run_id
+    archive_file(args.out, tag=pipeline_run_id())      # keep the previous results file; it is rewritten below
+    out["pipeline_run_id"] = pipeline_run_id()
     with open(args.out, "w") as f:
         json.dump(out, f, indent=2, default=lambda o: None if isinstance(o, float) and np.isnan(o) else str(o))
+    archive_file(args.out, tag=pipeline_run_id() + "_final")
     print(json.dumps(out, indent=2, default=str))
 
 
