@@ -368,15 +368,22 @@ talis:
   # 0.1*(latency/40)), rather than inventing a new threshold.
   latency_cap: 5.0
 
-llm_forecaster:
-  # LLM Forecaster baseline (src/baselines/llm_forecaster.py) -- only
-  # registered in run_all.py when NVIDIA_API_KEY is set. See that file's
-  # module docstring for the full scope/limitations (zero-shot by
-  # default, small test subsample, unverified against a live endpoint
-  # from this development session).
-  model_id: "meta/llama-3.3-70b-instruct"
+llm_pipeline:
+  # The LLM produces the forecast AND the threat probability (src/llm/llm_pipeline.py). Used by the
+  # LLM Forecaster (no synthetic context = control) and by Classical GAN-LLM / QGAN-LLM evaluate()
+  # (with the generator's nearest synthetic rows as context). Runs on a stratified SAMPLE: each
+  # window costs 2 live calls (clean + attacked). Needs NVIDIA_API_KEY; skipped otherwise.
+  enabled: true
+  # meta/llama-3.3-70b-instruct reached end of life on 2026-08-26 (HTTP 410 in the Oct 21 run) and no
+  # Llama 3.3 model is served any more (Oct 24 listing). The run resolves the first id below that the endpoint actually lists and stops early otherwise.
+  # Any change of model must be reported in the manuscript.
+  model_id: "meta/llama-3.2-90b-vision-instruct"
+  fallback_model_ids: ["meta/llama-3.2-11b-vision-instruct", "nvidia/llama-3.1-nemotron-ultra-253b-v1"]
   api_base: "https://integrate.api.nvidia.com/v1"
-  window_size: 10
+  nothink: true            # adds the reasoning-off switch for models that have one (see reasoning_prefix); <think> blocks are stripped anyway
+  max_tokens: 64
+  timeout: 120             # seconds per call; the first call to a large hosted model can be slow (cold start)
+  window_size: 10          # real closes per prompt
   horizon_minutes: 1
   max_llm_calls: 20
 
@@ -390,3 +397,23 @@ sec_compliance:
   max_rmse_over_persistence: 1.0
   max_membership_accuracy: 0.60
   internal_latency_target_ms: 40.0
+  n_windows: 102           # stratified over n_regimes volatility terciles (34 each)
+  n_regimes: 3
+  max_workers: 2           # parallel calls PER PROCESS; several models run at once, 429s are retried
+  retries: 6
+  backoff: 5.0
+  use_synthetic_context: true
+  synthetic_pool: 2000     # generator rows searched for neighbours (reuses the evaluation cache)
+  synthetic_neighbors: 5
+  # Price-space adversarial inputs (NEW design parameters; the proposal's 0.1 is a feature-space epsilon):
+  price_attack_k: 2.0      # epsilon = k x std of 1-minute close changes
+  pgd_alpha_frac: 0.1
+  pgd_steps: 10
+
+feature_llm:
+  # QAOA-LLM and Classical-Features-LLM (src/baselines/context_llm.py): the selector picks target_k named
+  # engineered features that go into the LLM prompt. QAOA settings come from qaoa_llm above.
+  n_candidates: 16
+  target_k: 8
+  max_selection_rows: 200000
+  exclude_features: [open, high, low, close]   # price levels add nothing the close window does not show

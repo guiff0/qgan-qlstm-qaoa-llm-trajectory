@@ -1,5 +1,5 @@
 # QGAN-LLM Research Codebase
-
+python scripts\check_llm_endpoint.py --probe-all
 A rebuilt, genuinely-functional version of the QGAN-LLM comparison framework
 (Classical LSTM vs. Classical GAN-LLM vs. QGAN-LLM, plus ablations) for the
 "quantum-enhanced financial forecasting + cybersecurity threat detection"
@@ -9,7 +9,7 @@ FRED_API_KEY
 [System.Environment]::SetEnvironmentVariable('FRED_API_KEY', '687e6d45e4a553c4e3e69e24c55fa1de', 'User')
 [System.Environment]::SetEnvironmentVariable('NVIDIA_API_KEY', 'Se7rF1kGGAQ38Jjy9zjDB9DGRlb22wVO8x7Nyehy', 'User')
 ## Why this rebuild exists
-
+[System.Environment]::SetEnvironmentVariable('NVIDIA_API_KEY', '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', 'User')
 An earlier version of this codebase had two functions that returned
 hardcoded numbers instead of computing anything:
 
@@ -20,7 +20,28 @@ def _evaluate_adversarial(self, X_test, y_test):
 def _measure_entanglement(self):
     return np.random.uniform(2.5, 4.0)  # Placeholder
 ```
+Running in parallel
 
+Unzip llm_wiring_patch.zip over your repo. If you have edited config/default_config.yaml, merge its llm_pipeline: block by hand instead of overwriting.
+
+1. One-time setup.
+
+python -m scripts.prepare_data
+python scripts\check_llm_endpoint.py
+
+The second command makes one real API call. It confirms the model reply parses into a forecast and a threat probability. Fix any failure before launching anything.
+
+2. Detached windows, one per model.
+
+.\scripts\launch_parallel.ps1 -MaxParallel 4
+Windows: each model gets its own PowerShell window, slowest first (the QGAN-LLM variants), and its output is saved to logs\parallel_<model>.txt.
+Threads: each window gets its share of CPU threads so they don’t fight over the cores.
+Safe to run concurrently: all_results.csv is written under a file lock.
+Verification: when all windows exit 0, it runs verify_chapter4 and run_hypothesis_tests.
+State file: it does not update data\pipeline_state.json.
+Options: add -KeepOpen to leave the windows open.
+
+3. Alternative, no extra windows. python run_pipeline.py --jobs 4 runs four steps at a time and records them in the state file.
 Running that code and "collecting the logs" would only ever print back
 the disputed numbers themselves, not something a real model, attack, or
 quantum circuit produced. This rebuild replaces every such stub with a

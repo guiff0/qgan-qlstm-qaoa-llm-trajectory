@@ -120,3 +120,97 @@ def entanglement_metrics(circuit_fn, params, n_qubits: int,
         "subsystem_size": cut,
         "max_possible_entropy": float(cut),  # log2(2^cut) — for normalizing if needed
     }
+
+
+# ---------------------------------------------------------------------------
+# Measurement-based tomography of a small subsystem
+#
+# entanglement_metrics() above reads the exact statevector of a SIMULATOR and
+# takes a partial trace -- an exact calculation, not tomography (a real device
+# gives no access to the statevector). The functions below do what Ch.3 calls
+# quantum state tomography: estimate Pauli expectation values from a finite
+# number of measurement shots on the subsystem and rebuild its density matrix.
+# The cost is 4^k Pauli words for a k-qubit subsystem, so k is capped at 4.
+# ---------------------------------------------------------------------------
+import itertools
+
+_PAULI = {
+    "I": np.eye(2, dtype=complex),
+    "X": np.array([[0, 1], [1, 0]], dtype=complex),
+    "Y": np.array([[0, -1j], [1j, 0]], dtype=complex),
+    "Z": np.array([[1, 0], [0, -1]], dtype=complex),
+}
+MAX_TOMOGRAPHY_QUBITS = 4
+
+
+def _pauli_matrix(word: str) -> np.ndarray:
+    m = np.array([[1.0 + 0j]])
+    for ch in word:
+        m = np.kron(m, _PAULI[ch])
+    return m
+
+
+def pauli_expectations(circuit_fn, params, n_qubits: int, subsystem_qubits: list[int],
+                       shots: int | None, dev_name: str = "default.qubit", seed: int = 0) -> dict:
+    """Estimate <P> for every Pauli word P on `subsystem_qubits` (identity excluded).
+    shots=None gives exact expectation values; an int gives a finite-shot estimate."""
+    k = len(subsystem_qubits)
+    if k < 1 or k > MAX_TOMOGRAPHY_QUBITS:
+        raise ValueError(f"subsystem must have 1..{MAX_TOMOGRAPHY_QUBITS} qubits, got {k}")
+    dev = qml.device(dev_name, wires=n_qubits, shots=shots, seed=seed) if shots is not None \
+        else qml.device(dev_name, wires=n_qubits)
+    ops = {"X": qml.PauliX, "Y": qml.PauliY, "Z": qml.PauliZ}
+    out = {}
+    for word in ("".join(w) for w in itertools.product("IXYZ", repeat=k)):
+        if set(word) == {"I"}:
+            continue
+        obs = None
+        for ch, wire in zip(word, subsystem_qubits):
+            if ch == "I":
+                continue
+            term = ops[ch](wire)
+            obs = term if obs is None else obs @ term
+
+        @qml.qnode(dev)
+        def _q(p, _obs=obs):
+            circuit_fn(p)
+            return qml.expval(_obs)
+
+        out[word] = float(_q(params))
+    return out
+
+
+def reconstruct_density_matrix(expectations: dict, k: int, physical: bool = True) -> np.ndarray:
+    """Linear-inversion estimate rho = 2^-k * sum_P <P> P, optionally projected onto
+    the nearest valid state (clip negative eigenvalues, renormalise to trace 1)."""
+    rho = np.eye(2 ** k, dtype=complex) / 2 ** k
+    for word, e in expectations.items():
+        rho = rho + e * _pauli_matrix(word) / 2 ** k
+    if physical:
+        rho = (rho + rho.conj().T) / 2
+        vals, vecs = np.linalg.eigh(rho)
+        vals = np.clip(vals, 0, None)
+        vals = vals / vals.sum()
+        rho = (vecs * vals) @ vecs.conj().T
+    return rho
+
+
+def measurement_tomography(circuit_fn, params, n_qubits: int, subsystem_qubits: list[int],
+                           shots: int = 4096, dev_name: str = "default.qubit", seed: int = 0,
+                           compare_exact: bool = True) -> dict:
+    """Shot-based tomography of `subsystem_qubits`. When compare_exact is True the
+    reconstruction is scored against the simulator's exact reduced state, which is
+    the only reason a statevector is touched (not available on hardware)."""
+    k = len(subsystem_qubits)
+    exp = pauli_expectations(circuit_fn, params, n_qubits, subsystem_qubits, shots, dev_name, seed)
+    rho = reconstruct_density_matrix(exp, k)
+    res = {"subsystem_qubits": list(subsystem_qubits), "shots_per_pauli_word": shots,
+           "n_pauli_words": len(exp), "rho_hat": rho,
+           "entropy_hat": von_neumann_entropy(rho), "purity_hat": purity(rho)}
+    if compare_exact:
+        state = statevector_from_circuit(circuit_fn, params, n_qubits, dev_name)
+        rho_true = reduced_density_matrix(state, n_qubits, list(subsystem_qubits))
+        res.update(rho_exact=rho_true, fidelity_to_exact=state_fidelity(rho, rho_true),
+                   entropy_exact=von_neumann_entropy(rho_true), purity_exact=purity(rho_true),
+                   trace_distance=float(0.5 * np.abs(np.linalg.eigvalsh(rho - rho_true)).sum()))
+    return res

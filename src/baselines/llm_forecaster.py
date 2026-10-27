@@ -42,21 +42,18 @@ from typing import Dict
 import numpy as np
 
 from .base import BaseForecastingModel
-from ..evaluation.metrics import mae as mae_fn
-from ..evaluation.metrics import rmse as rmse_fn
 from ..evaluation.one_step_ahead import shift_for_one_step_ahead
-from ..llm.llm_inference import query_llm_forecast
 
 
 class LLMForecaster(BaseForecastingModel):
     def __init__(self, config: Dict = None, seed: int = 42):
         default_config = {
-            "model_id": "meta/llama-3.3-70b-instruct",  # base model; see module docstring re: fine-tuning
-            "api_base": "https://api.nvidia.com/v1",
+            "model_id": "nvidia/llama-3.1-nemotron-70b-instruct",  # Llama 3.3 models are no longer served (Oct 2026)
+            "api_base": "https://integrate.api.nvidia.com/v1",
             "window_size": 10,   # how many recent closes go into the prompt
             "horizon_minutes": 1,
-            "max_llm_calls": 20,  # real network calls cost real time/money -- keep this small by default
-            "query_fn": None,     # dependency injection point for tests -- see evaluate()
+            "n_windows": 102,    # stratified sample; each window costs 2 live calls
+            "chat_fn": None,      # dependency injection point for tests -- see evaluate()
         }
         cfg = {**default_config, **(config or {})}
         super().__init__("LLM Forecaster", cfg)
@@ -80,42 +77,25 @@ class LLMForecaster(BaseForecastingModel):
         )
 
     def evaluate(self, X_test, y_test, attack_cfg: Dict = None, last_input_prices=None, **kwargs):
+        """Control condition of the LLM pipeline: the same dual-output prompt, windows, attacks and
+        metrics as the GAN-LLM models, but WITHOUT synthetic context. Uses the real close series
+        (last_input_prices), not X[:, 0], which is a PCA component and not a price."""
+        from ..llm.llm_pipeline import evaluate_llm_pipeline
+
         X_test, y_test = shift_for_one_step_ahead(np.asarray(X_test), np.asarray(y_test))
-        query_fn = self.config["query_fn"] or query_llm_forecast
-
-        window = self.config["window_size"]
-        n_calls = min(self.config["max_llm_calls"], len(X_test) - window)
-        if n_calls <= 0:
-            self.results = {"error": f"not enough rows ({len(X_test)}) for window_size={window}"}
+        if last_input_prices is None:
+            self.results = {"error": "LLMForecaster needs last_input_prices (the real close series)"}
             return self.results
-
-        rng = np.random.default_rng(self.seed)
-        start_indices = rng.choice(range(window, len(X_test)), size=n_calls, replace=False)
-
-        predictions, actuals, errors = [], [], []
-        for idx in start_indices:
-            recent_closes = X_test[idx - window:idx, 0].tolist()  # see module docstring re: this proxy
-            try:
-                pred = query_fn(recent_closes, self.config["model_id"],
-                                 horizon_minutes=self.config["horizon_minutes"],
-                                 api_base=self.config["api_base"])
-                predictions.append(pred)
-                actuals.append(float(y_test[idx]))
-            except Exception as exc:
-                errors.append(str(exc))
-
-        self.results = {
-            "n_llm_samples": len(predictions),
-            "n_llm_errors": len(errors),
-            "llm_errors_sample": errors[:5],
-            "model_id": self.config["model_id"],
-        }
-        if predictions:
-            preds_arr = np.array(predictions)
-            actuals_arr = np.array(actuals)
-            self.results["rmse"] = rmse_fn(actuals_arr, preds_arr)
-            self.results["mae"] = mae_fn(actuals_arr, preds_arr)
-        else:
-            self.results["rmse"] = float("nan")
-            self.results["mae"] = float("nan")
+        closes = np.asarray(last_input_prices, dtype=float).flatten()[:-1]
+        cfg = {**self.config, "use_synthetic_context": False}
+        query_fn = self.config.get("chat_fn")  # injection point for tests
+        self.results = evaluate_llm_pipeline(closes, np.asarray(y_test, dtype=float).flatten(), X_test, cfg,
+                                             seed=self.seed, generator_fn=None, mapper=None, chat_fn=query_fn)
+        # Keep the column names the rest of the pipeline already reads.
+        self.results["rmse"] = self.results.get("llm_rmse", float("nan"))
+        self.results["mae"] = self.results.get("llm_mae", float("nan"))
+        self.results["asr"] = self.results.get("llm_asr", float("nan"))
+        self.results["n_llm_samples"] = self.results.get("llm_n_forecasts", 0)
+        self.results["n_llm_errors"] = self.results.get("llm_n_errors", 0)
+        self.results["model_id"] = self.config["model_id"]
         return self.results

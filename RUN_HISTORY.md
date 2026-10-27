@@ -1,0 +1,14 @@
+# Run history: dated results that later runs cannot erase
+
+**Ids.** `run_id` = `<model slug>_<UTC timestamp>` (one per model run; bumped by one second if the id is taken, so a log is never overwritten). `pipeline_run_id` = `P<UTC timestamp>-<git sha>` (one per `run_pipeline.py` call; shared with every subprocess through the `PIPELINE_RUN_ID` environment variable). Both are written into `logs/<run_id>.json` (`environment.pipeline_run_id`, `config_sha256`, `git_commit`) and into every results row (`pipeline_run_id`, `run_utc`, `git_commit`).
+
+| File that is rewritten in place | Where the old versions are kept |
+|---|---|
+| `results/all_results.csv` | `results/history/all_results_ledger.csv` (append-only, one row per run) |
+| `results/chapter4_numbers.json` | `results/history/chapter4_numbers__<pipeline_run_id>.json` |
+| `results/hypothesis_test_results.json` | `results/history/hypothesis_test_results__<pipeline_run_id>[_final].json` (also records `pipeline_run_id`) |
+| `data/pipeline_state.json` (also on `--reset`) | `data/history/pipeline_state__<pipeline_run_id>.json` |
+| `models/classical_lstm_best.pt` and other checkpoints | `models/history/<name>__<run_id>.pt` |
+| `data/processed/*.npy` | `data/processed/manifest__<UTC stamp>.json` (sha256 and size of every array, config hash) |
+
+Identical files are not copied twice; an existing archive name is never overwritten (a numeric suffix is added). If `all_results.csv` is ever reset or filtered, rebuild the ledger from the logs: `python -m scripts.rebuild_ledger`.

@@ -68,47 +68,70 @@ class ResultsCollector:
         """
         Reshapes the summary table into the specific comparisons Chapter 4
         reports (model-vs-model RMSE/ASR deltas, etc.), computed fresh from
-        whatever is actually in all_results.csv — not copied from any
+        whatever is actually in all_results.csv -- not copied from any
         pre-existing table.
+
+        BUG FIXED (ValueError: truth value of a Series is ambiguous): this method
+        used to index the summary by ``model_type``. Every QGAN-LLM ablation
+        (20-qubit ring, 12-qubit, linear topology, no noise) is written with
+        model_type == "QGAN-LLM", so ``summary.loc["QGAN-LLM", col]`` returned a
+        Series of four values and ``pd.isna(val)`` could not be used in a
+        conditional. The summary is now indexed by ``config`` (the run_id slug,
+        unique after summary_table()), which is the same key verify_chapter4 uses.
         """
-        # Key by configuration slug (run_id minus timestamp), NOT model_type:
-        # every QGAN-LLM ablation (ring / 12-qubit / linear / no-noise) is
-        # recorded as model_type "QGAN-LLM", so .loc["QGAN-LLM", col] returned
-        # a Series and float() raised "The truth value of a Series is
-        # ambiguous" / TypeError, which aborted verify_chapter4 (Oct 27 log).
-        summary = self.summary_table().set_index("config")
+        from src.utils.run_identity import model_slug
+
+        summary = self.summary_table()
+        if summary["config"].duplicated().any():  # defensive; summary_table() dedups
+            summary = summary.drop_duplicates(subset="config", keep="last")
+        summary = summary.set_index("config")
         tables = {}
 
-        def safe_get(config, col):
-            if config in summary.index and col in summary.columns:
-                val = summary.loc[config, col]
-                if isinstance(val, pd.Series):  # defensive: duplicate index
-                    val = val.iloc[-1]
+        def safe_get(model, col):
+            if model in summary.index and col in summary.columns:
+                val = summary.loc[model, col]
                 return None if pd.isna(val) else float(val)
             return None
 
+        model_names = list(summary.index)
         tables["model_comparison"] = summary.reset_index().to_dict(orient="records")
 
-        primary = "qgan_llm"
-        baseline = "classical_gan_llm"
-        if primary in summary.index and baseline in summary.index:
+        primary = "QGAN-LLM"
+        baseline = "Classical GAN-LLM"
+        if primary in model_names and baseline in model_names:
             qgan_rmse = safe_get(primary, "rmse")
             base_rmse = safe_get(baseline, "rmse")
             qgan_asr = safe_get(primary, "asr")
             base_asr = safe_get(baseline, "asr")
+
+            def reduction(base, new):
+                # `is not None` and a non-zero base: 0.0 is a real measurement.
+                if base is None or new is None or base == 0:
+                    return None
+                return 100 * (base - new) / base
+
+            # Identical metrics across different generators mean the generator
+            # never reaches the metric (see CHANGES_OCT19.md, cause C1).
+            gan_cfgs = [c for c in configs if c.startswith(("classical_gan_llm", "qgan_llm"))]
+            rmses = {safe_get(c, "rmse") for c in gan_cfgs}
+            degenerate = len(gan_cfgs) > 1 and len({r for r in rmses if r is not None}) == 1
             tables["primary_vs_baseline"] = {
                 "rmse_reduction_pct": (
-                    100 * (base_rmse - qgan_rmse) / base_rmse
-                    if qgan_rmse is not None and base_rmse else None
+                    100 * (base_rmse - qgan_rmse) / base_rmse if qgan_rmse and base_rmse else None
                 ),
                 "asr_reduction_pct": (
-                    100 * (base_asr - qgan_asr) / base_asr
-                    if qgan_asr is not None and base_asr else None
+                    100 * (base_asr - qgan_asr) / base_asr if qgan_asr and base_asr else None
                 ),
                 "qgan_rmse": qgan_rmse,
                 "baseline_rmse": base_rmse,
                 "qgan_asr": qgan_asr,
                 "baseline_asr": base_asr,
+                "degenerate_comparison": degenerate,
+                "degenerate_note": (
+                    "All GAN-based configurations share one RMSE, so the forecast "
+                    "does not depend on the generator; the reduction above is not "
+                    "evidence of quantum advantage."
+                ) if degenerate else None,
             }
 
         # Flag the structural finding rather than hiding it: all GAN-based
@@ -120,7 +143,7 @@ class ResultsCollector:
 
         os.makedirs(self.results_dir, exist_ok=True)
         out_path = os.path.join(self.results_dir, "chapter4_numbers.json")
-        with open(out_path, "w") as f:
-            json.dump(tables, f, indent=2, default=str)
+        from src.utils.run_identity import save_json_versioned, pipeline_run_id
+        save_json_versioned(out_path, tables, tag=pipeline_run_id())   # old file kept in results/history/
 
         return tables

@@ -26,6 +26,7 @@ from src.baselines.classical_gan_llm import ClassicalGANLLM
 from src.baselines.qgan_llm import QGANLLM
 from src.baselines.qlstm_forecaster import QLSTMForecaster
 from src.baselines.qaoa_llm import QAOALLM
+from src.baselines.context_llm import FeatureLLM, QLSTMLLM
 from src.baselines.llm_forecaster import LLMForecaster
 from src.evaluation.talis import TaLISConfig, compute_talis
 from src.utils.config import load_config, merge_override
@@ -49,8 +50,8 @@ def load_processed_split(processed_dir: str, split: str) -> tuple[np.ndarray, np
 def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
                   reuse_checkpoint: bool = False):
     set_all_seeds(seed)
-    run_id = make_run_id(model_name)
     log_cfg = cfg.get("logging", {})
+    run_id = make_run_id(model_name, log_cfg.get("log_dir", "logs"))
     run_logger = RunLogger(
         run_id,
         log_dir=log_cfg.get("log_dir", "logs"),
@@ -96,6 +97,7 @@ def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
     metrics = model.evaluate(
         splits["X_test"], splits["y_test"],
         attack_cfg=attack_cfg, last_input_prices=last_prices,
+        llm_cfg=cfg.get("llm_pipeline"), processed_dir=cfg["data"]["processed_dir"],
     )
     # Naive benchmark every forecaster must beat: next close = current close.
     # Logged on the same test split so RMSE is comparable (see Ch. 4).
@@ -156,6 +158,11 @@ def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
     # exactly what's needed to check a claim like "97% of runs fall below
     # 40ms" against the real distribution rather than assuming normality
     # from mean/SD alone.
+    from src.utils.run_identity import archive_file
+    if ckpt_path and os.path.isfile(ckpt_path):
+        _kept = archive_file(ckpt_path, tag=run_id)     # checkpoint file is rewritten by the next run
+        if _kept:
+            run_logger.info(f"Checkpoint archived to {_kept}")
     run_logger.save_json()
     return metrics
 
@@ -199,7 +206,15 @@ def main():
     # (and fails loudly, per llm_inference.py, if the key turns out to be
     # invalid or the endpoint rejects the request).
     if os.environ.get("NVIDIA_API_KEY"):
-        models_to_run["LLM Forecaster"] = lambda: LLMForecaster(cfg.get("llm_forecaster", {}), seed=seed)
+        models_to_run["LLM Forecaster"] = lambda: LLMForecaster(cfg.get("llm_pipeline", {}), seed=seed)
+        # Models whose forecast comes from the LLM with a quantum component in the prompt, plus the
+        # classical control for the QAOA one (the control for QLSTM-LLM is the LLM Forecaster itself).
+        _pd = cfg["data"]["processed_dir"]
+        _feat = lambda sel: {**cfg["qaoa_llm"], **cfg["llm_pipeline"], **cfg.get("feature_llm", {}),  # noqa: E731
+                             "selector": sel, "processed_dir": _pd}
+        models_to_run["QLSTM-LLM"] = lambda: QLSTMLLM({**cfg["llm_pipeline"], "qlstm": cfg["qlstm_forecaster"]}, seed=seed)
+        models_to_run["QAOA-LLM"] = lambda: FeatureLLM(_feat("qaoa"), seed=seed)
+        models_to_run["Classical-Features-LLM"] = lambda: FeatureLLM(_feat("classical"), seed=seed)
     for ablation in cfg["ablations"]:
         ablation_cfg = merge_override(cfg["qgan_llm"], {k: v for k, v in ablation.items() if k != "name"})
         models_to_run[ablation["name"]] = (lambda c=ablation_cfg: QGANLLM(c, seed=seed))
@@ -212,6 +227,19 @@ def main():
         import json
         print(json.dumps(list(models_to_run.keys())))
         return
+
+    # Fail BEFORE any training if the configured LLM is no longer served (meta/llama-3.3-70b-instruct
+    # returned HTTP 410 after its 2026-08-26 end of life, and the failure only surfaced after hours of GAN work).
+    llm_cfg = cfg.get("llm_pipeline", {})
+    if os.environ.get("NVIDIA_API_KEY") and llm_cfg.get("enabled", False):
+        from src.llm.llm_pipeline import resolve_model_id, verify_auth
+        _base = llm_cfg.get("api_base", "https://integrate.api.nvidia.com/v1")
+        from src.llm.llm_pipeline import probe_model
+        # /models is public and lists models this account cannot call (404), so each candidate gets a real
+        # 1-token call; a rejected key (401) raises here, before any training.
+        llm_cfg["model_id"] = resolve_model_id(llm_cfg["model_id"], llm_cfg.get("fallback_model_ids", []), _base,
+                                               probe_fn=lambda m: probe_model(m, _base))
+        print(f"[llm] using model {llm_cfg['model_id']}")
 
     processed_dir = cfg["data"]["processed_dir"]
     splits = {}
