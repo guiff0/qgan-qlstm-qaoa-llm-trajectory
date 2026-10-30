@@ -84,6 +84,18 @@ Run:
     python run_pipeline.py --jobs 3         # run the acquire group, then the train_eval group,
                                              # up to 3 steps at a time within each (see --help)
     python run_pipeline.py --watch          # from another terminal: live status of a running pipeline
+    python run_pipeline.py --stats-only     # ONLY run_hypothesis_tests (no env check, no model listing)
+    python run_pipeline.py --analysis-only  # ONLY verify_chapter4 + run_hypothesis_tests
+    python run_pipeline.py --steps run_hypothesis_tests,scan_logs_for_pii   # any explicit step ids
+    python run_pipeline.py --extra-seeds 2 --seed-models "Classical GAN-LLM,QGAN-LLM (no noise)"
+                                             # independent repeats (seeds 43, 44) so H1/H3 have n >= 2
+
+ANALYSIS STEPS (verify_chapter4, run_hypothesis_tests) ARE NEVER SKIPPED AND NEVER BLOCKED
+    They read results/all_results.csv, which changes with every run, so a stored "completed"
+    (or "failed") marker means nothing for them: they re-run on EVERY invocation, whatever
+    --yes / --no-skip / the prompt answer was. A failed train_eval step, or a failure in an
+    earlier required step, does not stop them (they are cheap and read whatever results exist),
+    and a failure in one analysis step does not stop the other.
 ================================================================================
 """
 from __future__ import annotations
@@ -124,6 +136,9 @@ from src.utils.io import atomic_write_text  # noqa: E402
 # ------------------------------------------------------------------------
 STATE_PATH = os.path.join("data", "pipeline_state.json")
 STATE_SCHEMA_VERSION = 1
+# Parallel steps run in threads and all mutate/save the same state dict.
+# RLock so mark_* can hold it while save_state re-acquires it.
+_state_lock = threading.RLock()
 
 
 def _now() -> str:
@@ -145,38 +160,42 @@ def save_state(state: dict) -> None:
     pipeline, the state file on disk always reflects every step that
     genuinely finished, never a partially-written or stale file."""
     from src.utils.run_identity import pipeline_run_id
-    state["updated_utc"] = _now()
-    state["pipeline_run_id"] = pipeline_run_id()
-    state.setdefault("pipeline_runs", [])
-    if state["pipeline_run_id"] not in state["pipeline_runs"]:
-        state["pipeline_runs"].append(state["pipeline_run_id"])
-    os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
-    atomic_write_text(STATE_PATH, json.dumps(state, indent=2, default=str))
+    with _state_lock:
+        state["updated_utc"] = _now()
+        state["pipeline_run_id"] = pipeline_run_id()
+        state.setdefault("pipeline_runs", [])
+        if state["pipeline_run_id"] not in state["pipeline_runs"]:
+            state["pipeline_runs"].append(state["pipeline_run_id"])
+        os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
+        atomic_write_text(STATE_PATH, json.dumps(state, indent=2, default=str))
 
 
 def mark_running(state: dict, step_id: str) -> None:
-    state["steps"][step_id] = {"status": "running", "started_utc": _now()}
-    save_state(state)
+    with _state_lock:
+        state["steps"][step_id] = {"status": "running", "started_utc": _now()}
+        save_state(state)
 
 
 def mark_completed(state: dict, step_id: str, duration_s: float, detail: str = "") -> None:
-    state["steps"][step_id] = {
-        "status": "completed",
-        "completed_utc": _now(),
-        "duration_seconds": round(duration_s, 1),
-        "detail": detail,
-    }
-    save_state(state)
+    with _state_lock:
+        state["steps"][step_id] = {
+            "status": "completed",
+            "completed_utc": _now(),
+            "duration_seconds": round(duration_s, 1),
+            "detail": detail,
+        }
+        save_state(state)
 
 
 def mark_failed(state: dict, step_id: str, duration_s: float, returncode: int) -> None:
-    state["steps"][step_id] = {
-        "status": "failed",
-        "failed_utc": _now(),
-        "duration_seconds": round(duration_s, 1),
-        "returncode": returncode,
-    }
-    save_state(state)
+    with _state_lock:
+        state["steps"][step_id] = {
+            "status": "failed",
+            "failed_utc": _now(),
+            "duration_seconds": round(duration_s, 1),
+            "returncode": returncode,
+        }
+        save_state(state)
 
 
 # ------------------------------------------------------------------------
@@ -191,7 +210,8 @@ def _nonempty(path: str) -> bool:
     return bool(path) and os.path.isfile(path) and os.path.getsize(path) > 0
 
 
-def build_steps(cfg: dict, model_names: list[str], only_models: list[str] | None) -> list[dict]:
+def build_steps(cfg: dict, model_names: list[str], only_models: list[str] | None,
+                extra_seeds: list[tuple[str, int]] | None = None) -> list[dict]:
     data_cfg = cfg["data"]
     processed = data_cfg["processed_dir"]
 
@@ -268,8 +288,39 @@ def build_steps(cfg: dict, model_names: list[str], only_models: list[str] | None
             "parallel_group": "train_eval",
         })
 
+    # Independent repeats of a model config (different seed => different init, noise and batches).
+    # These are what give H1/H3 two or more observations per condition.
+    for name, sd in (extra_seeds or []):
+        steps.append({
+            "id": f"train_eval:{name}@seed{sd}",
+            "desc": f"Train + evaluate: {name} (seed {sd})",
+            "cmd": [sys.executable, "-m", "src.experiments.run_all", "--only", name, "--seed", str(sd)],
+            "artifact_ok": lambda n=name, k=sd: _model_has_result(cfg, n, seed=k),
+            "group": "train_eval",
+            "parallel_group": "train_eval",
+        })
+
+    results_dir = cfg.get("logging", {}).get("results_dir", "results")
+    steps.append({
+        "id": "run_qpca",
+        "desc": "QPCA (simulated phase estimation) on the processed features -> results/qpca_results.json (Figure 31 input)",
+        "cmd": [sys.executable, "-m", "scripts.run_qpca"],
+        "required": False,
+        "artifact_ok": lambda: _nonempty(os.path.join(results_dir, "qpca_results.json")),
+    })
+    steps.append({
+        "id": "make_figures",
+        "always_run": True,  # reads whatever qpca / entanglement-map files exist now
+        "analysis": True,
+        "desc": "Draw Figure 31 (QPCA loadings) and Figure 32 (entanglement map) from saved run output",
+        "cmd": [sys.executable, "-m", "scripts.make_figures"],
+        "required": False,
+        "artifact_ok": lambda: True,   # a missing input only skips that figure; the script exits 0
+    })
     steps.append({
         "id": "verify_chapter4",
+        "always_run": True,  # reads results/all_results.csv -- never reuse a stale pass
+        "analysis": True,    # never blocked by, and never blocks, any other step
         "desc": "Compare actual results against dissertation claims",
         "cmd": [sys.executable, "-m", "scripts.verify_chapter4"],
         "artifact_ok": lambda: _nonempty(
@@ -278,6 +329,8 @@ def build_steps(cfg: dict, model_names: list[str], only_models: list[str] | None
     })
     steps.append({
         "id": "run_hypothesis_tests",
+        "always_run": True,  # depends on the latest results -- never skipped, even on "Y"
+        "analysis": True,    # runs even if training or an earlier required step failed
         "desc": "Compute the actual H1-H5 statistical tests from results/all_results.csv",
         "cmd": [sys.executable, "-m", "scripts.run_hypothesis_tests"],
         "required": False,
@@ -295,7 +348,7 @@ def build_steps(cfg: dict, model_names: list[str], only_models: list[str] | None
     return steps
 
 
-def _model_has_result(cfg: dict, model_name: str) -> bool:
+def _model_has_result(cfg: dict, model_name: str, seed: int | None = None) -> bool:
     results_dir = cfg.get("logging", {}).get("results_dir", "results")
     csv_path = os.path.join(results_dir, "all_results.csv")
     if not _nonempty(csv_path):
@@ -307,7 +360,12 @@ def _model_has_result(cfg: dict, model_name: str) -> bool:
         # config is recorded as model_type "QGAN-LLM", so the old check never
         # succeeded for "(12-qubit)", "(linear topology)" or "(no noise)".
         from src.utils.run_identity import config_of_run_id, model_slug
-        return bool((df["run_id"].map(config_of_run_id) == model_slug(model_name)).any())
+        match = df["run_id"].map(config_of_run_id) == model_slug(model_name)
+        if seed is not None:
+            if "seed" not in df.columns:
+                return False
+            match = match & (df["seed"] == seed)
+        return bool(match.any())
     except Exception:
         return False
 
@@ -335,6 +393,34 @@ def resolve_model_names(cfg_path: str | None, only: str | None) -> tuple[list[st
 # ------------------------------------------------------------------------
 # The single interactive prompt.
 # ------------------------------------------------------------------------
+# Step ids that must run again this invocation even though the state file
+# says "completed" (filled in by the "a" answer / --rerun-failed).
+_force_rerun: set = set()
+
+
+def _log_shows_failure(step_id: str) -> bool:
+    """True if the step's latest per-step log (logs/pipeline/<id>.log, rewritten
+    on every run) contains a Python traceback. Catches steps recorded as
+    "completed" whose last run actually blew up."""
+    safe = step_id.replace(":", "_").replace(" ", "_").replace("/", "_")
+    path = os.path.join("logs", "pipeline", f"{safe}.log")
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            f.seek(max(0, f.tell() - 65536))
+            tail = f.read().decode("utf-8", errors="replace")
+    except OSError:
+        return False
+    return "Traceback (most recent call last)" in tail
+
+
+def _looks_failed(step: dict, state: dict) -> bool:
+    rec = state["steps"].get(step["id"], {})
+    return (rec.get("status") != "completed"
+            or rec.get("returncode", 0) not in (0, None)
+            or _log_shows_failure(step["id"]))
+
+
 def decide_skip_policy(state: dict, steps: list[dict], args) -> bool:
     """Returns True if already-completed (and artifact-verified) steps
     should be skipped this run, False if everything should be re-run.
@@ -355,10 +441,13 @@ def decide_skip_policy(state: dict, steps: list[dict], args) -> bool:
         return False
 
     skippable = [s for s in steps
-                if state["steps"].get(s["id"], {}).get("status") == "completed" and s["artifact_ok"]()]
+                if not s.get("always_run") and not s.get("analysis")
+                and state["steps"].get(s["id"], {}).get("status") == "completed" and s["artifact_ok"]()]
     if not skippable:
         return False  # first run, or state file doesn't match anything on disk -- nothing to decide
 
+    if getattr(args, "rerun_failed", False):
+        return _apply_rerun_failed(skippable, state)
     if args.yes:
         print(f"[run_pipeline] --yes: will skip {len(skippable)} previously completed step(s).")
         return True
@@ -369,8 +458,9 @@ def decide_skip_policy(state: dict, steps: list[dict], args) -> bool:
     print(f"\nFound {len(skippable)} previously completed step(s) from an earlier run of this pipeline:")
     for s in skippable:
         rec = state["steps"][s["id"]]
+        flag = "   <-- log shows an error" if _looks_failed(s, state) else ""
         print(f"  - {s['id']:<28} completed {rec.get('completed_utc', '?')} "
-              f"({rec.get('duration_seconds', '?')}s)")
+              f"({rec.get('duration_seconds', '?')}s){flag}")
 
     if not sys.stdin.isatty():
         print("[run_pipeline] Non-interactive session (no TTY) and neither --yes nor --no-skip was "
@@ -378,10 +468,28 @@ def decide_skip_policy(state: dict, steps: list[dict], args) -> bool:
               "in non-interactive contexts instead.")
         return True
 
-    answer = input("\nSkip these and continue where you left off? [Y/n]: ").strip().lower()
+    answer = input("\nSkip these and continue where you left off?\n"
+                   "  Y = skip them (default)   n = re-run everything\n"
+                   "  a = re-run every step that failed, even if marked completed\n"
+                   "[Y/n/a]: ").strip().lower()
+    if answer in ("a", "all"):
+        return _apply_rerun_failed(skippable, state)
     skip = answer in ("", "y", "yes")
     print(f"[run_pipeline] {'Skipping' if skip else 'Re-running'} the above for the rest of this run.\n")
     return skip
+
+
+def _apply_rerun_failed(skippable: list, state: dict) -> bool:
+    """Mark every 'completed' step that actually failed (non-zero return code
+    or a traceback in its latest log) to run again; everything else is skipped.
+    Steps whose state is failed/running are never skipped anyway."""
+    bad = [s["id"] for s in skippable if _looks_failed(s, state)]
+    _force_rerun.update(bad)
+    if bad:
+        print(f"[run_pipeline] Re-running {len(bad)} step(s) marked completed but whose last run "
+              f"failed: {bad}")
+    print("[run_pipeline] Failed steps will re-run; healthy completed steps are skipped.\n")
+    return True
 
 
 # ------------------------------------------------------------------------
@@ -497,6 +605,9 @@ def run_step(step: dict, state: dict, skip_completed: bool, log_to_file: str | N
     """
     step_id = step["id"]
     already_done = (skip_completed
+                    and not step.get("always_run")
+                    and not step.get("analysis")
+                    and step_id not in _force_rerun
                     and state["steps"].get(step_id, {}).get("status") == "completed"
                     and step["artifact_ok"]())
     if already_done:
@@ -641,8 +752,26 @@ def run_pipeline(argv=None) -> int:
                          help="Non-interactive: automatically skip previously completed steps")
     parser.add_argument("--no-skip", action="store_true",
                          help="Non-interactive: redo every step, ignoring the state file")
+    parser.add_argument("--rerun-failed", action="store_true",
+                         help="Non-interactive equivalent of answering 'a': re-run every failed step, "
+                              "including ones marked completed whose last log shows a traceback; "
+                              "skip the healthy completed ones")
     parser.add_argument("--reset", action="store_true",
                          help="Delete the state file first, then run everything (implies --no-skip)")
+    parser.add_argument("--stats-only", action="store_true",
+                         help="Run ONLY run_hypothesis_tests (always re-runs; needs no model listing, "
+                              "no network, no NVIDIA key). Use it after a run to recompute H1-H5.")
+    parser.add_argument("--analysis-only", action="store_true",
+                         help="Run ONLY verify_chapter4 and run_hypothesis_tests.")
+    parser.add_argument("--steps", default=None, metavar="ID[,ID...]",
+                         help="Run only these step ids (e.g. run_hypothesis_tests,scan_logs_for_pii). "
+                              "train_eval ids need the model name: 'train_eval:Classical GAN-LLM'.")
+    parser.add_argument("--extra-seeds", type=int, default=0, metavar="N",
+                         help="Also train+evaluate each --seed-models model with N additional seeds "
+                              "(config seed+1 ... seed+N). Independent repeats are what H1/H3 need.")
+    parser.add_argument("--seed-models", default=None, metavar="NAME[,NAME...]",
+                         help="Models to repeat for --extra-seeds. Default: none (the quantum GANs "
+                              "take 7-13 h per run, so you choose).")
     parser.add_argument("--status", action="store_true",
                          help="Print the current state file and exit; runs nothing")
     parser.add_argument("--watch", action="store_true",
@@ -682,17 +811,51 @@ def run_pipeline(argv=None) -> int:
         return watch_pipeline(args)
 
     cfg = load_config(args.config)
-    model_names, only_names = resolve_model_names(args.config, args.only)
-    steps = build_steps(cfg, model_names, only_names)
+
+    wanted_ids = None
+    if args.stats_only:
+        wanted_ids = ["run_hypothesis_tests"]
+    elif args.analysis_only:
+        wanted_ids = ["verify_chapter4", "run_hypothesis_tests"]
+    elif args.steps:
+        wanted_ids = [x.strip() for x in args.steps.split(",") if x.strip()]
+
+    extra_seeds = None
+    if wanted_ids is not None and not any(w.startswith("train_eval:") for w in wanted_ids):
+        # Analysis-only invocation: no need to import torch/pennylane or touch the network just to
+        # list model names that will not run.
+        model_names, only_names = [], None
+    else:
+        model_names, only_names = resolve_model_names(args.config, args.only)
+        if args.extra_seeds > 0:
+            chosen = [n.strip() for n in (args.seed_models or "").split(",") if n.strip()]
+            unknown = [n for n in chosen if n not in model_names]
+            if unknown:
+                raise SystemExit(f"--seed-models names not found in config: {unknown}\n"
+                                 f"Available: {model_names}")
+            if not chosen:
+                raise SystemExit("--extra-seeds needs --seed-models \"Model A,Model B\" "
+                                 "(which models to repeat).")
+            base = int(cfg.get("seed", 42))
+            extra_seeds = [(n, base + k) for n in chosen for k in range(1, args.extra_seeds + 1)]
+    steps = build_steps(cfg, model_names, only_names, extra_seeds)
+    if wanted_ids is not None:
+        known = {s["id"] for s in steps}
+        missing = [w for w in wanted_ids if w not in known]
+        if missing:
+            raise SystemExit(f"--steps: unknown step id(s) {missing}.\nKnown: {sorted(known)}")
+        steps = [s for s in steps if s["id"] in wanted_ids]
     if args.reuse_checkpoints:
         for s in steps:
             if s["id"].startswith("train_eval:"):
                 s["cmd"].append("--reuse-checkpoints")
 
-    skip_completed = decide_skip_policy(state, steps, args)
+    # An explicit step selection means "run exactly these now": never skip, never prompt.
+    skip_completed = False if wanted_ids is not None else decide_skip_policy(state, steps, args)
 
     pipeline_t0 = time.time()
     failed_train_eval = []
+    failed_analysis = []
     log_dir = os.path.join("logs", "pipeline")
 
     i = 0
@@ -720,6 +883,10 @@ def run_pipeline(argv=None) -> int:
             ok = results[step["id"]]
             if ok:
                 continue
+            if step.get("analysis"):
+                # Analysis steps are independent of each other and of training: record and go on.
+                failed_analysis.append(step["id"])
+                continue
             if step.get("group") == "train_eval":
                 # Models are independent of each other: one failing shouldn't
                 # cost you the ones that would still succeed. Collect it and
@@ -732,15 +899,26 @@ def run_pipeline(argv=None) -> int:
             print(f"\n[run_pipeline] Aborting: required step '{step['id']}' failed. "
                   f"Fix the error above and re-run `python run_pipeline.py` -- "
                   f"completed steps will be skipped automatically.")
+            # Still refresh the analysis from whatever results exist; it is cheap and independent.
+            for a in [x for x in steps[i:] if x.get("analysis")]:
+                if not run_step(a, state, False):
+                    failed_analysis.append(a["id"])
             return 1
 
     total = time.time() - pipeline_t0
     print(f"\n{'=' * 70}")
+    if failed_analysis:
+        print(f"ANALYSIS STEP(S) FAILED: {failed_analysis}")
+        print("They re-run on every invocation; to retry only them: "
+              "python run_pipeline.py --analysis-only")
     if failed_train_eval:
         print(f"PIPELINE FINISHED WITH FAILURES in {total / 60:.1f} min.")
         print(f"Failed: {failed_train_eval}")
         print(f"Re-run `python run_pipeline.py` -- everything else will be skipped "
               f"automatically and only these will retry.")
+        print("=" * 70)
+        return 1
+    if failed_analysis:
         print("=" * 70)
         return 1
 

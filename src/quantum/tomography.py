@@ -214,3 +214,13 @@ def measurement_tomography(circuit_fn, params, n_qubits: int, subsystem_qubits: 
                    entropy_exact=von_neumann_entropy(rho_true), purity_exact=purity(rho_true),
                    trace_distance=float(0.5 * np.abs(np.linalg.eigvalsh(rho - rho_true)).sum()))
     return res
+
+
+def save_pairwise_entanglement_map(circuit_fn, params, n_qubits: int, out_path: str, meta: dict,
+                                   dev_name: str = "default.qubit") -> str:
+    """Pairwise mutual-information map of the circuit's output state (Figure 32 of the dissertation),
+    written to `out_path` as JSON. Costs one statevector + n(n-1)/2 small partial traces."""
+    from .entanglement_map import pairwise_mutual_information, save_entanglement_map
+    state = statevector_from_circuit(circuit_fn, params, n_qubits, dev_name)
+    res = pairwise_mutual_information(state, n_qubits)
+    return save_entanglement_map(out_path, res["mi"], res["single_entropy"], meta)

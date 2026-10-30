@@ -1,21 +1,3 @@
-2026-10-13 23:42:07,755 | INFO | Starting training run for LLM Forecaster (run_id=llm_forecaster_20261014T034207Z)
-2026-10-13 23:42:07,770 | INFO | [TRAIN] step 1 | 0.0ms | Trained LLM Forecaster | {'reused_checkpoint': False, 'n_train_rows': 3715921}
-2026-10-13 23:42:17,758 | INFO | [EVALUATE] step 2 | 9972.5ms | Evaluated LLM Forecaster on 744,786 test rows | {'n_llm_samples': 0, 'n_llm_errors': 20, 'llm_errors_sample': ['HTTPSConnectionPool(host=\'api.nvidia.com\', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by SSLError(SSLCertVerificationError(1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for \'api.nvidia.com\'. (_ssl.c:1006)")))', 'HTTPSConnectionPool(host=\'api.nvidia.com\', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by SSLError(SSLCertVerificationError(1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for \'api.nvidia.com\'. (_ssl.c:1006)")))', 'HTTPSConnectionPool(host=\'api.nvidia.com\', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by SSLError(SSLCertVerificationError(1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for \'api.nvidia.com\'. (_ssl.c:1006)")))', 'HTTPSConnectionPool(host=\'api.nvidia.com\', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by SSLError(SSLCertVerificationError(1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for \'api.nvidia.com\'. (_ssl.c:1006)")))', 'HTTPSConnectionPool(host=\'api.nvidia.com\', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by SSLError(SSLCertVerificationError(1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for \'api.nvidia.com\'. (_ssl.c:1006)")))'], 'model_id': 'meta/llama-3.3-70b-instruct', 'rmse': nan, 'mae': nan}
-2026-10-13 23:42:17,758 | INFO | FINAL METRICS: {
-  "n_llm_samples": 0,
-  "n_llm_errors": 20,
-  "llm_errors_sample": [
-    "HTTPSConnectionPool(host='api.nvidia.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by SSLError(SSLCertVerificationError(1, \"[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'api.nvidia.com'. (_ssl.c:1006)\")))",
-    "HTTPSConnectionPool(host='api.nvidia.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by SSLError(SSLCertVerificationError(1, \"[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'api.nvidia.com'. (_ssl.c:1006)\")))",
-    "HTTPSConnectionPool(host='api.nvidia.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by SSLError(SSLCertVerificationError(1, \"[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'api.nvidia.com'. (_ssl.c:1006)\")))",
-    "HTTPSConnectionPool(host='api.nvidia.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by SSLError(SSLCertVerificationError(1, \"[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'api.nvidia.com'. (_ssl.c:1006)\")))",
-    "HTTPSConnectionPool(host='api.nvidia.com', port=443): Max retries exceeded with url: /v1/chat/completions (Caused by SSLError(SSLCertVerificationError(1, \"[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: Hostname mismatch, certificate is not valid for 'api.nvidia.com'. (_ssl.c:1006)\")))"
-  ],
-  "model_id": "meta/llama-3.3-70b-instruct",
-  "rmse": NaN,
-  "mae": NaN,
-  "talis_score": NaN,
-  "seed": 42
-}
-2026-10-13 23:42:17,758 | INFO | Appended results row to results\all_results.csv
-2026-10-13 23:42:17,758 | INFO | Saved structured log to logs\llm_forecaster_20261014T034207Z.json
+version https://git-lfs.github.com/spec/v1
+oid sha256:3576a386068f59ffec2f4735b88ea9a841471a0926786dcd2239adadcc48ccf0
+size 4001

@@ -54,7 +54,7 @@ from ..attacks.adversarial import compute_attack_success_rate, compute_clean_asr
 from ..evaluation.latency import measure_inference_latency
 from ..evaluation.metrics import mae as mae_fn
 from ..evaluation.metrics import rmse as rmse_fn
-from ..evaluation.one_step_ahead import shift_for_one_step_ahead
+from ..evaluation.one_step_ahead import shift_for_one_step_ahead, make_target, resolve_frame
 from ..evaluation.poisoning_resistance import evaluate_poisoning_resistance
 from ..evaluation.threat_detection import evaluate_threat_detection
 from ..evaluation.resilience_suite import run_resilience_suite
@@ -128,12 +128,19 @@ class QLSTMForecaster(BaseForecastingModel):
         )
         self.criterion = nn.MSELoss()
 
+    target_frame = "delta"      # set from config in train(); "delta" = forecast of the next-close CHANGE
+    target_scale = 1.0          # training standardises the delta by its std; undone in _forecast_model
+
+    def _net(self, X: torch.Tensor) -> torch.Tensor:
+        """Raw network output (unit scale in the delta frame)."""
+        return self.forecast_head(self.quantum_circuit(X))
+
     def _forecast_model(self, X: torch.Tensor) -> torch.Tensor:
         """Real features -> quantum circuit -> forecast_head. This IS the
         quantum circuit being invoked at inference (unlike QGANLLM's
-        equivalent) -- see the module docstring."""
-        quantum_features = self.quantum_circuit(X)
-        return self.forecast_head(quantum_features)
+        equivalent) -- see the module docstring. In the delta frame the output is the forecast
+        next-close CHANGE in price units (network output x target_scale)."""
+        return self._net(X) * self.target_scale
 
     def train(self, X_train, y_train, X_val, y_val, run_logger=None):
         self.build()
@@ -141,26 +148,35 @@ class QLSTMForecaster(BaseForecastingModel):
         # src/evaluation/one_step_ahead.py's module docstring. This model
         # (unlike QGANLLM) actually uses X_val/y_val below for early
         # stopping, so both need to be shifted, not just train.
-        X_train, y_train = shift_for_one_step_ahead(np.asarray(X_train), np.asarray(y_train))
-        X_val, y_val = shift_for_one_step_ahead(np.asarray(X_val), np.asarray(y_val))
+        self.target_frame = resolve_frame(self.config)
+        _tr, _va = make_target(X_train, y_train, self.target_frame), make_target(X_val, y_val, self.target_frame)
+        X_train, y_train, X_val, y_val = _tr.X, _tr.target, _va.X, _va.target
+        # The circuit IS supervised on the target, so a delta target (~1e-4) must be standardised or
+        # the unit-scale network output swamps it. Undone inside _forecast_model.
+        self.target_scale = float(np.std(y_train)) if self.target_frame == "delta" else 1.0
+        if not self.target_scale > 0:
+            self.target_scale = 1.0
 
         log = run_logger.info if run_logger else (lambda *_a, **_k: None)
         batch_size = self.config["batch_size"]
         max_batches = self.config.get("max_batches_per_epoch")
         n_epochs = self.config["epochs"]
         patience_limit = self.config["early_stopping_patience"]
-        fp = config_fingerprint(self.config, self.seed, "qlstm_forecaster")
+        # The circuit is trained against the target, so (unlike the GANs) a level-frame checkpoint is NOT
+        # reusable for the delta frame: a distinct fingerprint keeps both on disk, nothing is overwritten.
+        fp = config_fingerprint(self.config, self.seed,
+                                "qlstm_forecaster" if self.target_frame == "level" else "qlstm_forecaster:delta")
         ckpt_path = checkpoint_file("qlstm_forecaster", fp)
         best_path = f"models/qlstm_forecaster_best_{fp}.pt"
 
         X_t = torch.from_numpy(np.ascontiguousarray(X_train, dtype=np.float32))
-        y_t = torch.from_numpy(np.ascontiguousarray(y_train, dtype=np.float32))
+        y_t = torch.from_numpy(np.ascontiguousarray(y_train / self.target_scale, dtype=np.float32))
         n_val = self.config.get("val_samples")
         if n_val and n_val < len(X_val):
             sel = np.sort(np.random.default_rng(self.seed).choice(len(X_val), int(n_val), replace=False))
             X_val, y_val = X_val[sel], y_val[sel]
         Xv = torch.from_numpy(np.ascontiguousarray(X_val, dtype=np.float32))
-        yv = torch.from_numpy(np.ascontiguousarray(y_val, dtype=np.float32))
+        yv = torch.from_numpy(np.ascontiguousarray(y_val / self.target_scale, dtype=np.float32))
 
         best_val_loss, patience_counter, start_epoch, finished = float("inf"), 0, 0, False
         ckpt = load_checkpoint(ckpt_path, fp) if self.config.get("resume", True) else None
@@ -187,7 +203,7 @@ class QLSTMForecaster(BaseForecastingModel):
                 for s_ in range(0, len(idx), batch_size):
                     X_batch, y_batch = X_t[idx[s_:s_ + batch_size]], y_t[idx[s_:s_ + batch_size]]
                     self.optimizer.zero_grad()
-                    pred = self._forecast_model(X_batch)
+                    pred = self._net(X_batch)
                     loss = self.criterion(pred.squeeze(-1), y_batch)
                     loss.backward()
                     self.optimizer.step()
@@ -205,7 +221,7 @@ class QLSTMForecaster(BaseForecastingModel):
                 with torch.no_grad():
                     for s_ in progress_bar(range(0, len(Xv), batch_size), total=-(-len(Xv) // batch_size),
                                            desc=f"  epoch {epoch} validation", unit="batch"):
-                        val_pred = self._forecast_model(Xv[s_:s_ + batch_size])
+                        val_pred = self._net(Xv[s_:s_ + batch_size])
                         val_loss_total += self.criterion(val_pred.squeeze(-1), yv[s_:s_ + batch_size]).item()
                         n_val_batches += 1
                 val_loss = val_loss_total / max(n_val_batches, 1)
@@ -227,6 +243,7 @@ class QLSTMForecaster(BaseForecastingModel):
                         stop = True
                 save_checkpoint(ckpt_path, {
                     "fingerprint": fp, "next_epoch": epoch + 1, "best_val_loss": best_val_loss,
+                    "target_frame": self.target_frame, "target_scale": self.target_scale,
                     "patience": patience_counter, "finished": stop or (epoch + 1 == n_epochs),
                     "quantum_circuit": self.quantum_circuit.state_dict(),
                     "forecast_head": self.forecast_head.state_dict(),
@@ -303,9 +320,13 @@ class QLSTMForecaster(BaseForecastingModel):
         )
 
     def evaluate(self, X_test, y_test, attack_cfg: dict = None, last_input_prices=None, **kwargs):
-        X_test, y_test = shift_for_one_step_ahead(np.asarray(X_test), np.asarray(y_test))
-        if last_input_prices is not None:
-            last_input_prices = np.asarray(last_input_prices)[:-1]  # keep row-aligned with the shift above
+        frame = resolve_frame(self.config)
+        if frame != self.target_frame:
+            raise RuntimeError(f"QLSTM Forecaster was trained in the '{self.target_frame}' frame but evaluate() "
+                               f"was asked for '{frame}'; the circuit is target-specific. Retrain.")
+        _te = make_target(X_test, y_test, frame)
+        X_test, y_test = _te.X, _te.target       # next-close CHANGE (delta) -- RMSE equals the price RMSE
+        last_input_prices = _te.reference        # 0 in the delta frame, last close in the level frame
         # Every row costs a real 20-qubit circuit evaluation (~0.3 s forward,
         # ~2.5 s with input gradients), so evaluating all 744k test rows would
         # take days. Use a fixed-seed random subsample (rows are independent

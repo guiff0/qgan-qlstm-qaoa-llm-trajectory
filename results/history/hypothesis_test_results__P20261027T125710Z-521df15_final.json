@@ -1,0 +1,125 @@
+{
+  "n_rows_raw": 26,
+  "n_rows": 9,
+  "n_runs_per_model": {
+    "Classical GAN-LLM": 1,
+    "Classical LSTM": 1,
+    "LLM Forecaster": 1,
+    "QAOA-Enhanced LLM": 1,
+    "QGAN-LLM": 4,
+    "QLSTM Forecaster": 1
+  },
+  "H1_synthetic_data_fidelity": {
+    "error": "insufficient data: need >= 2 observations, have 1 -- repeated runs needed (see TODO.md)",
+    "note": "no usable 'vix' covariate in results/all_results.csv -- ran a plain t-test instead of the ANCOVA Ch.3 specifies"
+  },
+  "H2_adversarial_resilience": {
+    "r": 0.9977403970457367,
+    "df": 2,
+    "p_value": 0.0022596029542634177,
+    "r_squared": 0.9954858998969843,
+    "ci_low": 0.8921425799927261,
+    "ci_high": 0.9999551140682874
+  },
+  "H3_poisoning_resistance": {
+    "error": "insufficient data: need >= 2 observations, have 1 -- repeated runs needed (see TODO.md)",
+    "interpretation": "positive t (no_noise mean > noisy mean) supports Ha3: noise injection -> lower poisoning degradation"
+  },
+  "H4_quantum_advantage": {
+    "rmse": {
+      "status": "degenerate",
+      "reason": "all 5 observations are identical (value=0.000612877); the quantity does not depend on the model under test, so no test statistic exists",
+      "mean_a": 0.0006128767854534,
+      "mean_b": 0.0006128767854534
+    },
+    "asr": {
+      "status": "degenerate",
+      "reason": "all 3 observations are identical (value=0.235638); the quantity does not depend on the model under test, so no test statistic exists"
+    },
+    "caveat": "RMSE here now reflects the fixed one-step-ahead target (see src/evaluation/one_step_ahead.py) rather than the old same-row-leaked values -- numbers from before that fix are not comparable to numbers generated after it"
+  },
+  "H5_threat_detection_tomography_correlation": {
+    "r": -0.9681138152652174,
+    "df": 3,
+    "p_value": 0.0068022021192583266,
+    "r_squared": 0.9372443593073756,
+    "ci_low": -0.9979752952805341,
+    "ci_high": -0.5885372548830435,
+    "detector": "interim classical RandomForest (threat_detection.py)",
+    "note": "accuracy column used: accuracy. No LLM-based detection results yet; this is the stopgap detector."
+  },
+  "M2_DV2_mediation": {
+    "error": "Mediation analysis needs a reasonable sample size; got only 5 observations"
+  },
+  "QAR": {
+    "error": "need at least one row of each model type with both columns populated"
+  },
+  "CQRS_per_model": {
+    "QGAN-LLM_qgan_llm_20261016T183043Z": {
+      "CQRS": 1.5446362717418685,
+      "weights_used": {
+        "qsfr": 0.3846153846153846,
+        "eer": 0.3846153846153846,
+        "nlcs": 0.23076923076923075
+      },
+      "missing_metrics": [
+        "ctr",
+        "qar"
+      ],
+      "renormalized": true
+    },
+    "QLSTM Forecaster_qlstm_forecaster_20261020T042437Z": {
+      "CQRS": 3.9593004198354156,
+      "weights_used": {
+        "qsfr": 0.29411764705882354,
+        "eer": 0.29411764705882354,
+        "ctr": 0.23529411764705885,
+        "nlcs": 0.17647058823529413
+      },
+      "missing_metrics": [
+        "qar"
+      ],
+      "renormalized": true
+    },
+    "QGAN-LLM_qgan_llm_12_qubit_20261021T012741Z": {
+      "CQRS": 1.3156432888519654,
+      "weights_used": {
+        "qsfr": 0.29411764705882354,
+        "eer": 0.29411764705882354,
+        "ctr": 0.23529411764705885,
+        "nlcs": 0.17647058823529413
+      },
+      "missing_metrics": [
+        "qar"
+      ],
+      "renormalized": true
+    },
+    "QGAN-LLM_qgan_llm_linear_topology_20261021T060144Z": {
+      "CQRS": 4.423532688119568,
+      "weights_used": {
+        "qsfr": 0.29411764705882354,
+        "eer": 0.29411764705882354,
+        "ctr": 0.23529411764705885,
+        "nlcs": 0.17647058823529413
+      },
+      "missing_metrics": [
+        "qar"
+      ],
+      "renormalized": true
+    },
+    "QGAN-LLM_qgan_llm_no_noise_20261021T234502Z": {
+      "CQRS": 1.9344188505088133,
+      "weights_used": {
+        "qsfr": 0.3846153846153846,
+        "eer": 0.3846153846153846,
+        "nlcs": 0.23076923076923075
+      },
+      "missing_metrics": [
+        "ctr",
+        "qar"
+      ],
+      "renormalized": true
+    }
+  },
+  "pipeline_run_id": "P20261027T125710Z-521df15"
+}

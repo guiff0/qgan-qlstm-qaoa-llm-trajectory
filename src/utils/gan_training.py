@@ -26,10 +26,16 @@ import numpy as np
 import torch
 
 
+_FINGERPRINT_IGNORE = {"forecast_target"}
+
+
 def config_fingerprint(config: dict, seed: int, tag: str = "") -> str:
     """Stable 10-char hash of everything that determines a training run, so a
     stale checkpoint from a DIFFERENT config/seed/ablation is never resumed
     (QGAN-LLM and its three ablations all share the model name)."""
+    # `forecast_target` only changes how the closed-form HEAD is fitted, never the generator, so it is
+    # excluded: switching it must not orphan a finished (12 h) generator checkpoint.
+    config = {k: v for k, v in config.items() if k not in _FINGERPRINT_IGNORE}
     blob = json.dumps({"c": config, "s": seed, "t": tag}, sort_keys=True, default=str)
     return hashlib.sha1(blob.encode()).hexdigest()[:10]
 
@@ -78,6 +84,25 @@ def fit_linear_head_closed_form(head: torch.nn.Linear, X: np.ndarray, y: np.ndar
         sse += float(np.sum((pred - np.asarray(y[s:s + chunk], dtype=np.float64)) ** 2))
         n += len(pred)
     return sse / max(n, 1)
+
+
+def refit_head_for_frame(head, X, y, ckpt: dict, ckpt_path: str, frame: str, log=None) -> float:
+    """A checkpoint written in another target frame (old runs: "level") holds a head fitted for that
+    frame. The generator does not depend on the head, so instead of retraining it, archive the old
+    checkpoint, refit the head in closed form in the current frame, and rewrite the checkpoint."""
+    from .run_identity import archive_file
+    before = ckpt.get("target_frame", "level")
+    kept = archive_file(ckpt_path, tag=f"{before}_frame")
+    mse = fit_linear_head_closed_form(head, X, y)
+    ckpt["forecast_head"] = head.state_dict()
+    ckpt["head_mse"] = mse
+    ckpt["target_frame"] = frame
+    save_checkpoint(ckpt_path, ckpt)
+    if log:
+        log(f"Checkpoint was fitted in the '{before}' frame; head refitted in "
+            f"closed form for the '{frame}' frame (train MSE={mse:.3e}); generator untouched. "
+            f"Previous checkpoint kept at {kept}")
+    return mse
 
 
 def epoch_row_indices(n_rows: int, batch_size: int, max_batches: Optional[int],

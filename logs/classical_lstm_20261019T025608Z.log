@@ -1,7 +1,3 @@
-2026-10-18 22:56:09,056 | INFO | Starting training run for Classical LSTM (run_id=classical_lstm_20261019T025608Z)
-2026-10-19 00:07:45,532 | INFO | Epoch 0 | train_loss=0.0002 | val_loss=0.0024
-2026-10-19 01:26:40,510 | INFO | Epoch 1 | train_loss=0.0000 | val_loss=0.0001
-2026-10-19 02:45:53,049 | INFO | Epoch 2 | train_loss=0.0000 | val_loss=0.0003
-2026-10-19 04:10:25,745 | INFO | Epoch 3 | train_loss=0.0000 | val_loss=0.0008
-2026-10-19 05:30:28,933 | INFO | Epoch 4 | train_loss=0.0000 | val_loss=0.0004
-2026-10-19 06:50:25,601 | INFO | Epoch 5 | train_loss=0.0000 | val_loss=0.0004
+version https://git-lfs.github.com/spec/v1
+oid sha256:041dc047b88c2f321cc241a0785e011d3de65156bfa1b285485883069de3aad8
+size 596
