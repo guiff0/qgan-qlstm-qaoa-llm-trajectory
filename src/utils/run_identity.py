@@ -31,6 +31,19 @@ def latest_per_config(df):
     return out.drop(columns="_ts").reset_index(drop=True)
 
 
+def latest_per_config_seed(df):
+    """One row per (configuration, seed): the newest run_id of each. Re-evaluations of the same
+    checkpoint collapse (same config AND seed), but a different seed is an independent
+    observation and is kept. Rows without a seed (legacy) are treated as one seed (-1), so they
+    behave exactly like latest_per_config."""
+    out = df.copy()
+    out["config"] = out["run_id"].map(config_of_run_id)
+    out["_ts"] = out["run_id"].astype(str).str.extract(r"(\d{8}T\d{6}Z)$")[0]
+    out["_seed"] = out["seed"].fillna(-1) if "seed" in out.columns else -1
+    out = out.sort_values("_ts").drop_duplicates(subset=["config", "_seed"], keep="last")
+    return out.drop(columns=["_ts", "_seed"]).reset_index(drop=True)
+
+
 # ---------------------------------------------------------------------------
 # Run history: every run is dated, has a unique id, and nothing a later run
 # would overwrite is lost.

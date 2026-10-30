@@ -21,6 +21,7 @@ import hashlib
 import json
 import os
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -38,17 +39,37 @@ def sha256_file(path: str | Path) -> str:
     return h.hexdigest()
 
 
+_atomic_write_lock = threading.Lock()
+
+
+def _replace_with_retry(src: str, dst: str | Path, attempts: int = 40, delay: float = 0.05) -> None:
+    """os.replace with retry. On Windows, os.replace raises PermissionError
+    (WinError 5 / 32) if another thread/process (a parallel pipeline step,
+    `run_pipeline.py --watch`, an antivirus or indexer scan) has the target
+    open at that instant. The condition is transient, so retry briefly."""
+    for i in range(attempts):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if i == attempts - 1:
+                raise
+            time.sleep(delay)
+
+
 def atomic_write_text(path: str | Path, text: str) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=path.parent)
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(text)
-        os.replace(tmp, path)  # atomic on POSIX and Windows (same filesystem)
-    finally:
-        if os.path.exists(tmp):
-            os.remove(tmp)
+    # Serialise writers within this process (parallel steps run as threads).
+    with _atomic_write_lock:
+        fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write(text)
+            _replace_with_retry(tmp, path)  # atomic on POSIX and Windows (same filesystem)
+        finally:
+            if os.path.exists(tmp):
+                os.remove(tmp)
 
 
 def save_json(path: str | Path, obj) -> None:

@@ -230,16 +230,45 @@ def main():
 
     # Fail BEFORE any training if the configured LLM is no longer served (meta/llama-3.3-70b-instruct
     # returned HTTP 410 after its 2026-08-26 end of life, and the failure only surfaced after hours of GAN work).
+    #
+    # Two refinements (Oct 28 run: Classical LSTM and QGAN-LLM both died after 3m22s on a transient
+    # ReadTimeout from this probe, before touching any data -- and Classical LSTM never uses the LLM):
+    #   1. the probe only runs when a selected model actually calls the LLM;
+    #   2. a probe failure is retried, and if it still fails it is fatal only for models that REQUIRE the
+    #      LLM. The others train normally with the LLM stage disabled (their llm_* columns stay empty).
     llm_cfg = cfg.get("llm_pipeline", {})
-    if os.environ.get("NVIDIA_API_KEY") and llm_cfg.get("enabled", False):
-        from src.llm.llm_pipeline import resolve_model_id, verify_auth
+    LLM_REQUIRED = {"LLM Forecaster", "QLSTM-LLM", "QAOA-LLM", "Classical-Features-LLM"}
+    LLM_OPTIONAL_PREFIXES = ("Classical GAN-LLM", "QGAN-LLM")   # evaluate() adds LLM metrics when enabled
+    needs_llm = [n for n in models_to_run if n in LLM_REQUIRED or n.startswith(LLM_OPTIONAL_PREFIXES)]
+    if os.environ.get("NVIDIA_API_KEY") and llm_cfg.get("enabled", False) and needs_llm:
+        from src.llm.llm_pipeline import (LLMModelUnavailableError, probe_model, resolve_model_id)
         _base = llm_cfg.get("api_base", "https://integrate.api.nvidia.com/v1")
-        from src.llm.llm_pipeline import probe_model
-        # /models is public and lists models this account cannot call (404), so each candidate gets a real
-        # 1-token call; a rejected key (401) raises here, before any training.
-        llm_cfg["model_id"] = resolve_model_id(llm_cfg["model_id"], llm_cfg.get("fallback_model_ids", []), _base,
-                                               probe_fn=lambda m: probe_model(m, _base))
-        print(f"[llm] using model {llm_cfg['model_id']}")
+        _tries = max(1, int(os.environ.get("LLM_PROBE_RETRIES", "3")))
+        _last = None
+        for _attempt in range(1, _tries + 1):
+            try:
+                # /models is public and lists models this account cannot call (404), so each candidate gets a
+                # real 1-token call; a rejected key (401) raises here, before any training.
+                llm_cfg["model_id"] = resolve_model_id(
+                    llm_cfg["model_id"], llm_cfg.get("fallback_model_ids", []), _base,
+                    probe_fn=lambda m: probe_model(m, _base))
+                _last = None
+                break
+            except LLMModelUnavailableError as exc:
+                _last = exc
+                if _attempt < _tries:
+                    _wait = 30 * _attempt
+                    print(f"[llm] probe attempt {_attempt}/{_tries} failed; retrying in {_wait}s "
+                          f"(timeouts are usually a cold start).")
+                    time.sleep(_wait)
+        if _last is None:
+            print(f"[llm] using model {llm_cfg['model_id']}")
+        elif any(n in LLM_REQUIRED for n in needs_llm):
+            raise _last
+        else:
+            print(f"[llm] WARNING: no usable LLM after {_tries} attempt(s); continuing with the LLM stage "
+                  f"DISABLED for {needs_llm} (they do not require it). Re-run later to add llm_* metrics.\n{_last}")
+            llm_cfg["enabled"] = False
 
     processed_dir = cfg["data"]["processed_dir"]
     splits = {}

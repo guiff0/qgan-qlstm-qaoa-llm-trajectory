@@ -67,7 +67,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from .base import BaseForecastingModel
 from ..attacks.adversarial import compute_attack_success_rate, compute_clean_asr
 from ..evaluation.metrics import rmse as rmse_fn, mae as mae_fn, synthetic_data_fidelity_report
-from ..evaluation.one_step_ahead import shift_for_one_step_ahead
+from ..evaluation.one_step_ahead import shift_for_one_step_ahead, make_target, resolve_frame
 from ..evaluation.poisoning_resistance import evaluate_poisoning_resistance
 from ..evaluation.threat_detection import evaluate_threat_detection
 from ..evaluation.latency import measure_inference_latency
@@ -75,7 +75,7 @@ from ..utils.reproducibility import set_all_seeds, seeded_generator
 from ..utils.progress import progress_bar, log_progress_milestone
 from ..utils.gan_training import (
     config_fingerprint, checkpoint_file, save_checkpoint, load_checkpoint,
-    fit_linear_head_closed_form, epoch_row_indices,
+    fit_linear_head_closed_form, epoch_row_indices, refit_head_for_frame,
 )
 
 
@@ -215,8 +215,11 @@ class ClassicalGANLLM(BaseForecastingModel):
         self.build()
         # Same-row target leakage fix -- see
         # src/evaluation/one_step_ahead.py's module docstring.
-        X_train, y_train = shift_for_one_step_ahead(np.asarray(X_train), np.asarray(y_train))
-        X_val, y_val = shift_for_one_step_ahead(np.asarray(X_val), np.asarray(y_val))
+        # Target frame (see one_step_ahead.make_target): "delta" = next-close change, so a head that
+        # learns nothing scores exactly persistence. The generator is unaffected (it models X only).
+        self.target_frame = resolve_frame(self.config)
+        _tr, _va = make_target(X_train, y_train, self.target_frame), make_target(X_val, y_val, self.target_frame)
+        X_train, y_train, X_val, y_val = _tr.X, _tr.target, _va.X, _va.target
         log = run_logger.info if run_logger else (lambda *_a, **_k: None)
 
         n_epochs = self.config["epochs"]
@@ -237,6 +240,9 @@ class ClassicalGANLLM(BaseForecastingModel):
             start_epoch, head_mse = int(ckpt["next_epoch"]), ckpt.get("head_mse", float("nan"))
             log(f"Resuming from checkpoint {self.checkpoint_path}: next_epoch={start_epoch}/{n_epochs}"
                 + (" (training already complete -- skipping to evaluation)" if ckpt.get("completed") else ""))
+            if ckpt.get("target_frame", "level") != self.target_frame:
+                head_mse = refit_head_for_frame(self.forecast_head, X_train, y_train, ckpt,
+                                                self.checkpoint_path, self.target_frame, log)
             self.resumed_from_checkpoint = bool(ckpt.get("completed"))
             if ckpt.get("completed"):
                 self.is_trained = True
@@ -281,6 +287,7 @@ class ClassicalGANLLM(BaseForecastingModel):
 
                 save_checkpoint(self.checkpoint_path, {
                     "fingerprint": fp, "next_epoch": epoch + 1, "completed": (epoch + 1 == n_epochs),
+                    "target_frame": self.target_frame,
                     "generator": self.generator.state_dict(),
                     "discriminator": self.discriminator.state_dict(),
                     "forecast_head": self.forecast_head.state_dict(),
@@ -324,9 +331,12 @@ class ClassicalGANLLM(BaseForecastingModel):
         return pred.numpy() if not torch.is_tensor(X) else pred
 
     def evaluate(self, X_test, y_test, attack_cfg: Dict = None, last_input_prices=None, **kwargs):
-        X_test, y_test = shift_for_one_step_ahead(np.asarray(X_test), np.asarray(y_test))
-        if last_input_prices is not None:
-            last_input_prices = np.asarray(last_input_prices)[:-1]  # keep row-aligned with the shift above
+        frame = resolve_frame(self.config)
+        _te = make_target(X_test, y_test, frame)
+        # y_test is now the TARGET in this frame (next-close change for "delta"); RMSE/MAE of the change
+        # equal those of (last close + change) vs next close, so they compare directly with persistence.
+        X_test, y_test = _te.X, _te.target
+        last_input_prices = _te.last                         # real prices, row-aligned with the shift
         predictions = self.predict(X_test)
         y_test_arr = np.array(y_test).flatten()
         predictions_arr = np.array(predictions).flatten()
@@ -337,11 +347,12 @@ class ClassicalGANLLM(BaseForecastingModel):
             "model_type": "Classical GAN-LLM",
         }
 
+        self.results["target_frame"] = frame
         if attack_cfg is not None and last_input_prices is not None:
             self.forecast_head.eval()  # compute_attack_success_rate no longer does this itself
             X_test_t = torch.tensor(X_test, dtype=torch.float32)
             y_test_t = torch.tensor(y_test, dtype=torch.float32)
-            last_prices_t = torch.tensor(last_input_prices, dtype=torch.float32)
+            last_prices_t = torch.tensor(_te.reference, dtype=torch.float32)  # 0 in the delta frame
             asr_report = compute_attack_success_rate(
                 self._forecast_model, X_test_t, y_test_t, last_prices_t,
                 attack_cfg, attacks=attack_cfg.get("attacks", ["fgsm", "pgd", "cw"]),
@@ -383,7 +394,7 @@ class ClassicalGANLLM(BaseForecastingModel):
         # context. forecast_head's metrics above remain as the closed-form head baseline.
         from ..llm.llm_pipeline import evaluate_if_enabled
         self.results.update(evaluate_if_enabled(
-            kwargs.get("llm_cfg"), last_input_prices, y_test, X_test, self.seed,
+            kwargs.get("llm_cfg"), _te.last, _te.y_next, X_test, self.seed,
             generator_fn=self.generate_synthetic_data,
             processed_dir=kwargs.get("processed_dir", "data/processed"),
         ))

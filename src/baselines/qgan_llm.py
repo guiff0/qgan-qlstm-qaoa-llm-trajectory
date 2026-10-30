@@ -63,7 +63,7 @@ from .base import BaseForecastingModel
 from .classical_gan_llm import ClassicalDiscriminator
 from ..attacks.adversarial import compute_attack_success_rate, compute_clean_asr
 from ..evaluation.metrics import rmse as rmse_fn, mae as mae_fn, synthetic_data_fidelity_report
-from ..evaluation.one_step_ahead import shift_for_one_step_ahead
+from ..evaluation.one_step_ahead import shift_for_one_step_ahead, make_target, resolve_frame
 from ..evaluation.poisoning_resistance import evaluate_poisoning_resistance
 from ..evaluation.threat_detection import evaluate_threat_detection
 from ..evaluation.resilience_suite import run_resilience_suite
@@ -74,7 +74,7 @@ from ..utils.reproducibility import set_all_seeds, seeded_generator
 from ..utils.progress import progress_bar, log_progress_milestone
 from ..utils.gan_training import (
     config_fingerprint, checkpoint_file, save_checkpoint, load_checkpoint,
-    fit_linear_head_closed_form, epoch_row_indices,
+    fit_linear_head_closed_form, epoch_row_indices, refit_head_for_frame,
 )
 
 
@@ -180,8 +180,11 @@ class QGANLLM(BaseForecastingModel):
         # Fixes the same-row target leakage flagged in the earlier audit:
         # see src/evaluation/one_step_ahead.py's module docstring for why this
         # has to happen HERE (locally), not in prepare_data.py.
-        X_train, y_train = shift_for_one_step_ahead(np.asarray(X_train), np.asarray(y_train))
-        X_val, y_val = shift_for_one_step_ahead(np.asarray(X_val), np.asarray(y_val))
+        # Target frame (see one_step_ahead.make_target): "delta" = next-close change, so a head that
+        # learns nothing scores exactly persistence. The generator is unaffected (it models X only).
+        self.target_frame = resolve_frame(self.config)
+        _tr, _va = make_target(X_train, y_train, self.target_frame), make_target(X_val, y_val, self.target_frame)
+        X_train, y_train, X_val, y_val = _tr.X, _tr.target, _va.X, _va.target
         log = run_logger.info if run_logger else (lambda *_a, **_k: None)
 
         n_epochs = self.config["epochs"]
@@ -204,6 +207,9 @@ class QGANLLM(BaseForecastingModel):
             entanglement_history = list(ckpt.get("entanglement_history", []))
             log(f"Resuming from checkpoint {self.checkpoint_path}: next_epoch={start_epoch}/{n_epochs}"
                 + (" (training already complete -- skipping to evaluation)" if ckpt.get("completed") else ""))
+            if ckpt.get("target_frame", "level") != self.target_frame:
+                head_mse = refit_head_for_frame(self.forecast_head, X_train, y_train, ckpt,
+                                                self.checkpoint_path, self.target_frame, log)
             self.resumed_from_checkpoint = bool(ckpt.get("completed"))
             if ckpt.get("completed"):
                 self.qgan_results["entanglement_history"] = entanglement_history
@@ -264,6 +270,7 @@ class QGANLLM(BaseForecastingModel):
 
                 save_checkpoint(self.checkpoint_path, {
                     "fingerprint": fp, "next_epoch": epoch + 1, "completed": (epoch + 1 == n_epochs),
+                    "target_frame": self.target_frame,
                     "generator": self.generator.state_dict(),
                     "discriminator": self.discriminator.state_dict(),
                     "forecast_head": self.forecast_head.state_dict(),
@@ -293,6 +300,25 @@ class QGANLLM(BaseForecastingModel):
             circuit_fn, weights, self.config["n_qubits"],
             dev_name=self.config["quantum_device"],
         )
+
+    def _save_entanglement_map(self) -> None:
+        """Pairwise qubit mutual-information map (Figure 32) -> results/entanglement_maps/<model>_seed<N>.json.
+        Never allowed to break an evaluation: a failure is logged and skipped."""
+        try:
+            from ..quantum.tomography import save_pairwise_entanglement_map
+            from ..utils.run_identity import model_slug
+            n = self.config["n_qubits"]
+            weights = self.generator.theta.detach().numpy()
+            circuit_fn = apply_circuit_gates_only(np.zeros(n), weights, n, self.config["n_layers"],
+                                                  self.config["entanglement"])
+            out = os.path.join("results", "entanglement_maps", f"{model_slug(self.name)}_seed{self.seed}.json")
+            save_pairwise_entanglement_map(
+                circuit_fn, weights, n, out,
+                {"model": self.name, "seed": int(self.seed), "entanglement_topology": self.config["entanglement"],
+                 "noise_strength": self.config.get("noise_strength"), "n_layers": self.config["n_layers"]},
+                dev_name=self.config["quantum_device"])
+        except Exception as exc:  # noqa: BLE001
+            print(f"[entanglement-map] skipped: {type(exc).__name__}: {exc}")
 
     def generate_synthetic_data(self, n_samples: int) -> np.ndarray:
         """Generate (or reuse) synthetic rows. Generation costs ~0.8 s/row at
@@ -380,9 +406,12 @@ class QGANLLM(BaseForecastingModel):
         return pred.numpy() if not torch.is_tensor(X) else pred
 
     def evaluate(self, X_test, y_test, attack_cfg: Dict = None, last_input_prices=None, **kwargs):
-        X_test, y_test = shift_for_one_step_ahead(np.asarray(X_test), np.asarray(y_test))
-        if last_input_prices is not None:
-            last_input_prices = np.asarray(last_input_prices)[:-1]  # keep row-aligned with the shift above
+        frame = resolve_frame(self.config)
+        _te = make_target(X_test, y_test, frame)
+        # y_test is now the TARGET in this frame (next-close change for "delta"); RMSE/MAE of the change
+        # equal those of (last close + change) vs next close, so they compare directly with persistence.
+        X_test, y_test = _te.X, _te.target
+        last_input_prices = _te.last                         # real prices, row-aligned with the shift
         predictions = self.predict(X_test)
         y_test_arr = np.array(y_test).flatten()
         predictions_arr = np.array(predictions).flatten()
@@ -393,11 +422,12 @@ class QGANLLM(BaseForecastingModel):
             "model_type": self.name,
         }
 
+        self.results["target_frame"] = frame
         if attack_cfg is not None and last_input_prices is not None:
             self.forecast_head.eval()  # compute_attack_success_rate no longer does this itself
             X_test_t = torch.tensor(X_test, dtype=torch.float32)
             y_test_t = torch.tensor(y_test, dtype=torch.float32)
-            last_prices_t = torch.tensor(last_input_prices, dtype=torch.float32)
+            last_prices_t = torch.tensor(_te.reference, dtype=torch.float32)  # 0 in the delta frame
             asr_report = compute_attack_success_rate(
                 self._forecast_model, X_test_t, y_test_t, last_prices_t,
                 attack_cfg, attacks=attack_cfg.get("attacks", ["fgsm", "pgd", "cw"]),
@@ -411,6 +441,7 @@ class QGANLLM(BaseForecastingModel):
         final_entanglement = self._measure_entanglement()
         self.results["entanglement_entropy"] = final_entanglement["entanglement_entropy"]
         self.results["purity"] = final_entanglement["purity"]
+        self._save_entanglement_map()
 
         # Synthetic-data fidelity + mode-collapse diagnostics (Ch.4 Table 38,
         # and Ch.3's mode-collapse risk -- see synthetic_data_fidelity_report's
@@ -467,7 +498,7 @@ class QGANLLM(BaseForecastingModel):
         # context. forecast_head's metrics above remain as the closed-form head baseline.
         from ..llm.llm_pipeline import evaluate_if_enabled
         self.results.update(evaluate_if_enabled(
-            kwargs.get("llm_cfg"), last_input_prices, y_test, X_test, self.seed,
+            kwargs.get("llm_cfg"), _te.last, _te.y_next, X_test, self.seed,
             generator_fn=self.generate_synthetic_data,
             processed_dir=kwargs.get("processed_dir", "data/processed"),
         ))

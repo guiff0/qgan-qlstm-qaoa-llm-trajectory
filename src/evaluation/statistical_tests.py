@@ -90,6 +90,27 @@ def independent_ttest(group_a: np.ndarray, group_b: np.ndarray) -> dict:
     }
 
 
+def crawford_howell(case: float, controls: np.ndarray) -> dict:
+    """Crawford & Howell (1998) modified t-test: is ONE observation (`case`) unusual relative to a
+    small sample (`controls`, n >= 2)? t = (case - mean) / (sd * sqrt((n + 1) / n)), df = n - 1.
+    Valid when one side of a comparison has a single run; it answers "does this single run fall
+    outside the spread of the other condition", which is weaker than a two-sample test and must be
+    reported as exploratory."""
+    c = np.asarray(controls, dtype=float)
+    c = c[np.isfinite(c)]
+    n = len(c)
+    if n < 2:
+        raise ValueError(f"need >= 2 control observations, have {n}")
+    sd = c.std(ddof=1)
+    if sd == 0:
+        raise ValueError("controls have zero variance; the single-case t is undefined")
+    t = (float(case) - c.mean()) / (sd * np.sqrt((n + 1) / n))
+    p = 2 * stats.t.sf(abs(t), n - 1)
+    return {"t_statistic": float(t), "df": int(n - 1), "p_value": float(p),
+            "case_value": float(case), "control_mean": float(c.mean()), "control_sd": float(sd),
+            "n_controls": int(n)}
+
+
 def pearson_correlation_with_ci(x: np.ndarray, y: np.ndarray, alpha: float = 0.05) -> dict:
     """Pearson r with a Fisher-z confidence interval, matching the
     dissertation's reported format: r(df) = ..., p < ..., 95% CI [.., ..]."""

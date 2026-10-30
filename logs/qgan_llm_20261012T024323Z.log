@@ -1,3 +1,3 @@
-2026-10-11 22:43:24,416 | INFO | Starting training run for QGAN-LLM (run_id=qgan_llm_20261012T024323Z)
-2026-10-11 22:43:26,366 | INFO | Resuming from checkpoint models\qgan_llm_79d5bd41bd.ckpt: next_epoch=30/30 (training already complete -- skipping to evaluation)
-2026-10-11 22:43:26,366 | INFO | [TRAIN] step 1 | 1949.9ms | Trained QGAN-LLM from scratch | {'reused_checkpoint': False, 'n_train_rows': 3715921}
+version https://git-lfs.github.com/spec/v1
+oid sha256:7f1dc37e3f3e235734db6637107fe66f3bb2c319a9c4e36115228367263e4765
+size 415

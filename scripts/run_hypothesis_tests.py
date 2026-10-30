@@ -5,17 +5,18 @@ in the manuscript's Ch.4 had no corresponding computation anywhere in
 the codebase before this), plus CQRS (metrics/resilience.py) per
 quantum-model row. Writes results/hypothesis_test_results.json.
 
-HONEST LIMITATION, not fixed by this script: every test below needs
-MULTIPLE independent observations per condition -- a t-test comparing
-one number to one number has no within-group variance to test. The
-pipeline currently trains each model config exactly once (see TODO.md's
-repeated-runs item), so with the data available today most of these
-will report "insufficient data" rather than a real p-value. Still worth
-running now: this is the harness that produces real numbers the moment
-repeated runs exist, and it makes the current gap explicit and
-quantified (exactly how many runs per condition exist right now)
-instead of leaving it implicit.
+STATUS VALUES (see the "summary" block of the output and the printed table):
+    ok                       a real test ran on >= 2 independent runs per condition
+    exploratory_single_case  one condition has a single run; a Crawford-Howell single-case t-test
+                             ran instead (weaker; not confirmatory)
+    insufficient_data        a condition has no usable run; "how_to_fix" gives the command
+    degenerate_by_design     every observation is identical because the quantity does not depend
+                             on the model under test (e.g. forecast-head RMSE in the GAN models);
+                             more seeds cannot fix this
+Observations are counted per (config, seed): re-evaluating one checkpoint is not a new run, a new
+seed is. Use --dedupe config for the old one-row-per-config behaviour.
 
+Safe to run on its own at any time, with or without the rest of the pipeline:
     python -m scripts.run_hypothesis_tests
     python -m scripts.run_hypothesis_tests --results-csv results/all_results.csv
 """
@@ -29,29 +30,71 @@ import numpy as np
 import pandas as pd
 
 from src.evaluation.statistical_tests import (
-    ancova, independent_ttest, pearson_correlation_with_ci,
+    ancova, crawford_howell, independent_ttest, pearson_correlation_with_ci,
 )
 from src.evaluation.mediation_pipelines import run_m2_dv2_mediation
 from src.metrics.resilience import cqrs, qar
-from src.utils.run_identity import config_of_run_id, latest_per_config
+from src.utils.run_identity import config_of_run_id, latest_per_config, latest_per_config_seed
 from src.evaluation.advantage_diagnostics import find_degenerate_groups
 
 QGAN, CGAN = "QGAN-LLM", "Classical GAN-LLM"
 
 
+REPEAT_CMD = 'python -m scripts.run_repeated_experiment --model "{model}" --n-runs {n} --base-seed 43'
+
+
+def _insufficient(n_per_group: dict, need: int = 2, how_to_fix: str = "") -> dict:
+    """Structured "not enough runs" result: says which group is short and what to run."""
+    short = {g: n for g, n in n_per_group.items() if n < need}
+    return {"status": "insufficient_data",
+            "message": (f"insufficient data: need >= {need} observations per group, have "
+                        f"{n_per_group} -- repeated runs needed"),
+            "short_groups": short, "how_to_fix": how_to_fix}
+
+
 def _safe(fn, *args, need_n=2, **kwargs):
-    """Runs a test, reporting the "not enough data" case explicitly
-    (naming exactly how many observations are missing) rather than
-    letting scipy/statsmodels raise an opaque error, or -- worse --
-    silently returning a p-value computed on a degenerate sample."""
+    """Runs a test; reports "not enough data" explicitly instead of letting scipy raise an opaque
+    error or silently returning a p-value computed on a degenerate sample."""
     for a in args:
         if hasattr(a, "__len__") and len(a) < need_n:
-            return {"error": f"insufficient data: need >= {need_n} observations, "
-                              f"have {len(a)} -- repeated runs needed (see TODO.md)"}
+            return _insufficient({"observations": len(a)}, need_n)
     try:
-        return fn(*args, **kwargs)
+        out = fn(*args, **kwargs)
+        out.setdefault("status", "ok")
+        return out
     except Exception as exc:
-        return {"error": str(exc)}
+        return {"status": "error", "error": str(exc)}
+
+
+def _compare_two(a: np.ndarray, b: np.ndarray, name_a: str, name_b: str, how_to_fix: str = "") -> dict:
+    """Two-condition comparison that degrades gracefully:
+      n_a >= 2 and n_b >= 2 -> Welch t-test                           status "ok"
+      one side has exactly 1 -> Crawford-Howell single-case t-test    status "exploratory_single_case"
+      otherwise             -> structured insufficient-data result    status "insufficient_data"
+    """
+    a, b = np.asarray(a, float), np.asarray(b, float)
+    a, b = a[np.isfinite(a)], b[np.isfinite(b)]
+    n = {name_a: len(a), name_b: len(b)}
+    if len(a) >= 2 and len(b) >= 2:
+        return _safe(independent_ttest, a, b)
+    if len(a) == 1 and len(b) >= 2:
+        single, many, single_name, many_name = a[0], b, name_a, name_b
+    elif len(b) == 1 and len(a) >= 2:
+        single, many, single_name, many_name = b[0], a, name_b, name_a
+    else:
+        return _insufficient(n, 2, how_to_fix)
+    try:
+        res = crawford_howell(single, many)
+    except Exception as exc:
+        return {"status": "insufficient_data", "message": f"insufficient data: {exc}",
+                "n_per_group": n, "how_to_fix": how_to_fix}
+    res.update({"status": "exploratory_single_case", "single_condition": single_name,
+                "sample_condition": many_name, "n_per_group": n,
+                "note": (f"{single_name} has ONE run, so a two-sample test is impossible. This "
+                         f"Crawford-Howell test asks whether that single run lies outside the spread "
+                         f"of {many_name}; it is exploratory, not confirmatory."),
+                "how_to_fix": how_to_fix})
+    return res
 
 
 def test_h1_synthetic_data_fidelity(df: pd.DataFrame) -> dict:
@@ -60,14 +103,19 @@ def test_h1_synthetic_data_fidelity(df: pd.DataFrame) -> dict:
         return {"error": f"need both {QGAN!r} and {CGAN!r} rows with an 'fid' column"}
     sub = df[df["model_type"].isin(needed)].dropna(subset=["fid"])
     group = (sub["model_type"] == QGAN).astype(int).to_numpy()
-    if "vix" in sub.columns and sub["vix"].notna().all() and len(sub) >= 4:
+    q_rows = sub[sub["model_type"] == QGAN]
+    c_rows = sub[sub["model_type"] == CGAN]
+    fix = REPEAT_CMD.format(model=CGAN, n=2)
+    if ("vix" in sub.columns and sub["vix"].notna().all() and len(sub) >= 4
+            and len(q_rows) >= 2 and len(c_rows) >= 2):
         result = _safe(ancova, sub["fid"].to_numpy(), group, sub["vix"].to_numpy(), need_n=4)
     else:
-        a = sub.loc[sub["model_type"] == QGAN, "fid"].to_numpy()
-        b = sub.loc[sub["model_type"] == CGAN, "fid"].to_numpy()
-        result = _safe(independent_ttest, a, b, need_n=2)
-        result["note"] = ("no usable 'vix' covariate in results/all_results.csv -- ran a plain "
-                           "t-test instead of the ANCOVA Ch.3 specifies")
+        result = _compare_two(q_rows["fid"].to_numpy(), c_rows["fid"].to_numpy(), QGAN, CGAN, fix)
+        result["note_covariate"] = ("no usable 'vix' covariate (or < 2 runs per side) in "
+                                    "results/all_results.csv -- ran a plain comparison instead of "
+                                    "the ANCOVA Ch.3 specifies")
+    result["pooled_qgan_configs"] = bool(q_rows["run_id"].map(config_of_run_id).nunique() > 1) \
+        if "run_id" in q_rows.columns else None
     return result
 
 
@@ -93,10 +141,19 @@ def test_h3_poisoning_resistance(df: pd.DataFrame) -> dict:
     q = df[(df["model_type"] == QGAN) & df["noise_strength"].notna()]
     no_noise = q.loc[q["noise_strength"] == 0, col].dropna().to_numpy()
     noisy = q.loc[q["noise_strength"] > 0, col].dropna().to_numpy()
-    result = _safe(independent_ttest, no_noise, noisy, need_n=2)
+    result = _compare_two(no_noise, noisy, "no_noise", "noisy",
+                          REPEAT_CMD.format(model="QGAN-LLM (no noise)", n=2))
+    result["confound_warning"] = ("noisy = 20-qubit ring + 12-qubit + linear-topology configs pooled; "
+                                  "they differ from no_noise in more than the noise level only")
     result["interpretation"] = ("positive t (no_noise mean > noisy mean) supports Ha3: "
                                  "noise injection -> lower poisoning degradation")
     return result
+
+
+_DEGENERATE_WHY = ("In QGAN-LLM and Classical GAN-LLM the forecast head is a linear layer fitted in closed "
+                   "form on REAL rows only; the generator is never on the forecast path. More seeds "
+                   "cannot create a difference. A quantum-vs-classical RMSE/ASR comparison needs the "
+                   "generator (or its output) to feed the forecast -- see the Ch.4 diagnosis.")
 
 
 def test_h4_quantum_advantage(df: pd.DataFrame) -> dict:
@@ -112,11 +169,12 @@ def test_h4_quantum_advantage(df: pd.DataFrame) -> dict:
             # Identical RMSE in both groups means the forecast does not depend on the
             # quantum circuit (GAN-LLM head is fitted on real rows only). Say so
             # instead of emitting a NaN t-statistic.
-            result["rmse"] = {"status": "degenerate", "reason": _deg["reason"],
+            result["rmse"] = {"status": "degenerate_by_design", "reason": _deg["reason"],
+                              "why": _DEGENERATE_WHY,
                               "mean_a": float(np.mean(a_rmse)) if len(a_rmse) else None,
                               "mean_b": float(np.mean(b_rmse)) if len(b_rmse) else None}
         else:
-            result["rmse"] = _safe(independent_ttest, a_rmse, b_rmse, need_n=2)
+            result["rmse"] = _compare_two(a_rmse, b_rmse, QGAN, CGAN, REPEAT_CMD.format(model=QGAN, n=2))
     else:
         result["rmse"] = {"error": "no 'rmse' column"}
     if "asr" in df.columns:
@@ -124,9 +182,10 @@ def test_h4_quantum_advantage(df: pd.DataFrame) -> dict:
         b_asr = df.loc[df["model_type"] == CGAN, "asr"].dropna().to_numpy()
         _dega = find_degenerate_groups({"quantum": a_asr, "classical": b_asr})
         if _dega["degenerate"]:
-            result["asr"] = {"status": "degenerate", "reason": _dega["reason"]}
+            result["asr"] = {"status": "degenerate_by_design", "reason": _dega["reason"],
+                             "why": _DEGENERATE_WHY}
         else:
-            result["asr"] = _safe(independent_ttest, a_asr, b_asr, need_n=2)
+            result["asr"] = _compare_two(a_asr, b_asr, QGAN, CGAN, REPEAT_CMD.format(model=QGAN, n=2))
     else:
         result["asr"] = {"error": "no 'asr' column"}
     result["caveat"] = ("RMSE here now reflects the fixed one-step-ahead target "
@@ -232,20 +291,67 @@ def compute_cqrs_per_row(df: pd.DataFrame) -> dict:
     return rows
 
 
+def _guard(fn, df):
+    """One failing test must never stop the others (or the output file) from being written."""
+    try:
+        return fn(df)
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "error", "error": f"{type(exc).__name__}: {exc}"}
+
+
+def _sanitize(o):
+    """NaN/inf -> None so the output is valid JSON (json.dump would emit bare NaN)."""
+    if isinstance(o, dict):
+        return {str(k): _sanitize(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_sanitize(v) for v in o]
+    if isinstance(o, (np.floating, float)):
+        return None if not np.isfinite(o) else float(o)
+    if isinstance(o, (np.integer,)):
+        return int(o)
+    if isinstance(o, (np.bool_,)):
+        return bool(o)
+    return o
+
+
+def _status_of(result: dict) -> str:
+    if not isinstance(result, dict):
+        return "unknown"
+    if "status" in result:
+        return result["status"]
+    if "error" in result:
+        return "error"
+    if any(isinstance(v, dict) and "status" in v for v in result.values()):
+        sts = [v["status"] for v in result.values() if isinstance(v, dict) and "status" in v]
+        return "ok" if "ok" in sts else sts[0]
+    return "ok" if ("p_value" in result or "r" in result or "indirect_effect" in result) else "unknown"
+
+
+def build_summary(out: dict) -> dict:
+    keys = ["H1_synthetic_data_fidelity", "H2_adversarial_resilience", "H3_poisoning_resistance",
+            "H4_quantum_advantage", "H5_threat_detection_tomography_correlation", "M2_DV2_mediation"]
+    return {k: _status_of(out.get(k, {})) for k in keys}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--results-csv", default="results/all_results.csv")
     ap.add_argument("--out", default="results/hypothesis_test_results.json")
-    ap.add_argument("--no-dedupe", action="store_true",
-                    help="count every row (re-evaluations included) as an observation")
+    ap.add_argument("--dedupe", choices=["config_seed", "config", "none"], default="config_seed",
+                    help="config_seed (default): re-evaluations of one checkpoint collapse, but each "
+                         "different seed counts as an independent run. config: one row per config "
+                         "(the old behaviour). none: every row is an observation.")
+    ap.add_argument("--no-dedupe", action="store_true", help="same as --dedupe none")
     args = ap.parse_args()
 
     if not os.path.exists(args.results_csv):
         raise SystemExit(f"{args.results_csv} not found -- run the pipeline first.")
     df = pd.read_csv(args.results_csv)
     n_raw = len(df)
-    if not args.no_dedupe:
-        # Re-evaluations of one checkpoint are not independent observations.
+    mode = "none" if args.no_dedupe else args.dedupe
+    if mode == "config_seed":
+        df = latest_per_config_seed(df)
+    elif mode == "config":
         df = latest_per_config(df)
     if "asr_baseline" in df.columns:
         legacy = df["asr_baseline"].isna()
@@ -254,25 +360,33 @@ def main():
     out = {
         "n_rows_raw": n_raw,
         "n_rows": len(df),
+        "dedupe": mode,
         "n_runs_per_model": df.groupby("model_type").size().to_dict() if "model_type" in df.columns else {},
-        "H1_synthetic_data_fidelity": test_h1_synthetic_data_fidelity(df),
-        "H2_adversarial_resilience": test_h2_adversarial_resilience(df),
-        "H3_poisoning_resistance": test_h3_poisoning_resistance(df),
-        "H4_quantum_advantage": test_h4_quantum_advantage(df),
-        "H5_threat_detection_tomography_correlation": test_h5_tomography_correlation(df),
-        "M2_DV2_mediation": test_m2_dv2_mediation(df),
-        "QAR": test_qar(df),
-        "CQRS_per_model": compute_cqrs_per_row(df),
+        "n_runs_per_config": (df["run_id"].map(config_of_run_id).value_counts().to_dict()
+                              if "run_id" in df.columns else {}),
+        "H1_synthetic_data_fidelity": _guard(test_h1_synthetic_data_fidelity, df),
+        "H2_adversarial_resilience": _guard(test_h2_adversarial_resilience, df),
+        "H3_poisoning_resistance": _guard(test_h3_poisoning_resistance, df),
+        "H4_quantum_advantage": _guard(test_h4_quantum_advantage, df),
+        "H5_threat_detection_tomography_correlation": _guard(test_h5_tomography_correlation, df),
+        "M2_DV2_mediation": _guard(test_m2_dv2_mediation, df),
+        "QAR": _guard(test_qar, df),
+        "CQRS_per_model": _guard(compute_cqrs_per_row, df),
     }
+    out["summary"] = build_summary(out)
 
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     from src.utils.run_identity import archive_file, pipeline_run_id
     archive_file(args.out, tag=pipeline_run_id())      # keep the previous results file; it is rewritten below
     out["pipeline_run_id"] = pipeline_run_id()
+    out = _sanitize(out)
     with open(args.out, "w") as f:
-        json.dump(out, f, indent=2, default=lambda o: None if isinstance(o, float) and np.isnan(o) else str(o))
+        json.dump(out, f, indent=2, default=str)
     archive_file(args.out, tag=pipeline_run_id() + "_final")
     print(json.dumps(out, indent=2, default=str))
+    print("\nHYPOTHESIS TEST STATUS:")
+    for k, v in out["summary"].items():
+        print(f"  {k:<46} {v}")
 
 
 if __name__ == "__main__":

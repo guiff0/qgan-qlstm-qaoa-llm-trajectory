@@ -90,6 +90,9 @@ class QLSTMLLM(_ContextLLMBase):
     def make_context_fn(self, X_rows):
         def ctx(idx: int) -> str:
             f = float(np.asarray(self.inner.predict(X_rows[idx:idx + 1])).flatten()[0])
+            if getattr(self.inner, "target_frame", "level") == "delta":
+                return (f"A quantum LSTM model trained on the engineered market features forecasts the next-bar "
+                        f"change in the close as {f:+.6f} (price units).")
             return (f"A quantum LSTM model trained on the engineered market features forecasts the next close "
                     f"as {f:.5f}.")
         return ctx
