@@ -332,7 +332,8 @@ class QGANLLM(BaseForecastingModel):
         ckpt = getattr(self, "checkpoint_path", None)
         if ckpt:
             cache_file = os.path.splitext(str(ckpt))[0] + ".synth.npy"
-        if cache is None and cache_file and os.path.exists(cache_file):
+        from src.utils.gan_training import fresh_run
+        if cache is None and cache_file and os.path.exists(cache_file) and not fresh_run():
             try:
                 cache = np.load(cache_file)
             except Exception:

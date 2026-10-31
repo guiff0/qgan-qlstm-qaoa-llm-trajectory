@@ -396,6 +396,57 @@ def resolve_model_names(cfg_path: str | None, only: str | None) -> tuple[list[st
 # Step ids that must run again this invocation even though the state file
 # says "completed" (filled in by the "a" answer / --rerun-failed).
 _force_rerun: set = set()
+_fresh_requested = False      # set by decide_skip_policy when the person chose "start from scratch"
+
+
+def _mark_stale_running(state: dict) -> list:
+    """A step recorded as "running" when a NEW pipeline starts belongs to a process that is gone
+    (killed / crashed). Left as is it shows a run time that keeps growing (e.g. 4739m41s). Mark it
+    "interrupted" and keep its start time."""
+    stale = []
+    with _state_lock:
+        for sid, rec in state.get("steps", {}).items():
+            if rec.get("status") == "running":
+                rec["status"] = "interrupted"
+                rec["interrupted_utc"] = _now()
+                stale.append(sid)
+        if stale:
+            save_state(state)
+    return stale
+
+
+def begin_fresh_run(state: dict, steps: list, keep_llm_cache: bool = False) -> None:
+    """Make "start from scratch" real. Choosing n / --no-skip / --reset used to only stop run_pipeline
+    from SKIPPING steps; each step still resumed its own checkpoint, reused cached synthetic rows and
+    cached LLM answers, and the dashboard kept showing the previous run's DONE/RUN lines.
+
+    Now, for the steps in this run:
+      * state records are archived and reset to "pending" (no stale DONE / RUN durations);
+      * PIPELINE_FRESH=1 is exported so every step trains from epoch 0 and regenerates synthetic rows
+        (see src/utils/gan_training.fresh_run); old checkpoints are overwritten and archived by the
+        existing archive_file logic, never silently lost;
+      * results/llm_cache/ is moved to results/history/llm_cache__<run id>/ (unless keep_llm_cache),
+        so LLM answers are asked for again."""
+    import shutil
+    from src.utils.run_identity import archive_file, pipeline_run_id
+    os.environ["PIPELINE_FRESH"] = "1"
+    kept = archive_file(STATE_PATH, tag=pipeline_run_id() + "_fresh") if os.path.isfile(STATE_PATH) else None
+    with _state_lock:
+        for s in steps:
+            state["steps"][s["id"]] = {"status": "pending"}
+        state["fresh_run_utc"] = _now()
+        save_state(state)
+    moved = None
+    cache = os.path.join("results", "llm_cache")
+    if not keep_llm_cache and os.path.isdir(cache) and os.listdir(cache):
+        moved = os.path.join("results", "history", f"llm_cache__{pipeline_run_id()}")
+        os.makedirs(os.path.dirname(moved), exist_ok=True)
+        shutil.move(cache, moved)
+    print("[run_pipeline] FRESH RUN: every step below starts from scratch.\n"
+          "  - step status reset to pending (previous state archived: " + str(kept) + ")\n"
+          "  - checkpoints are NOT resumed; models train from epoch 0 and synthetic rows are regenerated\n"
+          + (f"  - LLM answer cache moved to {moved}\n" if moved else
+             "  - LLM answer cache kept (--keep-llm-cache)\n" if keep_llm_cache and os.path.isdir(cache) else ""))
 
 
 def _log_shows_failure(step_id: str) -> bool:
@@ -431,6 +482,8 @@ def decide_skip_policy(state: dict, steps: list[dict], args) -> bool:
     is nothing to ask about, so it proceeds silently -- an empty/fresh
     state file means a first run, not a question.
     """
+    global _fresh_requested
+    _fresh_requested = False          # decided anew on every call; never carried over from an earlier one
     if args.reset:
         if os.path.isfile(STATE_PATH):
             from src.utils.run_identity import archive_file
@@ -438,6 +491,7 @@ def decide_skip_policy(state: dict, steps: list[dict], args) -> bool:
             os.remove(STATE_PATH)
             print(f"[run_pipeline] --reset: previous state kept at {kept}")
         print(f"[run_pipeline] --reset: removed {STATE_PATH}. Starting fresh; nothing to skip.")
+        _fresh_requested = True
         return False
 
     skippable = [s for s in steps
@@ -453,6 +507,7 @@ def decide_skip_policy(state: dict, steps: list[dict], args) -> bool:
         return True
     if args.no_skip:
         print(f"[run_pipeline] --no-skip: ignoring {len(skippable)} previously completed step(s); redoing all.")
+        _fresh_requested = True
         return False
 
     print(f"\nFound {len(skippable)} previously completed step(s) from an earlier run of this pipeline:")
@@ -469,12 +524,15 @@ def decide_skip_policy(state: dict, steps: list[dict], args) -> bool:
         return True
 
     answer = input("\nSkip these and continue where you left off?\n"
-                   "  Y = skip them (default)   n = re-run everything\n"
+                   "  Y = skip them and resume unfinished work (default)\n"
+                   "  n = start EVERYTHING from scratch (no checkpoints, no caches, state reset)\n"
                    "  a = re-run every step that failed, even if marked completed\n"
                    "[Y/n/a]: ").strip().lower()
     if answer in ("a", "all"):
         return _apply_rerun_failed(skippable, state)
     skip = answer in ("", "y", "yes")
+    if not skip:
+        _fresh_requested = True
     print(f"[run_pipeline] {'Skipping' if skip else 'Re-running'} the above for the rest of this run.\n")
     return skip
 
@@ -782,6 +840,9 @@ def run_pipeline(argv=None) -> int:
                          help="Non-interactive equivalent of answering 'a': re-run every failed step, "
                               "including ones marked completed whose last log shows a traceback; "
                               "skip the healthy completed ones")
+    parser.add_argument("--keep-llm-cache", action="store_true",
+                         help="With a from-scratch run (n / --no-skip / --reset): keep results/llm_cache so "
+                              "LLM answers are reused instead of re-requested (saves API time)")
     parser.add_argument("--reset", action="store_true",
                          help="Delete the state file first, then run everything (implies --no-skip)")
     parser.add_argument("--stats-only", action="store_true",
@@ -877,7 +938,13 @@ def run_pipeline(argv=None) -> int:
                 s["cmd"].append("--reuse-checkpoints")
 
     # An explicit step selection means "run exactly these now": never skip, never prompt.
+    os.environ.pop("PIPELINE_FRESH", None)   # only an explicit "from scratch" choice below may set it
+    stale = _mark_stale_running(state)
+    if stale:
+        print(f"[run_pipeline] steps left 'running' by an earlier, dead process are now 'interrupted': {stale}")
     skip_completed = False if wanted_ids is not None else decide_skip_policy(state, steps, args)
+    if _fresh_requested and wanted_ids is None:
+        begin_fresh_run(state, steps, keep_llm_cache=getattr(args, "keep_llm_cache", False))
 
     pipeline_t0 = time.time()
     from src.utils.run_identity import utc_stamp as _utc_stamp
