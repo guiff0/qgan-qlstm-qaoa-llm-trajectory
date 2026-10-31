@@ -79,8 +79,10 @@
       "started_utc": "2026-10-31T17:38:55Z"
     },
     "train_eval:LLM Forecaster": {
-      "status": "running",
-      "started_utc": "2026-10-31T17:59:04Z"
+      "status": "completed",
+      "completed_utc": "2026-10-31T18:16:51Z",
+      "duration_seconds": 1067.3,
+      "detail": "artifact verified"
     },
     "run_hypothesis_tests": {
       "status": "completed",
@@ -95,10 +97,8 @@
       "detail": "artifact verified"
     },
     "train_eval:QLSTM-LLM": {
-      "status": "completed",
-      "completed_utc": "2026-10-28T11:30:14Z",
-      "duration_seconds": 864.4,
-      "detail": "artifact verified"
+      "status": "running",
+      "started_utc": "2026-10-31T18:16:51Z"
     },
     "train_eval:QAOA-LLM": {
       "status": "completed",
@@ -117,7 +117,7 @@
       "returncode": 1
     }
   },
-  "updated_utc": "2026-10-31T17:59:04Z",
+  "updated_utc": "2026-10-31T18:16:51Z",
   "pipeline_run_id": "P20261031T173751Z-a04a86f",
   "pipeline_runs": [
     "P20261028T111543Z-521df15",

@@ -51,7 +51,16 @@ def save_checkpoint(path: str, payload: dict) -> None:
     os.replace(tmp, path)  # atomic: a crash mid-write can never corrupt the last good checkpoint
 
 
+def fresh_run() -> bool:
+    """True when run_pipeline.py was told to start from scratch (answer 'n', --no-skip, --reset):
+    it exports PIPELINE_FRESH=1 to every step. In a fresh run no checkpoint is resumed and no
+    cached synthetic rows are reused."""
+    return os.environ.get("PIPELINE_FRESH") == "1"
+
+
 def load_checkpoint(path: str, fingerprint: str) -> Optional[dict]:
+    if fresh_run():
+        return None   # fresh run: train from epoch 0, even if a matching checkpoint exists
     if not os.path.isfile(path):
         return None
     try:
