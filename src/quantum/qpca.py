@@ -48,7 +48,9 @@ import pennylane as qml
 @dataclass
 class QPCAConfig:
     n_components: int = 2
-    n_clock: int = 6            # phase-estimation qubits (resolution 2**-n_clock)
+    n_clock: int = 8            # phase-estimation qubits (resolution 2**-n_clock); 6 was too coarse for 5 features
+    auto_clock: bool = True     # raise n_clock until the top eigenvalue gaps span >= 4 clock bins
+    max_clock: int = 10         # cap (n_clock + 2*n_sys qubits are simulated: 10 + 6 = 16)
     quantum_device: str = "default.qubit"
     peak_threshold: float = 0.01  # min clock-bin probability to count as a spectral peak
     standardize: bool = True
@@ -135,6 +137,18 @@ class QuantumPCA:
     def fit(self, X: np.ndarray) -> QPCAResult:
         cfg = self.config
         rho, n_sys, d, mean, scale = density_matrix_from_data(X, cfg.standardize)
+        if cfg.auto_clock:
+            # The d eigenvalues of rho sum to 1, so they sit close together (d = 5 -> about 0.2 each).
+            # Phase estimation cannot separate two eigenvalues closer than a few clock bins; with the
+            # old default of 6 clock qubits (bin width 1/64) the second component came out orthogonal
+            # to the classical one (overlap 0.0). Choose the smallest n_clock that resolves the gap
+            # between the top n_components + 1 eigenvalues.
+            w_all = np.sort(np.linalg.eigvalsh(rho))[::-1][: cfg.n_components + 1]
+            gap = float(np.min(np.diff(-w_all))) if len(w_all) > 1 else 1.0
+            need = int(np.ceil(np.log2(4.0 / max(gap, 1e-6))))
+            if need > cfg.n_clock:
+                cfg = QPCAConfig(**{**cfg.__dict__, "n_clock": min(need, cfg.max_clock)})
+                self.config = cfg
         circuit, n_c, n_sys = self._build_qnode(rho, n_sys)
         state = np.asarray(circuit()).reshape(2 ** n_c, 2 ** n_sys, 2 ** n_sys)
         # state[m, s, r]: clock bin m, system s, reference r

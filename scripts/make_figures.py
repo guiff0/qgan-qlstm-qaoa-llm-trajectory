@@ -22,9 +22,12 @@ import numpy as np
 
 
 def _plt():
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+    except ModuleNotFoundError:
+        return None
     return plt
 
 
@@ -42,6 +45,9 @@ def figure_31(qpca_json: str, out_dir: str) -> str | None:
     ce = np.asarray(r["classical_eigenvalues"], float)
     ev = np.asarray(r.get("explained_variance_ratio", []), float)
     plt = _plt()
+    if plt is None:
+        print("[figure 31] skipped: matplotlib is not installed (pip install matplotlib).")
+        return None
     fig, (a1, a2) = plt.subplots(1, 2, figsize=(11, 4.2), gridspec_kw={"width_ratios": [1.1, 1]})
     im = a1.imshow(V, cmap="RdBu_r", vmin=-1, vmax=1, aspect="auto")
     a1.set_xticks(range(k)); a1.set_xticklabels([f"PC{i+1}" + (f"\n{ev[i]*100:.1f}% var" if i < len(ev) else "")
@@ -75,6 +81,9 @@ def figure_32(map_dir: str, out_dir: str) -> list[str]:
         return []
     maps = [json.load(open(f)) for f in files]
     plt = _plt()
+    if plt is None:
+        print("[figure 32] skipped: matplotlib is not installed (pip install matplotlib).")
+        return []
     vmax = max(m["max_pairwise_mi"] for m in maps) or 1.0
     cols = min(3, len(maps)); rows = int(np.ceil(len(maps) / cols))
     fig, axes = plt.subplots(rows, cols, figsize=(4.6 * cols, 4.2 * rows), squeeze=False)
