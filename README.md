@@ -10,9 +10,10 @@ FRED_API_KEY
 [System.Environment]::SetEnvironmentVariable('NVIDIA_API_KEY', 'Se7rF1kGGAQ38Jjy9zjDB9DGRlb22wVO8x7Nyehy', 'User')
 ## Why this rebuild exists
 [System.Environment]::SetEnvironmentVariable('NVIDIA_API_KEY', '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', 'User')
+$env:NVIDIA_API_KEY = [System.Environment]::GetEnvironmentVariable('NVIDIA_API_KEY', 'User')
 An earlier version of this codebase had two functions that returned
 hardcoded numbers instead of computing anything:
-
+echo $env:NVIDIA_API_KEY
 ```python
 def _evaluate_adversarial(self, X_test, y_test):
     return 8.7  # Expected ASR from RQ4 results
