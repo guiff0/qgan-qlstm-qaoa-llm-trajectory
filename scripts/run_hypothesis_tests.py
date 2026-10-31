@@ -36,6 +36,7 @@ from src.evaluation.mediation_pipelines import run_m2_dv2_mediation
 from src.metrics.resilience import cqrs, qar
 from src.utils.run_identity import config_of_run_id, latest_per_config, latest_per_config_seed
 from src.evaluation.advantage_diagnostics import find_degenerate_groups
+from src.evaluation.verdicts import compute_verdicts, format_table
 
 QGAN, CGAN = "QGAN-LLM", "Classical GAN-LLM"
 
@@ -373,20 +374,23 @@ def main():
         "QAR": _guard(test_qar, df),
         "CQRS_per_model": _guard(compute_cqrs_per_row, df),
     }
-    out["summary"] = build_summary(out)
+    out["summary"] = build_summary(out)          # execution status only: could the test RUN?
+    out["verdicts"] = compute_verdicts(out)       # what the test SAYS, how far to trust it, and why
 
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    from src.utils.run_identity import archive_file, pipeline_run_id
-    archive_file(args.out, tag=pipeline_run_id())      # keep the previous results file; it is rewritten below
+    from src.utils.run_identity import pipeline_run_id, save_json_timestamped, utc_stamp
+    stamp = utc_stamp()
     out["pipeline_run_id"] = pipeline_run_id()
+    out["generated_utc"] = stamp
     out = _sanitize(out)
-    with open(args.out, "w") as f:
-        json.dump(out, f, indent=2, default=str)
-    archive_file(args.out, tag=pipeline_run_id() + "_final")
+    saved = save_json_timestamped(args.out, out, stamp=stamp)   # <stem>__<stamp>.json + latest copy
+    out["saved_as"] = saved["versioned"]
     print(json.dumps(out, indent=2, default=str))
-    print("\nHYPOTHESIS TEST STATUS:")
+    print("\nHYPOTHESIS TEST STATUS (execution):")
     for k, v in out["summary"].items():
         print(f"  {k:<46} {v}")
+    print("\nHYPOTHESIS VERDICTS (deterministic rules in src/evaluation/verdicts.py):")
+    print(format_table(out["verdicts"]))
 
 
 if __name__ == "__main__":

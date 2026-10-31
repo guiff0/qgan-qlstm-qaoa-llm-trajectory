@@ -592,6 +592,32 @@ def watch_pipeline(args) -> int:
 _print_lock = threading.Lock()
 
 
+def _write_run_record(args, steps, state, started_utc, t0, status, failed_train_eval, failed_analysis):
+    """logs/pipeline/pipeline_run__<UTC stamp>.json (+ pipeline_run.json = latest): one JSON per
+    run_pipeline.py call -- when it started/finished, how it ended, and every step's recorded state.
+    Never raises: a logging problem must not change the pipeline's exit status."""
+    try:
+        from src.utils.run_identity import pipeline_run_id, save_json_timestamped, utc_stamp
+        done = utc_stamp()
+        st = state.get("steps", {}) if isinstance(state, dict) else {}
+        rec = {
+            "pipeline_run_id": pipeline_run_id(),
+            "status": status,                       # complete | failed | aborted
+            "started_utc": started_utc,
+            "finished_utc": done,
+            "duration_s": round(time.time() - t0, 1),
+            "argv": sys.argv[1:],
+            "config": getattr(args, "config", None),
+            "failed_train_eval": list(failed_train_eval),
+            "failed_analysis": list(failed_analysis),
+            "steps": {s["id"]: st.get(s["id"], {"status": "pending"}) for s in steps},
+            "step_logs_dir": os.path.join("logs", "pipeline"),
+        }
+        save_json_timestamped(os.path.join("logs", "pipeline", "pipeline_run.json"), rec, stamp=done)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[run_pipeline] could not write the run record: {exc}")
+
+
 def run_step(step: dict, state: dict, skip_completed: bool, log_to_file: str | None = None,
              env: dict | None = None) -> bool:
     """Returns True on success (including a skip), False on failure.
@@ -854,6 +880,8 @@ def run_pipeline(argv=None) -> int:
     skip_completed = False if wanted_ids is not None else decide_skip_policy(state, steps, args)
 
     pipeline_t0 = time.time()
+    from src.utils.run_identity import utc_stamp as _utc_stamp
+    started_utc = _utc_stamp()
     failed_train_eval = []
     failed_analysis = []
     log_dir = os.path.join("logs", "pipeline")
@@ -903,6 +931,8 @@ def run_pipeline(argv=None) -> int:
             for a in [x for x in steps[i:] if x.get("analysis")]:
                 if not run_step(a, state, False):
                     failed_analysis.append(a["id"])
+            _write_run_record(args, steps, state, started_utc, pipeline_t0, "aborted",
+                              failed_train_eval + [step["id"]], failed_analysis)
             return 1
 
     total = time.time() - pipeline_t0
@@ -917,14 +947,17 @@ def run_pipeline(argv=None) -> int:
         print(f"Re-run `python run_pipeline.py` -- everything else will be skipped "
               f"automatically and only these will retry.")
         print("=" * 70)
+        _write_run_record(args, steps, state, started_utc, pipeline_t0, "failed", failed_train_eval, failed_analysis)
         return 1
     if failed_analysis:
         print("=" * 70)
+        _write_run_record(args, steps, state, started_utc, pipeline_t0, "failed", failed_train_eval, failed_analysis)
         return 1
 
     from src.utils.run_identity import archive_file, pipeline_run_id
     archive_file(STATE_PATH, tag=pipeline_run_id())
     print(f"PIPELINE COMPLETE in {total / 60:.1f} min. State: {STATE_PATH} (copy: data/history/, run {pipeline_run_id()})")
+    _write_run_record(args, steps, state, started_utc, pipeline_t0, "complete", failed_train_eval, failed_analysis)
     print("=" * 70)
     return 0
 

@@ -165,3 +165,67 @@ def append_ledger(results_dir: str, row: dict) -> str:
             w.writerow(r)
         atomic_write_text(path, buf.getvalue())
     return path
+
+
+# ---------------------------------------------------------------------------
+# Time-stamped JSON results.
+#
+#   save_json_timestamped("results/hypothesis_test_results.json", obj)
+#     writes   results/hypothesis_test_results__20261031T180412Z.json   immutable, named by the UTC
+#                                                                       moment it was generated
+#     and      results/hypothesis_test_results.json                     "latest" copy, so every
+#                                                                       reader of the old name still works
+#   The two are byte-identical. A versioned file is never overwritten (a numeric suffix is added on a
+#   clash). If a "latest" file from before this scheme exists and has no versioned twin yet, it is
+#   copied to <dir>/history/ first, so nothing is lost on the first run.
+# ---------------------------------------------------------------------------
+def _json_safe(o):
+    """NaN/inf -> None (bare NaN is not valid JSON); numpy scalars -> Python."""
+    import math
+    if isinstance(o, dict):
+        return {str(k): _json_safe(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_json_safe(v) for v in o]
+    if hasattr(o, "item") and not isinstance(o, (str, bytes)):
+        try:
+            o = o.item()
+        except Exception:
+            pass
+    if isinstance(o, float) and not math.isfinite(o):
+        return None
+    return o
+
+
+def versioned_path(path, stamp: str | None = None) -> Path:
+    """<dir>/<stem>__<UTC stamp><ext>, made unique with _1, _2 ... if it already exists."""
+    src = Path(path)
+    stamp = stamp or utc_stamp()
+    dst = src.with_name(f"{src.stem}__{stamp}{src.suffix}")
+    n = 1
+    while dst.exists():
+        dst = src.with_name(f"{src.stem}__{stamp}_{n}{src.suffix}"); n += 1
+    return dst
+
+
+def list_versions(path) -> list:
+    """All time-stamped versions of `path`, oldest first (the stamp sorts chronologically)."""
+    src = Path(path)
+    pat = re.compile(rf"^{re.escape(src.stem)}__\d{{8}}T\d{{6}}Z(_\d+)?{re.escape(src.suffix)}$")
+    return sorted((p for p in src.parent.glob(f"{src.stem}__*{src.suffix}") if pat.match(p.name)),
+                  key=lambda p: p.name)
+
+
+def save_json_timestamped(path, obj, stamp: str | None = None) -> dict:
+    """Write `obj` as JSON to a time-stamped file AND to the stable `path` (latest).
+    Returns {"versioned": <path>, "latest": <path>, "stamp": <stamp>, "archived_legacy": <path|None>}."""
+    from .io import atomic_write_text
+    src = Path(path)
+    stamp = stamp or utc_stamp()
+    text = json.dumps(_json_safe(obj), indent=2, default=str, allow_nan=False)
+    legacy = None
+    if src.is_file() and not list_versions(src):
+        legacy = archive_file(src, tag="legacy_" + stamp)   # pre-versioning file: keep it
+    dst = versioned_path(src, stamp)
+    atomic_write_text(dst, text)
+    atomic_write_text(src, text)
+    return {"versioned": str(dst), "latest": str(src), "stamp": stamp, "archived_legacy": legacy}
