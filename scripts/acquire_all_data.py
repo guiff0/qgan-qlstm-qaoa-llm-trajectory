@@ -198,28 +198,94 @@ def _validate_year(df: pd.DataFrame, year: int) -> None:
         raise ValueError(f"only {len(df):,} rows (expected >= {min_rows:,})")
 
 
+def _fetch_dukascopy_direct(start: dt.datetime, end: dt.datetime) -> pd.DataFrame:
+    """Download EURUSD 1-min BID candles straight from Dukascopy's public datafeed.
+
+    Used when the `dukascopy_python` package is broken (e.g. it raises
+    "name 'requests' is not defined" at import/fetch time). One LZMA-compressed
+    .bi5 file per UTC day; each record is 24 bytes big-endian:
+    (seconds-from-midnight, open, close, low, high : uint32 x 1e-5 ; volume : float32).
+    Weekends/holidays return 404 or an empty body and are simply skipped.
+    """
+    import lzma
+    import numpy as np
+    import requests
+    from concurrent.futures import ThreadPoolExecutor
+
+    rec = np.dtype([("t", ">u4"), ("o", ">u4"), ("c", ">u4"),
+                    ("l", ">u4"), ("h", ">u4"), ("v", ">f4")])
+    days = pd.date_range(start.date(), (end - dt.timedelta(days=1)).date(), freq="D")
+
+    def one_day(day: pd.Timestamp) -> pd.DataFrame | None:
+        # Dukascopy months in the URL are ZERO-based (January = 00).
+        url = (f"https://datafeed.dukascopy.com/datafeed/EURUSD/"
+               f"{day.year}/{day.month - 1:02d}/{day.day:02d}/BID_candles_min_1.bi5")
+        resp = None
+        for attempt in range(4):
+            try:
+                resp = requests.get(url, timeout=30)
+                if resp.status_code == 404:
+                    return None
+                resp.raise_for_status()
+                break
+            except requests.RequestException:
+                if attempt == 3:
+                    raise
+                time.sleep(2 ** attempt)
+        if not resp.content:
+            return None
+        arr = np.frombuffer(lzma.decompress(resp.content), dtype=rec)
+        if arr.size == 0:
+            return None
+        base = pd.Timestamp(year=day.year, month=day.month, day=day.day, tz="UTC")
+        return pd.DataFrame({
+            "open": arr["o"] / 1e5, "high": arr["h"] / 1e5,
+            "low": arr["l"] / 1e5, "close": arr["c"] / 1e5,
+            "volume": arr["v"].astype("float64"),
+        }, index=base + pd.to_timedelta(arr["t"].astype("int64"), unit="s"))
+
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        parts = [p for p in ex.map(one_day, days) if p is not None]
+    if not parts:
+        return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+    return pd.concat(parts).sort_index()
+
+
 def fetch_dukascopy_year(year: int) -> None:
     cache = _year_cache(year)
     if _nonempty(cache):
         print(f" -> [CACHED] {year}")
         return
 
-    import dukascopy_python
-    from dukascopy_python.instruments import INSTRUMENT_FX_MAJORS_EUR_USD
+    dukascopy_python = None
+    try:
+        import dukascopy_python
+        from dukascopy_python.instruments import INSTRUMENT_FX_MAJORS_EUR_USD
+    except Exception as e:  # noqa: BLE001 - a broken package can raise NameError etc.
+        print(f"    [WARN] dukascopy_python unusable ({type(e).__name__}: {e}); "
+              f"using the direct Dukascopy datafeed client instead")
+        dukascopy_python = None
 
     start = dt.datetime(year, 1, 1, tzinfo=dt.timezone.utc)
     end = dt.datetime(year + 1, 1, 1, tzinfo=dt.timezone.utc)
     print(f" -> Fetching EURUSD 1-min bid for {year} ...")
 
     def _do():
-        df = dukascopy_python.fetch(
-            instrument=INSTRUMENT_FX_MAJORS_EUR_USD,
-            interval=dukascopy_python.INTERVAL_MIN_1,
-            offer_side=dukascopy_python.OFFER_SIDE_BID,
-            start=start, end=end,
-        )
-        if df is not None:
-            df.columns = [str(c).lower().strip() for c in df.columns]
+        df = None
+        if dukascopy_python is not None:
+            try:
+                df = dukascopy_python.fetch(
+                    instrument=INSTRUMENT_FX_MAJORS_EUR_USD,
+                    interval=dukascopy_python.INTERVAL_MIN_1,
+                    offer_side=dukascopy_python.OFFER_SIDE_BID,
+                    start=start, end=end,
+                )
+            except NameError as e:  # the package's own bug; not retryable
+                print(f"    [WARN] dukascopy_python.fetch crashed ({e}); using direct client")
+                df = None
+        if df is None:
+            df = _fetch_dukascopy_direct(start, end)
+        df.columns = [str(c).lower().strip() for c in df.columns]
         _validate_year(df, year)
         return df
 
