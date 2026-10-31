@@ -58,14 +58,18 @@ def domain_implausible_mask(df: pd.DataFrame, price_cols: list[str],
 
 
 def clean_prices(df: pd.DataFrame, price_cols: list[str], n_mads_price: float = 5.0,
-                  max_abs_return: float = 0.5) -> pd.DataFrame:
+                  max_abs_return: float = 0.5, copy: bool = True) -> pd.DataFrame:
     """Two-pass cleaning matching Ch.3 exactly: (1) domain-based filters
     (zero/negative prices, >50% minute-over-minute returns) -- see
     domain_implausible_mask -- then (2) MAD statistical detection. Both
     passes repair with the same linear interpolation between adjacent
     valid points (matches Ch.3: 'linear interpolation between adjacent
-    valid prices, preserving series continuity')."""
-    df = df.copy()
+    valid prices, preserving series continuity').
+
+    copy=False edits df in place (no second 5.5M-row frame); prepare_data uses it because
+    df.copy() on the 21-column frame needed an extra ~900 MiB block and raised MemoryError."""
+    if copy:
+        df = df.copy()
     domain_mask = domain_implausible_mask(df, price_cols, max_abs_return)
     for col in price_cols:
         df.loc[domain_mask, col] = np.nan
@@ -75,8 +79,10 @@ def clean_prices(df: pd.DataFrame, price_cols: list[str], n_mads_price: float = 
     return df
 
 
-def clean_indicators(df: pd.DataFrame, indicator_cols: list[str], n_mads_indicator: float = 3.0) -> pd.DataFrame:
-    df = df.copy()
+def clean_indicators(df: pd.DataFrame, indicator_cols: list[str], n_mads_indicator: float = 3.0,
+                     copy: bool = True) -> pd.DataFrame:
+    if copy:
+        df = df.copy()
     for col in indicator_cols:
         mask = mad_outlier_mask(df[col], n_mads_indicator)
         df.loc[mask, col] = np.nan
@@ -85,11 +91,12 @@ def clean_indicators(df: pd.DataFrame, indicator_cols: list[str], n_mads_indicat
 
 
 def add_technical_indicators(df: pd.DataFrame, close_col: str = "close",
-                              high_col: str = "high", low_col: str = "low") -> pd.DataFrame:
+                              high_col: str = "high", low_col: str = "low", copy: bool = True) -> pd.DataFrame:
     """RSI, MACD, Bollinger Bands, ATR, Stochastic — the 10-feature set
     named in Ch.3 (RSI_14, MACD_line, MACD_signal, MACD_histogram,
     BB_upper, BB_lower, BB_width, ATR_14, Stoch_K_14_3, Stoch_D_14_3)."""
-    df = df.copy()
+    if copy:
+        df = df.copy()
     close = df[close_col]
 
     # RSI(14)

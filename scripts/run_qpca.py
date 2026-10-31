@@ -15,7 +15,7 @@ def main():
     ap.add_argument("--data", default="data/processed/X_train.npy")
     ap.add_argument("--features", type=int, default=5, help="first N columns (PCA-ordered) to analyze")
     ap.add_argument("--rows", type=int, default=20000)
-    ap.add_argument("--clock", type=int, default=6)
+    ap.add_argument("--clock", type=int, default=8)
     ap.add_argument("--components", type=int, default=2)
     ap.add_argument("--out", default="results/qpca_results.json")
     a = ap.parse_args()
@@ -23,7 +23,9 @@ def main():
     X = np.load(a.data, mmap_mode="r")[: a.rows, : a.features]
     res = QuantumPCA(QPCAConfig(n_components=a.components, n_clock=a.clock)).fit(np.asarray(X))
     out = {
-        "n_rows": int(len(X)), "n_features": int(a.features), "n_clock": a.clock,
+        "n_rows": int(len(X)), "n_features": int(a.features), "n_clock": res.n_qubits_simulated - 2 * int(np.ceil(np.log2(max(a.features, 2)))),
+        "n_clock_requested": a.clock,
+        "eigenvectors_match_classical": bool(np.all(res.eigenvector_abs_overlap > 0.9)),
         "qubits_simulated": res.n_qubits_simulated,
         "quantum_eigenvalues": res.eigenvalues.tolist(),
         "classical_eigenvalues": res.classical_eigenvalues.tolist(),
@@ -33,6 +35,8 @@ def main():
         "eigenvectors": res.eigenvectors.tolist(),
         "note": "Simulated QPCA on classical data features; NOT on quantum-state metrics.",
     }
+    if not out["eigenvectors_match_classical"]:
+        print("[WARN] QPCA eigenvectors do not match classical PCA (overlap < 0.9): clock resolution too coarse; raise --clock.")
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
     json.dump(out, open(a.out, "w"), indent=2)
     print(json.dumps({k: v for k, v in out.items() if k != "eigenvectors"}, indent=2))

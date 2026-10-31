@@ -6,6 +6,8 @@ Run with:  python -m scripts.prepare_data
 """
 from __future__ import annotations
 
+import gc
+
 import os
 import sys
 import time
@@ -184,14 +186,17 @@ def main():
     t0 = time.time()
     print(f" -> Filtering price outliers (MAD threshold: {data_cfg['outlier_threshold_price']})...")
     merged = clean_prices(merged, PRICE_COLS, n_mads_price=data_cfg["outlier_threshold_price"],
-                           max_abs_return=data_cfg.get("max_abs_return", 0.5))
+                           max_abs_return=data_cfg.get("max_abs_return", 0.5), copy=False)
+    gc.collect()
 
     print(" -> Calculating primary technical indicators...")
-    merged = add_technical_indicators(merged)
+    merged = add_technical_indicators(merged, copy=False)
+    gc.collect()
 
     print(f" -> Filtering primary indicator outliers (MAD threshold: {data_cfg['outlier_threshold_indicator']})...")
     indicator_cols_to_clean = [c for c in INDICATOR_COLS if c in merged.columns]
-    merged = clean_indicators(merged, indicator_cols_to_clean, n_mads_indicator=data_cfg["outlier_threshold_indicator"])
+    merged = clean_indicators(merged, indicator_cols_to_clean, n_mads_indicator=data_cfg["outlier_threshold_indicator"], copy=False)
+    gc.collect()
 
     print(" -> Expanding feature space to satisfy n_features=32 PCA requirement...")
     merged, feature_cols = expand_feature_space(merged)
@@ -323,4 +328,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except MemoryError as exc:
+        print(f"[prepare_data] MemoryError: {exc}\n"
+              "  The 5.5M-row frame needs about 4 GiB free. Close other jobs (parallel train_eval runs hold several GiB each)\n"
+              "  and re-run `python -m scripts.prepare_data` on its own before restarting the pipeline.")
+        raise SystemExit(1)

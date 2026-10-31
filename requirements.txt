@@ -3,6 +3,7 @@ torch>=2.1.0
 numpy>=1.24.0,<2.0.0
 scikit-learn>=1.3.0
 scipy>=1.11.0
+matplotlib>=3.7.0            # scripts/make_figures.py (Figures 31, 32)
 
 # Data Acquisition & Financial Sources
 pandas>=2.0.0
