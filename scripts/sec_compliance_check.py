@@ -44,7 +44,9 @@ def main():
     cross = cross_run_checks(reports)
     paper_hits = scan_paper(open(a.paper, errors="ignore").read()) if a.paper else []
     os.makedirs(a.out, exist_ok=True)
-    json.dump({"runs": reports, "cross_run": cross, "paper_claims": paper_hits}, open(os.path.join(a.out, "sec_compliance_report.json"), "w"), indent=2)
+    from src.utils.run_identity import save_json_timestamped
+    save_json_timestamped(os.path.join(a.out, "sec_compliance_report.json"),
+                          {"runs": reports, "cross_run": cross, "paper_claims": paper_hits})
     L = ["# SEC technical-control screen", "", "_Not legal advice or a compliance certification._", ""]
     for r in reports:
         L += [f"## {r['model']} ({r['run_id']}): {r['overall']}", "", "| ID | Control | Status | Evidence |", "|---|---|---|---|"]

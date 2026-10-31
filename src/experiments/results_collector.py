@@ -94,7 +94,11 @@ class ResultsCollector:
             return None
 
         model_names = list(summary.index)
-        tables["model_comparison"] = summary.reset_index().to_dict(orient="records")
+        # One row per config. The CSV is wide (~95 columns) and each model fills only its own metrics, so
+        # drop empty cells per record: bare NaN is not valid JSON and made ~430 lines of noise.
+        tables["model_comparison"] = [
+            {k: v for k, v in rec.items() if not (v is None or (isinstance(v, float) and v != v))}
+            for rec in summary.reset_index().to_dict(orient="records")]
 
         primary = "QGAN-LLM"
         baseline = "Classical GAN-LLM"
@@ -143,7 +147,7 @@ class ResultsCollector:
 
         os.makedirs(self.results_dir, exist_ok=True)
         out_path = os.path.join(self.results_dir, "chapter4_numbers.json")
-        from src.utils.run_identity import save_json_versioned, pipeline_run_id
-        save_json_versioned(out_path, tables, tag=pipeline_run_id())   # old file kept in results/history/
+        from src.utils.run_identity import save_json_timestamped
+        save_json_timestamped(out_path, tables)   # results/chapter4_numbers__<UTC stamp>.json + latest copy
 
         return tables

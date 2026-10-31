@@ -67,8 +67,8 @@ def main() -> int:
     out = {"args": vars(a), "per_run": rows, "dm_quantum_vs": dm, "summary": summary,
            "reading": "skill>0 beats persistence. Quantum 'advantage' = DM statistic > 0 (control has larger loss) "
                       "with p<0.05 consistently across seeds AND over classical_rf, not only over linear."}
-    os.makedirs(os.path.dirname(a.out), exist_ok=True)
-    json.dump(out, open(a.out, "w"), indent=2)
+    from src.utils.run_identity import save_json_timestamped
+    save_json_timestamped(a.out, out)
     print(json.dumps(summary, indent=2))
     return 0
 

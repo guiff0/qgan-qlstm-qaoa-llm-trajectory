@@ -12,3 +12,18 @@
 | `data/processed/*.npy` | `data/processed/manifest__<UTC stamp>.json` (sha256 and size of every array, config hash) |
 
 Identical files are not copied twice; an existing archive name is never overwritten (a numeric suffix is added). If `all_results.csv` is ever reset or filtered, rebuild the ledger from the logs: `python -m scripts.rebuild_ledger`.
+
+## Time-stamped JSON results
+
+Every generated JSON result is written twice by `save_json_timestamped` (`src/utils/run_identity.py`): an immutable `<name>__<UTC YYYYMMDDTHHMMSSZ>.json` named by the moment it was generated, and the stable `<name>.json` as the latest copy, so existing readers keep working. A clash in the same second gets `_1`, `_2`; NaN is written as `null`. A pre-existing un-versioned file is copied to `history/` the first time.
+
+| Stable (latest) file | Versioned files |
+|---|---|
+| `results/chapter4_numbers.json` | `results/chapter4_numbers__<stamp>.json` |
+| `results/hypothesis_test_results.json` (also holds `generated_utc`) | `results/hypothesis_test_results__<stamp>.json` |
+| `results/no_advantage_diagnosis.json` | `results/no_advantage_diagnosis__<stamp>.json` |
+| `results/qpca_results.json` | `results/qpca_results__<stamp>.json` |
+| `results/sec_compliance_report.json` | `results/sec_compliance_report__<stamp>.json` |
+| `logs/pipeline/pipeline_run.json` (one record per `run_pipeline.py` call: status, start/finish, per-step state) | `logs/pipeline/pipeline_run__<stamp>.json` |
+
+List versions in code with `list_versions(path)` (oldest first).

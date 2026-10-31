@@ -106,9 +106,8 @@ def main() -> int:
                      "The only testable question is whether the circuit's function class helps at equal capacity.",
     }
 
-    os.makedirs(os.path.dirname(a.out), exist_ok=True)
-    with open(a.out, "w", encoding="utf-8") as fh:
-        json.dump(out, fh, indent=2, default=str)
+    from src.utils.run_identity import save_json_timestamped
+    save_json_timestamped(a.out, out)      # results/no_advantage_diagnosis__<UTC stamp>.json + latest
     print(json.dumps(out, indent=2, default=str))
     return 0
 

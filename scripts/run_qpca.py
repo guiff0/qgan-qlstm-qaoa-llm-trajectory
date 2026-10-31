@@ -37,8 +37,8 @@ def main():
     }
     if not out["eigenvectors_match_classical"]:
         print("[WARN] QPCA eigenvectors do not match classical PCA (overlap < 0.9): clock resolution too coarse; raise --clock.")
-    os.makedirs(os.path.dirname(a.out), exist_ok=True)
-    json.dump(out, open(a.out, "w"), indent=2)
+    from src.utils.run_identity import save_json_timestamped
+    save_json_timestamped(a.out, out)      # results/qpca_results__<UTC stamp>.json + latest
     print(json.dumps({k: v for k, v in out.items() if k != "eigenvectors"}, indent=2))
 
 
