@@ -57,7 +57,7 @@ def encode_entanglement_level(topology_labels) -> np.ndarray:
             codes.append(ENTANGLEMENT_LEVEL_CODES[label_str])
         elif label_str.lower() in ("ring", "full"):
             codes.append(ENTANGLEMENT_LEVEL_CODES["High"])
-        elif label_str.lower() == "linear":
+        elif label_str.lower() in ("linear", "none"):
             codes.append(ENTANGLEMENT_LEVEL_CODES["Low"])
         else:
             raise ValueError(

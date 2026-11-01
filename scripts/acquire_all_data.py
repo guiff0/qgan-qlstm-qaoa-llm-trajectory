@@ -128,11 +128,15 @@ def _atomic_to_csv(df: pd.DataFrame, path: str, **kw) -> None:
             os.remove(tmp)
 
 
-def _retry(fn, what: str, attempts: int = 3, base_sleep: float = 5.0):
+def _retry(fn, what: str, attempts: int = 3, base_sleep: float = 5.0, fatal: tuple = ()):
+    """Retry `fn` with exponential backoff. Exceptions in `fatal` are re-raised at once: retrying a
+    rate-limited provider just burns time and makes the ban longer."""
     last = None
     for i in range(1, attempts + 1):
         try:
             return fn()
+        except fatal:
+            raise
         except Exception as e:  # noqa: BLE001 - provider libs raise anything
             last = e
             print(f"    [RETRY {i}/{attempts}] {what}: {type(e).__name__}: {e}")
@@ -198,60 +202,206 @@ def _validate_year(df: pd.DataFrame, year: int) -> None:
         raise ValueError(f"only {len(df):,} rows (expected >= {min_rows:,})")
 
 
-def _fetch_dukascopy_direct(start: dt.datetime, end: dt.datetime) -> pd.DataFrame:
-    """Download EURUSD 1-min BID candles straight from Dukascopy's public datafeed.
+# ---- direct Dukascopy datafeed client -------------------------------------------------------
+# The first version fired one un-throttled request per calendar day from 8 threads (~5,100 requests
+# for 2012-2025) and kept no per-day cache. Dukascopy answered HTTP 429 to nearly all of them, every
+# year then "failed after 3 attempts" (25 minutes), and nothing downloaded was kept for the next run.
+# Now: one shared throttle, back-off that honours Retry-After and pauses ALL workers, a per-day cache
+# (a re-run only asks for days that are still missing), and a circuit breaker that stops the whole step
+# early when the server keeps refusing instead of grinding through every remaining year.
+DUKA_WORKERS = int(os.environ.get("DUKASCOPY_WORKERS", "2"))
+DUKA_MIN_INTERVAL = float(os.environ.get("DUKASCOPY_MIN_INTERVAL", "0.35"))   # s between requests, all threads
+DUKA_DAY_ATTEMPTS = int(os.environ.get("DUKASCOPY_DAY_ATTEMPTS", "6"))
+DUKA_BACKOFF_BASE = float(os.environ.get("DUKASCOPY_BACKOFF_BASE", "10"))     # s; doubles per attempt
+DUKA_BACKOFF_MAX = float(os.environ.get("DUKASCOPY_BACKOFF_MAX", "300"))
+DUKA_BREAKER = int(os.environ.get("DUKASCOPY_BREAKER", "4"))                  # consecutive exhausted days
+DAY_CACHE_DIR = os.path.join(CACHE_DIR, "days")
 
-    Used when the `dukascopy_python` package is broken (e.g. it raises
-    "name 'requests' is not defined" at import/fetch time). One LZMA-compressed
-    .bi5 file per UTC day; each record is 24 bytes big-endian:
-    (seconds-from-midnight, open, close, low, high : uint32 x 1e-5 ; volume : float32).
-    Weekends/holidays return 404 or an empty body and are simply skipped.
-    """
+
+class DukascopyRateLimited(RuntimeError):
+    """The server keeps answering 429/5xx/timeouts after back-off. Already-downloaded days are cached;
+    wait (minutes to an hour) and re-run the same command."""
+
+
+class _Throttle:
+    """Shared by every worker thread: a minimum spacing between requests, plus a global cool-down
+    (`penalize`) so a 429 seen by one thread pauses all of them, not just itself."""
+
+    def __init__(self, min_interval: float):
+        import threading
+        self.min_interval = float(min_interval)
+        self._lock = threading.Lock()
+        self._next_ok = 0.0
+
+    def wait(self) -> None:
+        with self._lock:
+            now = time.monotonic()
+            slot = max(now, self._next_ok)
+            self._next_ok = slot + self.min_interval
+        if slot > now:
+            time.sleep(slot - now)
+
+    def penalize(self, seconds: float) -> None:
+        with self._lock:
+            self._next_ok = max(self._next_ok, time.monotonic() + seconds)
+
+
+def _day_paths(day: pd.Timestamp) -> tuple[str, str]:
+    stem = os.path.join(DAY_CACHE_DIR, f"EURUSD_{day:%Y%m%d}")
+    return stem + ".bi5", stem + ".none"      # raw body / "server confirmed: no data that day"
+
+
+def _parse_bi5(body: bytes, day: pd.Timestamp):
+    """One day of 24-byte big-endian records (seconds-from-midnight, open, close, low, high : uint32 x 1e-5;
+    volume : float32), LZMA-compressed. None when the day holds no candles."""
     import lzma
     import numpy as np
+    if not body:
+        return None
+    rec = np.dtype([("t", ">u4"), ("o", ">u4"), ("c", ">u4"),
+                    ("l", ">u4"), ("h", ">u4"), ("v", ">f4")])
+    arr = np.frombuffer(lzma.decompress(body), dtype=rec)
+    if arr.size == 0:
+        return None
+    base = pd.Timestamp(year=day.year, month=day.month, day=day.day, tz="UTC")
+    return pd.DataFrame({
+        "open": arr["o"] / 1e5, "high": arr["h"] / 1e5,
+        "low": arr["l"] / 1e5, "close": arr["c"] / 1e5,
+        "volume": arr["v"].astype("float64"),
+    }, index=base + pd.to_timedelta(arr["t"].astype("int64"), unit="s"))
+
+
+def _write_bytes_atomic(path: str, data: bytes) -> None:
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    tmp = f"{path}.tmp{os.getpid()}_{id(data) & 0xffff}"
+    try:
+        with open(tmp, "wb") as f:
+            f.write(data)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
+def _download_day(session, day: pd.Timestamp, throttle: _Throttle, stats: dict):
+    """Body for one day, from the day cache when present, else from the server with back-off.
+    Returns bytes, or None when the day has no data. Raises on a day that never succeeded."""
+    import requests
+    bi5, none = _day_paths(day)
+    if os.path.isfile(none):
+        stats["cached"] += 1
+        return None
+    if _nonempty(bi5):
+        stats["cached"] += 1
+        with open(bi5, "rb") as f:
+            return f.read()
+    # Dukascopy months in the URL are ZERO-based (January = 00).
+    url = (f"https://datafeed.dukascopy.com/datafeed/EURUSD/"
+           f"{day.year}/{day.month - 1:02d}/{day.day:02d}/BID_candles_min_1.bi5")
+    last = None
+    for attempt in range(1, DUKA_DAY_ATTEMPTS + 1):
+        throttle.wait()
+        wait_s = None
+        try:
+            resp = session.get(url, timeout=30)
+            if resp.status_code == 404:
+                _write_bytes_atomic(none, b"")
+                stats["downloaded"] += 1
+                return None
+            if resp.status_code == 429 or resp.status_code >= 500:
+                try:
+                    wait_s = float(resp.headers.get("Retry-After", ""))
+                except ValueError:
+                    wait_s = None
+                last = f"HTTP {resp.status_code}"
+            else:
+                resp.raise_for_status()
+                body = resp.content
+                stats["downloaded"] += 1
+                if not body:
+                    _write_bytes_atomic(none, b"")
+                    return None
+                _parse_bi5(body, day)          # corrupt body -> exception here, not at consolidation
+                _write_bytes_atomic(bi5, body)
+                return body
+        except requests.RequestException as e:
+            last = f"{type(e).__name__}"
+        # exponential back-off with jitter, applied to ALL workers; the server's Retry-After wins
+        import random
+        pause = wait_s if wait_s is not None else min(DUKA_BACKOFF_BASE * 2 ** (attempt - 1), DUKA_BACKOFF_MAX)
+        pause *= 1.0 + 0.2 * random.random()
+        if attempt < DUKA_DAY_ATTEMPTS:
+            throttle.penalize(pause)
+    raise DukascopyRateLimited(f"{day.date()}: {last} after {DUKA_DAY_ATTEMPTS} attempts")
+
+
+def _fetch_dukascopy_direct(start: dt.datetime, end: dt.datetime) -> pd.DataFrame:
+    """Download EURUSD 1-min BID candles straight from Dukascopy's public datafeed, one .bi5 file per
+    UTC day (see _parse_bi5 for the format). Used because the `dukascopy_python` package is broken
+    (NameError: name 'requests' is not defined). Saturdays hold no FX data and are not requested;
+    404 / empty days are remembered as such. Resumable: every day is cached as it arrives."""
+    import threading
     import requests
     from concurrent.futures import ThreadPoolExecutor
 
-    rec = np.dtype([("t", ">u4"), ("o", ">u4"), ("c", ">u4"),
-                    ("l", ">u4"), ("h", ">u4"), ("v", ">f4")])
-    days = pd.date_range(start.date(), (end - dt.timedelta(days=1)).date(), freq="D")
+    days = [d for d in pd.date_range(start.date(), (end - dt.timedelta(days=1)).date(), freq="D")
+            if d.weekday() != 5]
+    throttle = _Throttle(DUKA_MIN_INTERVAL)
+    stats = {"cached": 0, "downloaded": 0}
+    abort = threading.Event()
+    fail_lock = threading.Lock()
+    streak = {"n": 0, "err": None}
 
-    def one_day(day: pd.Timestamp) -> pd.DataFrame | None:
-        # Dukascopy months in the URL are ZERO-based (January = 00).
-        url = (f"https://datafeed.dukascopy.com/datafeed/EURUSD/"
-               f"{day.year}/{day.month - 1:02d}/{day.day:02d}/BID_candles_min_1.bi5")
-        resp = None
-        for attempt in range(4):
+    session = requests.Session()
+    session.headers.update({"User-Agent": "Mozilla/5.0 (research data acquisition; contact via repo owner)"})
+
+    def one_day(day):
+        if abort.is_set():
+            return None
+        try:
+            body = _download_day(session, day, throttle, stats)
+        except DukascopyRateLimited as e:
+            with fail_lock:
+                streak["n"] += 1
+                streak["err"] = e
+                if streak["n"] >= DUKA_BREAKER:
+                    abort.set()
+            raise
+        with fail_lock:
+            streak["n"] = 0
+        return None if body is None else _parse_bi5(body, day)
+
+    parts, errors = [], []
+    with ThreadPoolExecutor(max_workers=max(1, DUKA_WORKERS)) as ex:
+        for fut in [ex.submit(one_day, d) for d in days]:
             try:
-                resp = requests.get(url, timeout=30)
-                if resp.status_code == 404:
-                    return None
-                resp.raise_for_status()
-                break
-            except requests.RequestException:
-                if attempt == 3:
-                    raise
-                time.sleep(2 ** attempt)
-        if not resp.content:
-            return None
-        arr = np.frombuffer(lzma.decompress(resp.content), dtype=rec)
-        if arr.size == 0:
-            return None
-        base = pd.Timestamp(year=day.year, month=day.month, day=day.day, tz="UTC")
-        return pd.DataFrame({
-            "open": arr["o"] / 1e5, "high": arr["h"] / 1e5,
-            "low": arr["l"] / 1e5, "close": arr["c"] / 1e5,
-            "volume": arr["v"].astype("float64"),
-        }, index=base + pd.to_timedelta(arr["t"].astype("int64"), unit="s"))
-
-    with ThreadPoolExecutor(max_workers=8) as ex:
-        parts = [p for p in ex.map(one_day, days) if p is not None]
+                r = fut.result()
+                if r is not None:
+                    parts.append(r)
+            except DukascopyRateLimited as e:
+                errors.append(e)
+            except Exception:           # corrupt body etc.: stop queuing work, surface the real error
+                abort.set()
+                raise
+    if abort.is_set():
+        raise DukascopyRateLimited(
+            f"Dukascopy keeps refusing requests ({streak['err']}); stopped after {DUKA_BREAKER} consecutive "
+            f"failed days. {stats['downloaded']} day(s) downloaded this pass are saved in {DAY_CACHE_DIR}. "
+            f"Wait 15-60 min (the limit is per IP), then re-run the same command; it resumes. "
+            f"Slower is safer: set DUKASCOPY_WORKERS=1 DUKASCOPY_MIN_INTERVAL=1.0")
+    if errors:
+        raise DukascopyRateLimited(f"{len(errors)} day(s) failed (first: {errors[0]}); re-run to retry only those")
+    print(f"    days: {stats['cached']} from cache, {stats['downloaded']} downloaded")
     if not parts:
         return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
     return pd.concat(parts).sort_index()
 
 
+_PKG_WARNED = False
+
+
 def fetch_dukascopy_year(year: int) -> None:
+    global _PKG_WARNED
     cache = _year_cache(year)
     if _nonempty(cache):
         print(f" -> [CACHED] {year}")
@@ -262,8 +412,10 @@ def fetch_dukascopy_year(year: int) -> None:
         import dukascopy_python
         from dukascopy_python.instruments import INSTRUMENT_FX_MAJORS_EUR_USD
     except Exception as e:  # noqa: BLE001 - a broken package can raise NameError etc.
-        print(f"    [WARN] dukascopy_python unusable ({type(e).__name__}: {e}); "
-              f"using the direct Dukascopy datafeed client instead")
+        if not _PKG_WARNED:       # once per run, not once per year
+            print(f"    [WARN] dukascopy_python unusable ({type(e).__name__}: {e}); "
+                  f"using the direct Dukascopy datafeed client instead")
+            _PKG_WARNED = True
         dukascopy_python = None
 
     start = dt.datetime(year, 1, 1, tzinfo=dt.timezone.utc)
@@ -289,7 +441,7 @@ def fetch_dukascopy_year(year: int) -> None:
         _validate_year(df, year)
         return df
 
-    df = _retry(_do, f"Dukascopy {year}")
+    df = _retry(_do, f"Dukascopy {year}", fatal=(DukascopyRateLimited,))
     df.index = pd.to_datetime(df.index, utc=True)
     df.index.name = "timestamp"
     _atomic_to_csv(df, cache)  # only validated years ever reach the cache
@@ -391,6 +543,10 @@ def acquire_dukascopy() -> None:
     for y in years:
         try:
             fetch_dukascopy_year(y)
+        except DukascopyRateLimited as e:
+            # The server is refusing us: every remaining year would fail the same way, slowly.
+            bar.close()
+            raise RuntimeError(f"Dukascopy rate-limited at {y}: {e}") from e
         except Exception as e:  # noqa: BLE001
             print(f"    [ERROR] {y}: {e}")
             failed.append(y)

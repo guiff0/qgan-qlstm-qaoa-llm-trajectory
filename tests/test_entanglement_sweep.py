@@ -46,6 +46,14 @@ def test_non_sweep_configs_are_not_parsed_as_sweep():
         assert ed.parse_sweep_config(rid) is None
 
 
+def test_level_zero_is_a_true_zero_entanglement_control():
+    lv0 = [lv for lv in ed.LEVELS if lv[0] == 0]
+    assert lv0 == [(0, "none", 4)]
+    assert ed.cnots_per_forward(12, "none", 4) == 0
+    # same depth (so same parameter count) as the first ring level: only the entangling gates differ
+    assert {d for _, t, d in ed.LEVELS if t in ("none", "ring")} == {4}
+
+
 def test_level_order_is_monotone_in_entangling_gates():
     counts = [ed.cnots_per_forward(12, t, d) for _, t, d in ed.LEVELS]
     assert counts == sorted(counts) and len(set(counts)) == len(counts)
@@ -71,7 +79,7 @@ def test_generated_block_is_valid_yaml_with_fixed_qubits_and_idempotent(tmp_path
     assert parsed["qlstm_forecaster"]["n_qubits"] == 20      # rest of the file untouched
     # regenerating for another width replaces, not appends
     other = gen.apply_block(once, gen.build_block(8))
-    assert sum(1 for a in yaml.safe_load(other)["ablations"] if a["name"].startswith("QGAN-LLM (ent-L")) == 6
+    assert sum(1 for a in yaml.safe_load(other)["ablations"] if a["name"].startswith("QGAN-LLM (ent-L")) == len(ed.LEVELS)
 
 
 # ----------------------------------------------------------- harness match
@@ -91,8 +99,8 @@ def test_harness_matches_ablation_rows_by_run_id_not_model_type(tmp_path, monkey
 def test_h2_uses_the_controlled_sweep_and_finds_the_planted_effect():
     r = hyp.test_h2_adversarial_resilience(_sweep_df())
     assert r["design"] == "controlled_sweep" and r["unit"] == "run"
-    assert r["df"] + 2 == 36 and r["r"] < -0.9 and r["p_value"] < 1e-6
-    assert r["min_runs_per_level"] == 6 and r["n_levels"] == 6
+    assert r["df"] + 2 == 6 * len(ed.LEVELS) and r["r"] < -0.9 and r["p_value"] < 1e-6
+    assert r["min_runs_per_level"] == 6 and r["n_levels"] == len(ed.LEVELS)
     assert r["manipulation_check_level_vs_entropy"]["spearman_rho"] > 0.8
     assert r["dose_response_level_vs_outcome"]["spearman_rho"] < -0.8
 
@@ -102,7 +110,7 @@ def test_h2_ignores_non_sweep_rows_when_a_sweep_exists():
         {"run_id": "qgan_llm_20261031T999999Z", "model_type": "QGAN-LLM", "seed": 42,
          "entanglement_entropy": 99.0, "asr": 99.0, "accuracy": 0.1, "asr_baseline": "last_close"}])],
         ignore_index=True)
-    assert hyp.test_h2_adversarial_resilience(df)["df"] + 2 == 36
+    assert hyp.test_h2_adversarial_resilience(df)["df"] + 2 == 6 * len(ed.LEVELS)
 
 
 def test_h2_falls_back_to_pooled_configs_when_the_sweep_is_too_small():
@@ -118,7 +126,7 @@ def test_h5_reads_the_sweep_too():
 
 def test_m2_mediation_on_the_sweep_recovers_the_planted_path():
     r = hyp.test_m2_dv2_mediation(_sweep_df())
-    assert r["unit"] == "run" and r["n_observations"] == 36
+    assert r["unit"] == "run" and r["n_observations"] == 6 * len(ed.LEVELS)
     assert r["path_a"] > 0.8 and r["path_b"] < -0.5 and r["ci_high"] < 0       # level -> entropy up, entropy -> ASR down
     assert r["standardized"] is True
 

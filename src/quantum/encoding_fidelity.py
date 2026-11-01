@@ -46,6 +46,8 @@ def _run_circuit_statevector(inputs_np: np.ndarray, weights_np: np.ndarray, n_qu
         elif entanglement == "linear":
             for q in range(n_qubits - 1):
                 qml.CNOT(wires=[q, q + 1])
+        elif entanglement == "none":
+            pass  # product-state control: no entangling gates (zero-entanglement sweep level)
         else:
             raise ValueError(f"Unknown entanglement topology: {entanglement}")
 

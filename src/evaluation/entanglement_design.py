@@ -21,8 +21,8 @@ The sweep names are chosen so the slug carries the design:
 
 LEVEL ORDER (low -> high entangling-gate count per forward pass)
     n_qubits = n:  linear = n-1 CNOTs/layer, ring = n, full = n(n-1)/2.
-    L1 linear x1 layer | L2 linear x2 | L3 linear x4 | L4 ring x4 | L5 full x2 | L6 full x4
-At n = 12 that is 11, 22, 44, 48, 132, 264 CNOTs. The ORDER is a design assumption;
+    L0 none x4 (no entangling gates) | L1 linear x1 layer | L2 linear x2 | L3 linear x4 | L4 ring x4 | L5 full x2 | L6 full x4
+At n = 12 that is 0, 11, 22, 44, 48, 132, 264 CNOTs. The ORDER is a design assumption;
 the manipulation check reported by the hypothesis script (does the level really move the
 MEASURED entanglement entropy?) is what tells you whether it held.
 
@@ -37,6 +37,7 @@ from typing import Optional
 
 # (level, topology, n_layers)
 LEVELS: list[tuple[int, str, int]] = [
+    (0, "none", 4),      # zero-entanglement control: no CNOTs; same depth/params as L3 and L4
     (1, "linear", 1),
     (2, "linear", 2),
     (3, "linear", 4),
@@ -50,7 +51,7 @@ MIN_RUNS_PER_LEVEL = 3         # fewer than this and a level's spread cannot be 
 MIN_SWEEP_RUNS = 12            # below this the pooled-config fallback is used instead
 MIN_SWEEP_LEVELS = 3
 
-_SLUG = re.compile(r"(?:^|_)qgan_llm_ent_l(\d+)_(linear|ring|full)_d(\d+)(?:_\d{8}T\d{6}Z)?$")
+_SLUG = re.compile(r"(?:^|_)qgan_llm_ent_l(\d+)_(none|linear|ring|full)_d(\d+)(?:_\d{8}T\d{6}Z)?$")
 
 
 def sweep_name(level: int, topology: str, depth: int) -> str:
@@ -64,7 +65,7 @@ def all_sweep_names() -> list[str]:
 
 
 def cnots_per_forward(n_qubits: int, topology: str, depth: int) -> int:
-    per_layer = {"linear": n_qubits - 1, "ring": n_qubits, "full": n_qubits * (n_qubits - 1) // 2}[topology]
+    per_layer = {"none": 0, "linear": n_qubits - 1, "ring": n_qubits, "full": n_qubits * (n_qubits - 1) // 2}[topology]
     return per_layer * depth
 
 

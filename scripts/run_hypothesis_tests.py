@@ -81,7 +81,9 @@ def _compare_two(a: np.ndarray, b: np.ndarray, name_a: str, name_b: str, how_to_
     a, b = a[np.isfinite(a)], b[np.isfinite(b)]
     n = {name_a: len(a), name_b: len(b)}
     if len(a) >= 2 and len(b) >= 2:
-        return _safe(independent_ttest, a, b)
+        res = _safe(independent_ttest, a, b)
+        res.setdefault("n_per_group", n)   # verdicts.py reads this; without it every verdict was "< 3 runs"
+        return res
     if len(a) == 1 and len(b) >= 2:
         single, many, single_name, many_name = a[0], b, name_a, name_b
     elif len(b) == 1 and len(a) >= 2:
@@ -102,25 +104,58 @@ def _compare_two(a: np.ndarray, b: np.ndarray, name_a: str, name_b: str, how_to_
     return res
 
 
+_PRIMARY_SLUG = {"QGAN-LLM": "qgan_llm", "Classical GAN-LLM": "classical_gan_llm"}
+_NO_NOISE_SLUG = "qgan_llm_no_noise"
+
+
+def _primary_rows(df: pd.DataFrame, model_type: str) -> tuple[pd.DataFrame, bool]:
+    """Rows of the PRIMARY config of `model_type`, plus whether that restriction actually applied.
+
+    Every QGAN-LLM ablation (no noise, 12-qubit, linear, the entanglement-sweep levels) is stored with
+    model_type == "QGAN-LLM"; only the run_id slug tells them apart. Without this filter they are
+    averaged into 'the QGAN' and the comparison is not a comparison of one condition. A results file with
+    no run_id, or with no row of the primary config, falls back to every row of the model_type and says so
+    (second return value False) so the caller labels the result as pooled/exploratory."""
+    rows = df[df["model_type"] == model_type]
+    if "run_id" in rows.columns and len(rows):
+        ok = rows["run_id"].map(config_of_run_id) == _PRIMARY_SLUG[model_type]
+        if ok.any():
+            return rows[ok], True
+    return rows, False
+
+
+def _n_configs(rows: pd.DataFrame):
+    return int(rows["run_id"].map(config_of_run_id).nunique()) if "run_id" in rows.columns else None
+
+
 def test_h1_synthetic_data_fidelity(df: pd.DataFrame) -> dict:
     needed = {QGAN, CGAN}
     if not needed.issubset(set(df["model_type"])) or "fid" not in df.columns:
         return {"error": f"need both {QGAN!r} and {CGAN!r} rows with an 'fid' column"}
-    sub = df[df["model_type"].isin(needed)].dropna(subset=["fid"])
+    df = df.dropna(subset=["fid"])
+    # One condition per side: the primary config of each model. QGAN ablations / sweep levels are NOT
+    # repeats of the primary QGAN-LLM and must not be pooled into it (see _primary_rows).
+    q_rows, q_primary = _primary_rows(df, QGAN)
+    c_rows, c_primary = _primary_rows(df, CGAN)
+    sub = pd.concat([q_rows, c_rows])
     group = (sub["model_type"] == QGAN).astype(int).to_numpy()
-    q_rows = sub[sub["model_type"] == QGAN]
-    c_rows = sub[sub["model_type"] == CGAN]
     fix = REPEAT_CMD.format(model=CGAN, n=2)
     if ("vix" in sub.columns and sub["vix"].notna().all() and len(sub) >= 4
             and len(q_rows) >= 2 and len(c_rows) >= 2):
         result = _safe(ancova, sub["fid"].to_numpy(), group, sub["vix"].to_numpy(), need_n=4)
+        result.setdefault("n_per_group", {QGAN: int(len(q_rows)), CGAN: int(len(c_rows))})
     else:
         result = _compare_two(q_rows["fid"].to_numpy(), c_rows["fid"].to_numpy(), QGAN, CGAN, fix)
         result["note_covariate"] = ("no usable 'vix' covariate (or < 2 runs per side) in "
                                     "results/all_results.csv -- ran a plain comparison instead of "
                                     "the ANCOVA Ch.3 specifies")
-    result["pooled_qgan_configs"] = bool(q_rows["run_id"].map(config_of_run_id).nunique() > 1) \
-        if "run_id" in q_rows.columns else None
+    n_q, n_c = _n_configs(q_rows), _n_configs(c_rows)
+    result["configs_used"] = {QGAN: _PRIMARY_SLUG[QGAN] if q_primary else "all rows (no primary-config rows found)",
+                              CGAN: _PRIMARY_SLUG[CGAN] if c_primary else "all rows (no primary-config rows found)"}
+    result["n_per_group_used"] = {QGAN: int(len(q_rows)), CGAN: int(len(c_rows))}
+    # True only if rows of different configs were really mixed within one side.
+    result["pooled_qgan_configs"] = (n_q > 1) if n_q is not None else None
+    result["pooled_classical_configs"] = (n_c > 1) if n_c is not None else None
     return result
 
 
@@ -176,6 +211,13 @@ def test_h2_adversarial_resilience(df: pd.DataFrame) -> dict:
 
 
 def test_h3_poisoning_resistance(df: pd.DataFrame) -> dict:
+    """no-noise vs noisy poisoning degradation.
+
+    Clean design: the primary QGAN-LLM config (noise_strength > 0) against the 'QGAN-LLM (no noise)' ablation,
+    which overrides noise_strength ONLY (config/default_config.yaml). Every other QGAN-LLM variant (12-qubit,
+    linear topology, entanglement-sweep levels) also has noise > 0 but differs in qubit count / topology / depth,
+    so pooling them into 'noisy' confounds the noise effect. Only when one of the two configs is missing does this
+    fall back to the old pooled split, and then it carries a confound_warning (the verdict layer downgrades it)."""
     col = "poisoning_rmse_degradation_pct"
     if col not in df.columns:
         return {"error": f"need '{col}' column (see src/evaluation/poisoning_resistance.py)"}
@@ -184,12 +226,28 @@ def test_h3_poisoning_resistance(df: pd.DataFrame) -> dict:
     if "noise_strength" not in df.columns:
         return {"error": "need a 'noise_strength' column"}
     q = df[(df["model_type"] == QGAN) & df["noise_strength"].notna()]
+    fix = REPEAT_CMD.format(model="QGAN-LLM (no noise)", n=2)
+    if "run_id" in q.columns:
+        cfg = q["run_id"].map(config_of_run_id)
+        nn_rows = q[(cfg == _NO_NOISE_SLUG) & (q["noise_strength"] == 0)]
+        noisy_rows = q[(cfg == _PRIMARY_SLUG[QGAN]) & (q["noise_strength"] > 0)]
+        if len(nn_rows) and len(noisy_rows):
+            result = _compare_two(nn_rows[col].dropna().to_numpy(), noisy_rows[col].dropna().to_numpy(),
+                                  "no_noise", "noisy", fix)
+            result["design"] = "matched_config_noise_only"
+            result["n_per_group_used"] = {"no_noise": int(nn_rows[col].notna().sum()),
+                                          "noisy": int(noisy_rows[col].notna().sum())}
+            result["configs_used"] = {"no_noise": _NO_NOISE_SLUG, "noisy": _PRIMARY_SLUG[QGAN]}
+            result["interpretation"] = ("positive t (no_noise mean > noisy mean) supports Ha3: "
+                                        "noise injection -> lower poisoning degradation")
+            return result
     no_noise = q.loc[q["noise_strength"] == 0, col].dropna().to_numpy()
     noisy = q.loc[q["noise_strength"] > 0, col].dropna().to_numpy()
-    result = _compare_two(no_noise, noisy, "no_noise", "noisy",
-                          REPEAT_CMD.format(model="QGAN-LLM (no noise)", n=2))
-    result["confound_warning"] = ("noisy = 20-qubit ring + 12-qubit + linear-topology configs pooled; "
-                                  "they differ from no_noise in more than the noise level only")
+    result = _compare_two(no_noise, noisy, "no_noise", "noisy", fix)
+    result["design"] = "pooled_configs"
+    result["confound_warning"] = ("FALLBACK: the primary QGAN-LLM config and/or the 'QGAN-LLM (no noise)' config is "
+                                  "missing, so 'noisy' pools 20-qubit ring + 12-qubit + linear-topology + sweep "
+                                  "configs; they differ from no_noise in more than the noise level only")
     result["interpretation"] = ("positive t (no_noise mean > noisy mean) supports Ha3: "
                                  "noise injection -> lower poisoning degradation")
     return result
@@ -199,9 +257,6 @@ _DEGENERATE_WHY = ("In QGAN-LLM and Classical GAN-LLM the forecast head is a lin
                    "form on REAL rows only; the generator is never on the forecast path. More seeds "
                    "cannot create a difference. A quantum-vs-classical RMSE/ASR comparison needs the "
                    "generator (or its output) to feed the forecast -- see the Ch.4 diagnosis.")
-
-
-_PRIMARY_SLUG = {"QGAN-LLM": "qgan_llm", "Classical GAN-LLM": "classical_gan_llm"}
 
 
 def _h4_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, str]:
@@ -215,14 +270,7 @@ def _h4_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, str]:
       have such rows. Otherwise the comparison is the legacy head-only one, in which the forecast cannot depend
       on the generator at all (labelled so the verdict layer and the reader know).
     """
-    def primary(model_type: str) -> pd.DataFrame:
-        rows = df[df["model_type"] == model_type]
-        if "run_id" in rows.columns and len(rows):
-            ok = rows["run_id"].map(config_of_run_id) == _PRIMARY_SLUG[model_type]
-            if ok.any():
-                rows = rows[ok]
-        return rows
-    q, c = primary(QGAN), primary(CGAN)
+    q, c = _primary_rows(df, QGAN)[0], _primary_rows(df, CGAN)[0]
     if "forecast_path" in df.columns:
         qg, cg = q[q["forecast_path"] == "generator"], c[c["forecast_path"] == "generator"]
         if len(qg) and len(cg):

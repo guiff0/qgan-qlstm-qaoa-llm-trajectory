@@ -54,6 +54,7 @@ from ..attacks.adversarial import compute_attack_success_rate, compute_clean_asr
 from ..evaluation.latency import measure_inference_latency
 from ..evaluation.metrics import mae as mae_fn
 from ..evaluation.metrics import rmse as rmse_fn
+from ..utils.generator_path import persistence_rmse_on
 from ..evaluation.one_step_ahead import shift_for_one_step_ahead, make_target, resolve_frame
 from ..evaluation.poisoning_resistance import evaluate_poisoning_resistance
 from ..evaluation.threat_detection import evaluate_threat_detection
@@ -332,6 +333,7 @@ class QLSTMForecaster(BaseForecastingModel):
         # take days. Use a fixed-seed random subsample (rows are independent
         # after the one-step-ahead shift).
         n_eval = self.config.get("eval_samples")
+        sel = None
         if n_eval and n_eval < len(X_test):
             sel = np.sort(np.random.default_rng(self.seed).choice(len(X_test), int(n_eval), replace=False))
             X_test, y_test = X_test[sel], y_test[sel]
@@ -350,6 +352,10 @@ class QLSTMForecaster(BaseForecastingModel):
             "model_type": "QLSTM Forecaster",
             "eval_n_samples": len(X_test),
             "attack_n_samples": n_att,
+            # Persistence (next close = last close) on EXACTLY the rows `rmse` was scored on. run_all.py only
+            # falls back to a full-test-set value when the model supplies none, which compared different rows
+            # whenever eval_samples subsampled the test set.
+            "persistence_rmse": persistence_rmse_on(_te.last, _te.y_next, sel),
         }
 
         if attack_cfg is not None and last_input_prices is not None:
