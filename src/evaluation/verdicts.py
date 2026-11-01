@@ -44,6 +44,8 @@ import math
 ALPHA = 0.05
 MIN_N_PER_GROUP = 3          # two-sample tests: independent runs per condition
 MIN_N_CORRELATION = 10       # correlations: points (configs/runs)
+MIN_N_MEDIATION = 30         # bootstrap mediation: independent runs
+MIN_RUNS_PER_LEVEL = 3       # controlled entanglement sweep: runs in the thinnest level
 EXPECTED = {"H1": -1, "H2": -1, "H3": +1, "H4": -1, "H5": +1}
 
 NAMES = {
@@ -180,8 +182,18 @@ def _corr(res, hyp, expected, label, extra_blockers=()):
     n = df + 2
     lo, hi = res["ci_low"], res["ci_high"]
     blockers = list(extra_blockers)
+    independent = res.get("unit") == "run"          # controlled entanglement sweep: one point per (level, seed) run
     if n < MIN_N_CORRELATION:
-        blockers.append(f"only n={n} points (< {MIN_N_CORRELATION}); each point is one model config, not an independent run")
+        blockers.append(f"only n={n} points (< {MIN_N_CORRELATION})"
+                        + ("" if independent else "; each point is one model config, not an independent run"))
+    if independent and (res.get("min_runs_per_level") or 0) < MIN_RUNS_PER_LEVEL:
+        blockers.append(f"thinnest sweep level has only {res.get('min_runs_per_level')} runs (< {MIN_RUNS_PER_LEVEL}); "
+                        f"per-level spread cannot be estimated")
+    mc = res.get("manipulation_check_level_vs_entropy")
+    if independent and mc and (mc["p_value"] >= ALPHA or mc["spearman_rho"] <= 0):
+        blockers.append("manipulation check failed: the designed entangling level does not raise the measured "
+                        f"entropy (Spearman rho={mc['spearman_rho']:.2f}, p={mc['p_value']:.3f}); the sweep did not "
+                        "manipulate entanglement, so this result is not about entanglement")
     tier = "EXPLORATORY" if blockers else "CONFIRMATORY"
     verdict, rule, lean = _decide(p, _sign(r), expected, tier, hyp)
     ci_zero = lo <= 0 <= hi
@@ -221,8 +233,9 @@ def verdict_h4(res):
                     [parts["rmse"].get("reason", ""), parts["asr"].get("reason", ""),
                      "forecast head is a closed-form linear fit on REAL rows; the generator never reaches the forecast"],
                     ["generator is not on the forecast path -- more seeds cannot change this"],
-                    "Feed generator output into the forecast (e.g. train the head on real + synthetic rows) "
-                    "or restate H4 as a claim about generation quality (H1) only.")
+                    "These rows were produced with forecast_path=head_only. Set forecast_path: generator in both GAN "
+                    "config sections (the default in config/default_config.yaml), retrain, and re-run; or restate H4 "
+                    "as a claim about generation quality (H1) only.")
     sub = [verdict_h4_metric(k, v) for k, v in parts.items() if v.get("status") not in (None, "degenerate_by_design")]
     if not sub:
         return _out("UNTESTABLE", "NONE", "U2_test_error", "H4: no testable metric.", [], [], "")
@@ -238,19 +251,38 @@ def verdict_m2(res):
     if "error" in res:
         return _out("UNTESTABLE", "NONE", "U2_test_error", f"M2: {res['error']}", [res["error"]], [], "")
     lo, hi, ie = res["ci_low"], res["ci_high"], res["indirect_effect"]
-    blockers = [f"{res.get('n_observations')} rows are model CONFIGS, not independent runs (unit-of-analysis caveat)"]
+    n_obs = res.get("n_observations") or 0
+    if res.get("unit") == "run":       # controlled entanglement sweep: independent (level, seed) runs
+        blockers = []
+        if n_obs < MIN_N_MEDIATION:
+            blockers.append(f"only {n_obs} independent runs (< {MIN_N_MEDIATION}) for a bootstrap mediation")
+        if (res.get("min_runs_per_level") or 0) < MIN_RUNS_PER_LEVEL:
+            blockers.append(f"thinnest sweep level has only {res.get('min_runs_per_level')} runs (< {MIN_RUNS_PER_LEVEL})")
+        mc = res.get("manipulation_check_level_vs_entropy")
+        if mc and (mc["p_value"] >= ALPHA or mc["spearman_rho"] <= 0):
+            blockers.append("manipulation check failed: the designed level does not raise the measured entropy "
+                            f"(Spearman rho={mc['spearman_rho']:.2f}, p={mc['p_value']:.3f}); the mediator path is not "
+                            "identified")
+        next_action = ("Run >= 5 seeds per level across all 6 levels (scripts/gen_entanglement_sweep.py)."
+                       if blockers else "")
+    else:
+        blockers = [f"{n_obs} rows are model CONFIGS, not independent runs (unit-of-analysis caveat)"]
+        next_action = ("Need repeated independent runs per config before mediation can be confirmatory. "
+                       "Generate the controlled sweep with scripts/gen_entanglement_sweep.py.")
+    tier = "EXPLORATORY" if blockers else "CONFIRMATORY"
     excl = not (lo <= 0 <= hi)
     why = [f"indirect effect = {ie:.3f}, bootstrap 95% CI [{lo:.3f}, {hi:.3f}] ({res.get('n_bootstrap')} resamples)",
            f"proportion mediated = {res.get('proportion_mediated', float('nan')):.0%}",
            f"a-path = {res['path_a']:.3f}, b-path = {res['path_b']:.3f}, total c = {res['path_c']:.3f}, direct c' = {res['path_c_prime']:.3f}"]
     if excl:
-        v, rule = "SUGGESTIVE_FOR", "R6x_indirect_ci_excludes_0_exploratory"
+        v, rule = (("SUPPORTED", "R6_indirect_ci_excludes_0") if tier == "CONFIRMATORY"
+                   else ("SUGGESTIVE_FOR", "R6x_indirect_ci_excludes_0_exploratory"))
     else:
-        v, rule = "INCONCLUSIVE", "R7_indirect_ci_includes_0"
+        v, rule = (("NOT_SUPPORTED", "R3_adequate_n_not_significant") if tier == "CONFIRMATORY"
+                   else ("INCONCLUSIVE", "R7_indirect_ci_includes_0"))
         why.append("CI contains 0: no evidence that entanglement mediates the effect")
-    return _out(v, "EXPLORATORY", rule, f"M2 (entanglement mediates): {v} (exploratory) -- indirect CI "
-                f"[{lo:.2f}, {hi:.2f}] {'excludes' if excl else 'includes'} 0.", why, blockers,
-                "Need repeated independent runs per config before mediation can be confirmatory.",
+    return _out(v, tier, rule, f"M2 (entanglement mediates): {v} ({tier.lower()}) -- indirect CI "
+                f"[{lo:.2f}, {hi:.2f}] {'excludes' if excl else 'includes'} 0.", why, blockers, next_action,
                 "for" if excl else None)
 
 

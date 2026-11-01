@@ -79,6 +79,10 @@ from ..utils.gan_training import (
 )
 
 
+from ..utils.generator_path import (
+    use_generator_path, make_generator_path_head, fit_generator_path_head, chunked_forward,
+    forecast_eval_indices, persistence_rmse_on,
+)
 from ..utils.stage_log import apply_timing as _apply_timing
 _apply_timing(globals(), {'compute_attack_success_rate': 'attacks (FGSM/PGD/CW)', 'compute_clean_asr': 'clean-baseline ASR', 'synthetic_data_fidelity_report': 'fidelity metrics (FID/MMD/Wasserstein)', 'evaluate_poisoning_resistance': 'poisoning + model-inversion tests', 'evaluate_threat_detection': 'threat detection', 'run_resilience_suite': 'quantum resilience suite (total)', 'entanglement_metrics': 'entanglement tomography', 'measure_inference_latency': 'latency measurement'})
 
@@ -144,10 +148,16 @@ class ClassicalGANLLM(BaseForecastingModel):
             "max_batches_per_epoch": None,   # None = full pass over the training set
             "eval_samples": 20000,           # rows used for synthetic-fidelity metrics
             "resume": True,                  # resume/skip from models/*.ckpt when config+seed match
+            "forecast_path": "head_only",    # "generator" = forecast([X, G(X)]) -- see src/utils/generator_path.py
+            "head_fit_rows": 4000,           # train rows used to fit the generator-path head
+            "forecast_eval_samples": 2000,   # test rows for RMSE/MAE/ASR in generator mode (fixed-seed subsample)
+            "attack_samples": 50,            # rows attacked / threat-scored in generator mode
+            "forecast_chunk": 256,           # rows per generator call when predicting
         }
         cfg = {**default_config, **(config or {})}
         super().__init__("Classical GAN-LLM", cfg)
         self.seed = seed
+        self._gen_path = use_generator_path(cfg)
 
     def build(self):
         set_all_seeds(self.seed)
@@ -169,7 +179,12 @@ class ClassicalGANLLM(BaseForecastingModel):
         # (the original code's `predict()` just returned raw generator
         # output and called it a forecast, conflating "synthetic sample"
         # with "next-step prediction" — those are different tasks).
-        self.forecast_head = nn.Linear(self.config["output_dim"], 1)
+        if self._gen_path:
+            # forecast = linear([X, G(X)]): the generator is on the inference path (generator_path.py)
+            self.forecast_head = make_generator_path_head(self.generator, self.config["output_dim"],
+                                                          latent_dim=self.config["latent_dim"])
+        else:
+            self.forecast_head = nn.Linear(self.config["output_dim"], 1)
         self.forecast_optimizer = torch.optim.Adam(self.forecast_head.parameters(), lr=self.config["learning_rate"])
 
     def _train_discriminator_step(self, real_batch, fake=None):
@@ -241,12 +256,25 @@ class ClassicalGANLLM(BaseForecastingModel):
             log(f"Resuming from checkpoint {self.checkpoint_path}: next_epoch={start_epoch}/{n_epochs}"
                 + (" (training already complete -- skipping to evaluation)" if ckpt.get("completed") else ""))
             if ckpt.get("target_frame", "level") != self.target_frame:
-                head_mse = refit_head_for_frame(self.forecast_head, X_train, y_train, ckpt,
-                                                self.checkpoint_path, self.target_frame, log)
+                if self._gen_path:
+                    # Only a FINISHED run has a fitted head to redo; an unfinished one fits it after training.
+                    # (Fitting now would also leave the half-trained generator in eval mode.)
+                    if ckpt.get("completed"):
+                        head_mse = fit_generator_path_head(self.forecast_head, X_train, y_train,
+                                                           self.config["head_fit_rows"], self.seed,
+                                                           self.config["forecast_chunk"], log)
+                        ckpt["forecast_head"] = self.forecast_head.state_dict()
+                        ckpt["head_mse"], ckpt["target_frame"] = head_mse, self.target_frame
+                        save_checkpoint(self.checkpoint_path, ckpt)
+                else:
+                    head_mse = refit_head_for_frame(self.forecast_head, X_train, y_train, ckpt,
+                                                    self.checkpoint_path, self.target_frame, log)
             self.resumed_from_checkpoint = bool(ckpt.get("completed"))
             if ckpt.get("completed"):
                 self.is_trained = True
                 return
+        elif self._gen_path:
+            log("forecast_path=generator: the head is fitted on [X, G(X)] AFTER GAN training (needs the trained generator)")
         else:
             # The forecast head only ever sees REAL rows (the generator never
             # touches it), so it is a convex least-squares problem: fit it
@@ -256,6 +284,18 @@ class ClassicalGANLLM(BaseForecastingModel):
 
         X_t = torch.from_numpy(np.ascontiguousarray(X_train, dtype=np.float32))
         n_rows = len(X_t)
+
+        def _ckpt_payload(next_epoch: int, completed: bool) -> dict:
+            return {
+                "fingerprint": fp, "next_epoch": next_epoch, "completed": completed,
+                "target_frame": self.target_frame,
+                "generator": self.generator.state_dict(),
+                "discriminator": self.discriminator.state_dict(),
+                "forecast_head": self.forecast_head.state_dict(),
+                "g_optimizer": self.g_optimizer.state_dict(),
+                "d_optimizer": self.d_optimizer.state_dict(),
+                "head_mse": head_mse,
+            }
 
         with progress_bar(total=n_epochs, desc="Classical GAN-LLM epochs", unit="epoch") as epoch_bar:
             if start_epoch:
@@ -285,19 +325,19 @@ class ClassicalGANLLM(BaseForecastingModel):
                 if run_logger:
                     run_logger.log_epoch(epoch, d_loss=d_avg, g_loss=g_avg, forecast_loss=head_mse)
 
-                save_checkpoint(self.checkpoint_path, {
-                    "fingerprint": fp, "next_epoch": epoch + 1, "completed": (epoch + 1 == n_epochs),
-                    "target_frame": self.target_frame,
-                    "generator": self.generator.state_dict(),
-                    "discriminator": self.discriminator.state_dict(),
-                    "forecast_head": self.forecast_head.state_dict(),
-                    "g_optimizer": self.g_optimizer.state_dict(),
-                    "d_optimizer": self.d_optimizer.state_dict(),
-                    "head_mse": head_mse,
-                })
+                # generator-path mode: only "completed" once the head has been fitted (below)
+                save_checkpoint(self.checkpoint_path,
+                                _ckpt_payload(epoch + 1, (epoch + 1 == n_epochs) and not self._gen_path))
                 epoch_bar.update(1)
                 epoch_bar.set_postfix(d=f"{d_avg:.3e}", g=f"{g_avg:.3e}")
 
+        if self._gen_path:
+            head_mse = fit_generator_path_head(self.forecast_head, X_train, y_train,
+                                               self.config["head_fit_rows"], self.seed,
+                                               self.config["forecast_chunk"], log)
+            log(f"Generator-path head fitted on [X, G(X)] for {min(self.config['head_fit_rows'], len(X_train)):,} "
+                f"train rows: train MSE={head_mse:.3e}")
+            save_checkpoint(self.checkpoint_path, _ckpt_payload(n_epochs, True))
         self.is_trained = True
 
     def generate_synthetic_data(self, n_samples: int) -> np.ndarray:
@@ -327,7 +367,8 @@ class ClassicalGANLLM(BaseForecastingModel):
         self.forecast_head.eval()
         X_t = torch.tensor(X, dtype=torch.float32) if not torch.is_tensor(X) else X
         with torch.no_grad():
-            pred = self.forecast_head(X_t)
+            pred = (chunked_forward(self.forecast_head, X_t, self.config["forecast_chunk"])
+                    if self._gen_path else self.forecast_head(X_t))
         return pred.numpy() if not torch.is_tensor(X) else pred
 
     def evaluate(self, X_test, y_test, attack_cfg: Dict = None, last_input_prices=None, **kwargs):
@@ -337,8 +378,18 @@ class ClassicalGANLLM(BaseForecastingModel):
         # equal those of (last close + change) vs next close, so they compare directly with persistence.
         X_test, y_test = _te.X, _te.target
         last_input_prices = _te.last                         # real prices, row-aligned with the shift
-        predictions = self.predict(X_test)
-        y_test_arr = np.array(y_test).flatten()
+        # forecast_path=generator: every row costs a generator call (a circuit evaluation for QGAN), so
+        # RMSE/MAE/ASR/threat scoring use a fixed-seed subsample, identical for both GAN baselines.
+        # Fidelity, poisoning and the LLM pipeline below keep using the full X_test as before.
+        fsel = (forecast_eval_indices(len(X_test), self.config.get("forecast_eval_samples"), self.seed)
+                if self._gen_path else None)
+        X_f, y_f = (X_test, y_test) if fsel is None else (X_test[fsel], np.asarray(y_test)[fsel])
+        ref_f = np.asarray(_te.reference) if fsel is None else np.asarray(_te.reference)[fsel]
+        n_att = len(X_f)
+        if self._gen_path:
+            n_att = min(int(self.config.get("attack_samples") or len(X_f)), len(X_f))
+        predictions = self.predict(X_f)
+        y_test_arr = np.array(y_f).flatten()
         predictions_arr = np.array(predictions).flatten()
 
         self.results = {
@@ -348,11 +399,17 @@ class ClassicalGANLLM(BaseForecastingModel):
         }
 
         self.results["target_frame"] = frame
+        self.results["forecast_path"] = "generator" if self._gen_path else "head_only"
+        if self._gen_path:
+            self.results["forecast_eval_n"] = int(len(X_f))
+            self.results["attack_n_samples"] = int(n_att)
+            # persistence on the SAME rows (run_all would otherwise score it on the full test set)
+            self.results["persistence_rmse"] = persistence_rmse_on(_te.last, _te.y_next, fsel)
         if attack_cfg is not None and last_input_prices is not None:
             self.forecast_head.eval()  # compute_attack_success_rate no longer does this itself
-            X_test_t = torch.tensor(X_test, dtype=torch.float32)
-            y_test_t = torch.tensor(y_test, dtype=torch.float32)
-            last_prices_t = torch.tensor(_te.reference, dtype=torch.float32)  # 0 in the delta frame
+            X_test_t = torch.tensor(np.asarray(X_f)[:n_att], dtype=torch.float32)
+            y_test_t = torch.tensor(np.asarray(y_f)[:n_att], dtype=torch.float32)
+            last_prices_t = torch.tensor(ref_f[:n_att], dtype=torch.float32)  # 0 in the delta frame
             asr_report = compute_attack_success_rate(
                 self._forecast_model, X_test_t, y_test_t, last_prices_t,
                 attack_cfg, attacks=attack_cfg.get("attacks", ["fgsm", "pgd", "cw"]),
@@ -385,7 +442,7 @@ class ClassicalGANLLM(BaseForecastingModel):
         if attack_cfg is not None:
             self.forecast_head.eval()
             self.results.update(evaluate_threat_detection(
-                self._forecast_model, X_test, y_test, attack_cfg, seed=self.seed,
+                self._forecast_model, X_f[:n_att], np.asarray(y_f)[:n_att], attack_cfg, seed=self.seed,
                 n_clean=attack_cfg.get("n_benign_samples", 1000),
             ))
 

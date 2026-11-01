@@ -3,13 +3,16 @@ Run this FIRST, before anything else. Checks that the environment is
 actually ready, and tells you specifically what's missing rather than
 failing partway through a multi-hour run.
 
-Run with:  python -m scripts.verify_environment
+Run with:  python -m scripts.verify_environment [--env-only]
+
+--env-only skips the raw/processed data-file checks (use right after rebuilding the venv).
 """
 from __future__ import annotations
 
 import importlib
 import os
 import sys
+import traceback
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -28,10 +31,15 @@ def check(description: str, fn):
             print(f"  [ OK ] {description}" + (f" — {result}" if isinstance(result, str) else ""))
     except Exception as e:
         CHECKS_FAILED.append(f"{description}: {e}")
-        print(f"  [FAIL] {description} — {e}")
+        print(f"  [FAIL] {description} — {type(e).__name__}: {e}")
+        tb = traceback.extract_tb(e.__traceback__)
+        if tb:
+            last = tb[-1]
+            print(f"         raised at {last.filename}:{last.lineno} in {last.name}")
 
 
 def main():
+    env_only = "--env-only" in sys.argv
     print("=" * 70)
     print("ENVIRONMENT VERIFICATION")
     print("=" * 70)
@@ -100,7 +108,7 @@ def main():
         print(f"\n  [FAIL] Cannot read data paths from config: {e}")
         cfg = None
 
-    if cfg is not None:
+    if cfg is not None and not env_only:
         print("\n-- Data files (raw) --")
         for key in ["dukascopy_file", "forexsb_file", "fred_file"]:
             path = cfg["data"].get(key)
@@ -113,8 +121,12 @@ def main():
                 check(f"Processed file present: {path}", lambda p=path: os.path.isfile(p))
 
     print("\n-- API keys --")
-    check("NVIDIA_API_KEY environment variable set",
-          lambda: bool(os.environ.get("NVIDIA_API_KEY")))
+    if env_only:
+        check("NVIDIA_API_KEY (advisory; needed only for LLM stages)",
+              lambda: "set" if os.environ.get("NVIDIA_API_KEY") else "not set -- set it before running the LLM stages")
+    else:
+        check("NVIDIA_API_KEY environment variable set",
+              lambda: bool(os.environ.get("NVIDIA_API_KEY")))
     check("FRED_API_KEY set (optional; without it acquisition uses FRED's keyless CSV endpoint)",
           lambda: "set" if os.environ.get("FRED_API_KEY") else "not set -- OK, keyless fallback will be used")
 

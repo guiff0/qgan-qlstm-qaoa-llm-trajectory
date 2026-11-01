@@ -1,0 +1,109 @@
+{
+  "pipeline_run_id": "P20261031T195151Z-69d557b",
+  "status": "aborted",
+  "started_utc": "20261031T195151Z",
+  "finished_utc": "20261031T201802Z",
+  "duration_s": 1571.6,
+  "argv": [
+    "--jobs",
+    "6"
+  ],
+  "config": null,
+  "failed_train_eval": [
+    "acquire_dukascopy"
+  ],
+  "failed_analysis": [
+    "verify_chapter4",
+    "run_hypothesis_tests"
+  ],
+  "steps": {
+    "verify_environment": {
+      "status": "failed",
+      "failed_utc": "2026-10-31T19:52:00Z",
+      "duration_seconds": 9.5,
+      "returncode": 1
+    },
+    "acquire_dukascopy": {
+      "status": "failed",
+      "failed_utc": "2026-10-31T20:17:55Z",
+      "duration_seconds": 1554.9,
+      "returncode": 1
+    },
+    "acquire_xval": {
+      "status": "completed",
+      "completed_utc": "2026-10-31T19:43:16Z",
+      "duration_seconds": 320.0,
+      "detail": "artifact verified"
+    },
+    "acquire_fred": {
+      "status": "completed",
+      "completed_utc": "2026-10-31T19:37:59Z",
+      "duration_seconds": 3.4,
+      "detail": "artifact verified"
+    },
+    "prepare_data": {
+      "status": "pending"
+    },
+    "train_eval:Classical LSTM": {
+      "status": "pending"
+    },
+    "train_eval:Classical GAN-LLM": {
+      "status": "pending"
+    },
+    "train_eval:QGAN-LLM": {
+      "status": "pending"
+    },
+    "train_eval:QLSTM Forecaster": {
+      "status": "pending"
+    },
+    "train_eval:QAOA-Enhanced LLM": {
+      "status": "pending"
+    },
+    "train_eval:LLM Forecaster": {
+      "status": "pending"
+    },
+    "train_eval:QLSTM-LLM": {
+      "status": "pending"
+    },
+    "train_eval:QAOA-LLM": {
+      "status": "pending"
+    },
+    "train_eval:Classical-Features-LLM": {
+      "status": "pending"
+    },
+    "train_eval:QGAN-LLM (12-qubit)": {
+      "status": "pending"
+    },
+    "train_eval:QGAN-LLM (linear topology)": {
+      "status": "pending"
+    },
+    "train_eval:QGAN-LLM (no noise)": {
+      "status": "pending"
+    },
+    "run_qpca": {
+      "status": "pending"
+    },
+    "make_figures": {
+      "status": "completed",
+      "completed_utc": "2026-10-31T20:17:57Z",
+      "duration_seconds": 1.8,
+      "detail": "artifact verified"
+    },
+    "verify_chapter4": {
+      "status": "failed",
+      "failed_utc": "2026-10-31T20:17:58Z",
+      "duration_seconds": 1.0,
+      "returncode": 1
+    },
+    "run_hypothesis_tests": {
+      "status": "failed",
+      "failed_utc": "2026-10-31T20:18:02Z",
+      "duration_seconds": 4.2,
+      "returncode": 1
+    },
+    "scan_logs_for_pii": {
+      "status": "pending"
+    }
+  },
+  "step_logs_dir": "logs\\pipeline"
+}

@@ -26,7 +26,11 @@ import numpy as np
 import torch
 
 
-_FINGERPRINT_IGNORE = {"forecast_target"}
+# Evaluation-only knobs never change a trained generator, so they are excluded.
+_FINGERPRINT_IGNORE = {"forecast_target", "forecast_eval_samples", "attack_samples", "forecast_chunk"}
+# These two matter only when the generator is on the forecast path; in the legacy "head_only" mode they
+# are dropped so existing (12 h) checkpoints keep their fingerprint and still resume.
+_GENERATOR_PATH_KEYS = ("forecast_path", "head_fit_rows")
 
 
 def config_fingerprint(config: dict, seed: int, tag: str = "") -> str:
@@ -36,6 +40,8 @@ def config_fingerprint(config: dict, seed: int, tag: str = "") -> str:
     # `forecast_target` only changes how the closed-form HEAD is fitted, never the generator, so it is
     # excluded: switching it must not orphan a finished (12 h) generator checkpoint.
     config = {k: v for k, v in config.items() if k not in _FINGERPRINT_IGNORE}
+    if str(config.get("forecast_path", "head_only")).lower() == "head_only":
+        config = {k: v for k, v in config.items() if k not in _GENERATOR_PATH_KEYS}
     blob = json.dumps({"c": config, "s": seed, "t": tag}, sort_keys=True, default=str)
     return hashlib.sha1(blob.encode()).hexdigest()[:10]
 

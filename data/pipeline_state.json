@@ -1,102 +1,81 @@
 {
   "schema_version": 1,
-  "created_utc": "2026-09-26T22:33:48Z",
+  "created_utc": "2026-11-01T03:48:54Z",
   "steps": {
+    "train_eval:Model A": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T03:48:54Z",
+      "duration_seconds": 0.0,
+      "detail": "artifact verified"
+    },
+    "train_eval:Model B": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T03:48:54Z",
+      "duration_seconds": 0.0,
+      "detail": "artifact verified"
+    },
+    "a": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T03:48:54Z",
+      "duration_seconds": 1.0,
+      "detail": "x"
+    },
+    "b": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T03:48:54Z",
+      "duration_seconds": 0.0,
+      "detail": "artifact verified"
+    },
+    "c": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T03:48:54Z",
+      "duration_seconds": 0.0,
+      "detail": "artifact verified"
+    },
     "verify_environment": {
-      "status": "failed",
-      "failed_utc": "2026-10-31T19:52:00Z",
-      "duration_seconds": 9.5,
-      "returncode": 1
-    },
-    "acquire_dukascopy": {
       "status": "running",
-      "started_utc": "2026-10-31T19:52:00Z"
+      "started_utc": "2026-11-01T03:48:54Z"
     },
-    "acquire_xval": {
+    "step_a": {
       "status": "completed",
-      "completed_utc": "2026-10-31T19:43:16Z",
-      "duration_seconds": 320.0,
-      "detail": "artifact verified"
+      "completed_utc": "2026-11-01T03:48:54Z",
+      "duration_seconds": 12.3,
+      "detail": "detail here"
     },
-    "acquire_fred": {
+    "step_0": {
       "status": "completed",
-      "completed_utc": "2026-10-31T19:37:59Z",
-      "duration_seconds": 3.4,
-      "detail": "artifact verified"
+      "completed_utc": "2026-11-01T03:48:54Z",
+      "duration_seconds": 1.0,
+      "detail": "x"
     },
-    "prepare_data": {
-      "status": "pending"
-    },
-    "train_eval:Classical LSTM": {
-      "status": "pending"
-    },
-    "train_eval:Classical GAN-LLM": {
-      "status": "pending"
-    },
-    "train_eval:QGAN-LLM": {
-      "status": "pending"
-    },
-    "train_eval:QLSTM Forecaster": {
-      "status": "pending"
-    },
-    "train_eval:QGAN-LLM (12-qubit)": {
-      "status": "pending"
-    },
-    "train_eval:QGAN-LLM (linear topology)": {
-      "status": "pending"
-    },
-    "train_eval:QGAN-LLM (no noise)": {
-      "status": "pending"
-    },
-    "verify_chapter4": {
-      "status": "failed",
-      "failed_utc": "2026-10-31T19:43:19Z",
-      "duration_seconds": 1.1,
-      "returncode": 1
-    },
-    "train_eval:QAOA-Enhanced LLM": {
-      "status": "pending"
-    },
-    "train_eval:LLM Forecaster": {
-      "status": "pending"
-    },
-    "run_hypothesis_tests": {
-      "status": "failed",
-      "failed_utc": "2026-10-31T19:43:23Z",
-      "duration_seconds": 4.5,
-      "returncode": 1
-    },
-    "scan_logs_for_pii": {
-      "status": "pending"
-    },
-    "train_eval:QLSTM-LLM": {
-      "status": "pending"
-    },
-    "train_eval:QAOA-LLM": {
-      "status": "pending"
-    },
-    "train_eval:Classical-Features-LLM": {
-      "status": "pending"
-    },
-    "make_figures": {
+    "step_1": {
       "status": "completed",
-      "completed_utc": "2026-10-31T19:43:18Z",
-      "duration_seconds": 1.9,
-      "detail": "artifact verified"
+      "completed_utc": "2026-11-01T03:48:54Z",
+      "duration_seconds": 1.0,
+      "detail": "x"
     },
-    "run_qpca": {
-      "status": "pending"
+    "step_2": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T03:48:54Z",
+      "duration_seconds": 1.0,
+      "detail": "x"
+    },
+    "step_3": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T03:48:54Z",
+      "duration_seconds": 1.0,
+      "detail": "x"
+    },
+    "step_4": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T03:48:54Z",
+      "duration_seconds": 1.0,
+      "detail": "x"
     }
   },
-  "updated_utc": "2026-10-31T19:52:00Z",
-  "pipeline_run_id": "P20261031T195151Z-69d557b",
+  "updated_utc": "2026-11-01T03:48:54Z",
+  "pipeline_run_id": "P20261101T034847Z-nogit",
   "pipeline_runs": [
-    "P20261028T111543Z-521df15",
-    "P20261030T034306Z-521df15",
-    "P20261030T043355Z-0aa908a",
-    "P20261031T173751Z-a04a86f",
-    "P20261031T193741Z-69d557b",
-    "P20261031T195151Z-69d557b"
-  ],
-  "fresh_run_utc": "2026-10-31T19:37:47Z"
+    "P20261101T034847Z-nogit"
+  ]
 }

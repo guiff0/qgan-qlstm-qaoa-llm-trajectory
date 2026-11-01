@@ -10,10 +10,9 @@ FRED_API_KEY
 [System.Environment]::SetEnvironmentVariable('NVIDIA_API_KEY', 'Se7rF1kGGAQ38Jjy9zjDB9DGRlb22wVO8x7Nyehy', 'User')
 ## Why this rebuild exists
 [System.Environment]::SetEnvironmentVariable('NVIDIA_API_KEY', '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', 'User')
-$env:NVIDIA_API_KEY = [System.Environment]::GetEnvironmentVariable('NVIDIA_API_KEY', 'User')
 An earlier version of this codebase had two functions that returned
 hardcoded numbers instead of computing anything:
-echo $env:NVIDIA_API_KEY
+
 ```python
 def _evaluate_adversarial(self, X_test, y_test):
     return 8.7  # Expected ASR from RQ4 results
@@ -166,9 +165,10 @@ src/llm/                      Real NVIDIA API fine-tuning calls (fails loudly
 src/experiments/run_all.py    The one entry point that trains + evaluates
                               every baseline and ablation, with full logging.
 scripts/                      verify_environment.py (run first), prepare_data.py
-                              (run second), verify_chapter4.py (run last, after
-                              you have real results, to diff against the
-                              manuscript's claims).
+                              (run second); run src/experiments/run_all.py next;
+                              THEN verify_chapter4.py and run_hypothesis_tests.py
+                              (both read results/all_results.csv, which only run_all
+                              writes, and refuse to run without it).
 tests/test_smoke.py           Runs NOW, on synthetic data, no setup needed:
                               `pip install -r requirements.txt && pytest tests/`
 tests/research_questions/     One file per Research Question (RQ1-RQ5), testing

@@ -23,6 +23,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.experiments.results_collector import ResultsCollector
+from src.utils.require_results import require_results
 from src.utils.run_identity import model_slug
 from src.utils.config import load_config
 
@@ -59,6 +60,7 @@ def compare_value(model, metric, claimed, actual):
 def main():
     cfg = load_config()
     results_dir = cfg.get("logging", {}).get("results_dir", "results")
+    require_results(os.path.join(results_dir, "all_results.csv"), "verify_chapter4")   # run_all must come first
     collector = ResultsCollector(results_dir=results_dir)
     # one row per CONFIGURATION (latest run), keyed by the run_id slug
     summary = collector.summary_table().set_index("config")

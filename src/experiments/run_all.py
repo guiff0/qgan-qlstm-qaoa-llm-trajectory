@@ -103,7 +103,11 @@ def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
     # Logged on the same test split so RMSE is comparable (see Ch. 4).
     _y = np.asarray(splits["y_test"], dtype=float).flatten()
     if len(_y) > 1:
-        metrics["persistence_rmse"] = float(np.sqrt(np.mean((_y[1:] - _y[:-1]) ** 2)))
+        # A model that scores a SUBSAMPLE of the test set (forecast_path=generator) supplies its own
+        # persistence RMSE on those same rows; overwriting it with the full-set value would make
+        # rmse_over_persistence compare different rows.
+        if "persistence_rmse" not in metrics:
+            metrics["persistence_rmse"] = float(np.sqrt(np.mean((_y[1:] - _y[:-1]) ** 2)))
         if metrics.get("rmse") is not None and metrics["persistence_rmse"] > 0:
             metrics["rmse_over_persistence"] = float(metrics["rmse"]) / metrics["persistence_rmse"]
     # Marks rows whose ASR was scored against the last close (legacy rows lack this).
@@ -120,8 +124,10 @@ def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
         # (generator not on the inference path), so their ~0.02-0.04 ms is
         # NOT a quantum-circuit latency. Only the QLSTM times a circuit.
         metrics["concurrent_jobs"] = int(os.environ.get("PIPELINE_CONCURRENT_JOBS", "1"))
+        _gen_path = bool(getattr(model, "_gen_path", False))   # forecast_path=generator
         metrics["latency_scope"] = (
-            "quantum_circuit_in_path" if model_name.startswith("QLSTM")
+            "quantum_circuit_in_path" if (model_name.startswith("QLSTM") or (_gen_path and model_name.startswith("QGAN")))
+            else "classical_generator_in_path" if _gen_path
             else "forecast_head_only" if "GAN-LLM" in model_name
             else "full_model_forward"
         )

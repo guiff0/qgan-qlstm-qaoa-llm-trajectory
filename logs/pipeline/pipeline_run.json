@@ -1,9 +1,9 @@
 {
-  "pipeline_run_id": "P20261031T193741Z-69d557b",
+  "pipeline_run_id": "P20261031T195151Z-69d557b",
   "status": "aborted",
-  "started_utc": "20261031T193747Z",
-  "finished_utc": "20261031T194323Z",
-  "duration_s": 335.7,
+  "started_utc": "20261031T195151Z",
+  "finished_utc": "20261031T201802Z",
+  "duration_s": 1571.6,
   "argv": [
     "--jobs",
     "6"
@@ -19,14 +19,14 @@
   "steps": {
     "verify_environment": {
       "status": "failed",
-      "failed_utc": "2026-10-31T19:37:56Z",
-      "duration_seconds": 8.2,
+      "failed_utc": "2026-10-31T19:52:00Z",
+      "duration_seconds": 9.5,
       "returncode": 1
     },
     "acquire_dukascopy": {
       "status": "failed",
-      "failed_utc": "2026-10-31T19:37:57Z",
-      "duration_seconds": 1.5,
+      "failed_utc": "2026-10-31T20:17:55Z",
+      "duration_seconds": 1554.9,
       "returncode": 1
     },
     "acquire_xval": {
@@ -85,20 +85,20 @@
     },
     "make_figures": {
       "status": "completed",
-      "completed_utc": "2026-10-31T19:43:18Z",
-      "duration_seconds": 1.9,
+      "completed_utc": "2026-10-31T20:17:57Z",
+      "duration_seconds": 1.8,
       "detail": "artifact verified"
     },
     "verify_chapter4": {
       "status": "failed",
-      "failed_utc": "2026-10-31T19:43:19Z",
-      "duration_seconds": 1.1,
+      "failed_utc": "2026-10-31T20:17:58Z",
+      "duration_seconds": 1.0,
       "returncode": 1
     },
     "run_hypothesis_tests": {
       "status": "failed",
-      "failed_utc": "2026-10-31T19:43:23Z",
-      "duration_seconds": 4.5,
+      "failed_utc": "2026-10-31T20:18:02Z",
+      "duration_seconds": 4.2,
       "returncode": 1
     },
     "scan_logs_for_pii": {

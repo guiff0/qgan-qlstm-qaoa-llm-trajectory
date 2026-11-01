@@ -37,6 +37,10 @@ from src.metrics.resilience import cqrs, qar
 from src.utils.run_identity import config_of_run_id, latest_per_config, latest_per_config_seed
 from src.evaluation.advantage_diagnostics import find_degenerate_groups
 from src.evaluation.verdicts import compute_verdicts, format_table
+from src.evaluation.entanglement_design import MIN_RUNS_PER_LEVEL, sweep_subset
+from src.evaluation.mediation import mediation_analysis
+from src.utils.run_identity import config_of_run_id
+from src.utils.require_results import require_results
 
 QGAN, CGAN = "QGAN-LLM", "Classical GAN-LLM"
 
@@ -120,6 +124,47 @@ def test_h1_synthetic_data_fidelity(df: pd.DataFrame) -> dict:
     return result
 
 
+def _sweep_design_info(sw: pd.DataFrame, ycol: str) -> dict:
+    """Design diagnostics for the controlled entanglement sweep (src/evaluation/entanglement_design.py)."""
+    from scipy import stats
+    per_level = sw.groupby("sweep_level").size()
+    info = {"design": "controlled_sweep", "unit": "run",
+            "n_levels": int(per_level.size),
+            "runs_per_level": {int(k): int(v) for k, v in per_level.items()},
+            "min_runs_per_level": int(per_level.min())}
+    # Manipulation check: does the designed level actually move the MEASURED entropy? If not, the
+    # sweep did not manipulate entanglement and a null here says nothing about H2/H5.
+    rho_e, p_e = stats.spearmanr(sw["sweep_level"], sw["entanglement_entropy"])
+    info["manipulation_check_level_vs_entropy"] = {"spearman_rho": float(rho_e), "p_value": float(p_e)}
+    # Dose-response against the DESIGNED level (does not depend on the measured entropy).
+    rho_y, p_y = stats.spearmanr(sw["sweep_level"], sw[ycol])
+    info["dose_response_level_vs_outcome"] = {"outcome": ycol, "spearman_rho": float(rho_y), "p_value": float(p_y)}
+    return info
+
+
+def _entropy_correlation(df: pd.DataFrame, ycol: str) -> dict:
+    """Pearson r between measured entanglement entropy and `ycol`.
+
+    Uses the controlled entanglement sweep when it has enough runs (>= 12 runs over >= 3 levels):
+    every point is then one independent (level, seed) run with everything but the entangling
+    structure held fixed. Otherwise falls back to the old pooled-config analysis, labelled
+    design='pooled_configs' / unit='config' so the verdict layer treats it as exploratory."""
+    cols = {"entanglement_entropy", ycol}
+    sw = sweep_subset(df, cols) if "run_id" in df.columns else None
+    if sw is not None:
+        result = _safe(pearson_correlation_with_ci, sw["entanglement_entropy"].to_numpy(),
+                       sw[ycol].to_numpy(), need_n=4)
+        if "r" in result:
+            result.update(_sweep_design_info(sw, ycol))
+        return result
+    sub = df.dropna(subset=list(cols))
+    result = _safe(pearson_correlation_with_ci, sub["entanglement_entropy"].to_numpy(),
+                   sub[ycol].to_numpy(), need_n=4)
+    if "r" in result:
+        result.update({"design": "pooled_configs", "unit": "config"})
+    return result
+
+
 def test_h2_adversarial_resilience(df: pd.DataFrame) -> dict:
     cols = {"entanglement_entropy", "asr"}
     if not cols.issubset(df.columns):
@@ -127,8 +172,7 @@ def test_h2_adversarial_resilience(df: pd.DataFrame) -> dict:
     sub = df.dropna(subset=list(cols))
     if "asr_baseline" in sub.columns:
         sub = sub[sub["asr_baseline"] == "last_close"]  # legacy rows used a PCA component
-    return _safe(pearson_correlation_with_ci, sub["entanglement_entropy"].to_numpy(),
-                 sub["asr"].to_numpy(), need_n=4)
+    return _entropy_correlation(sub, "asr")
 
 
 def test_h3_poisoning_resistance(df: pd.DataFrame) -> dict:
@@ -157,14 +201,45 @@ _DEGENERATE_WHY = ("In QGAN-LLM and Classical GAN-LLM the forecast head is a lin
                    "generator (or its output) to feed the forecast -- see the Ch.4 diagnosis.")
 
 
+_PRIMARY_SLUG = {"QGAN-LLM": "qgan_llm", "Classical GAN-LLM": "classical_gan_llm"}
+
+
+def _h4_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, str]:
+    """Rows for the H4 comparison.
+
+    * Only the PRIMARY config of each model: every QGAN-LLM ablation (no noise, 12-qubit, the entanglement
+      sweep levels) is stored with model_type == "QGAN-LLM", so without this the sweep's 36 runs would be
+      averaged into 'the QGAN'. The primary config is recognised by its run_id slug; a results file with no
+      run_id (or no primary rows) falls back to all rows of the model_type, as before.
+    * Only rows where the generator is ON the forecast path (forecast_path == 'generator') when BOTH models
+      have such rows. Otherwise the comparison is the legacy head-only one, in which the forecast cannot depend
+      on the generator at all (labelled so the verdict layer and the reader know).
+    """
+    def primary(model_type: str) -> pd.DataFrame:
+        rows = df[df["model_type"] == model_type]
+        if "run_id" in rows.columns and len(rows):
+            ok = rows["run_id"].map(config_of_run_id) == _PRIMARY_SLUG[model_type]
+            if ok.any():
+                rows = rows[ok]
+        return rows
+    q, c = primary(QGAN), primary(CGAN)
+    if "forecast_path" in df.columns:
+        qg, cg = q[q["forecast_path"] == "generator"], c[c["forecast_path"] == "generator"]
+        if len(qg) and len(cg):
+            return qg, cg, "generator_on_forecast_path"
+    return q, c, "head_only_or_mixed"
+
+
 def test_h4_quantum_advantage(df: pd.DataFrame) -> dict:
     needed = {QGAN, CGAN}
     if not needed.issubset(set(df["model_type"])):
         return {"error": f"need both {QGAN!r} and {CGAN!r} rows"}
-    result = {}
+    q_rows, c_rows, forecast_design = _h4_rows(df)
+    result = {"forecast_design": forecast_design,
+              "n_runs": {QGAN: int(len(q_rows)), CGAN: int(len(c_rows))}}
     if "rmse" in df.columns:
-        a_rmse = df.loc[df["model_type"] == QGAN, "rmse"].dropna().to_numpy()
-        b_rmse = df.loc[df["model_type"] == CGAN, "rmse"].dropna().to_numpy()
+        a_rmse = q_rows["rmse"].dropna().to_numpy()
+        b_rmse = c_rows["rmse"].dropna().to_numpy()
         _deg = find_degenerate_groups({"quantum": a_rmse, "classical": b_rmse})
         if _deg["degenerate"]:
             # Identical RMSE in both groups means the forecast does not depend on the
@@ -179,8 +254,8 @@ def test_h4_quantum_advantage(df: pd.DataFrame) -> dict:
     else:
         result["rmse"] = {"error": "no 'rmse' column"}
     if "asr" in df.columns:
-        a_asr = df.loc[df["model_type"] == QGAN, "asr"].dropna().to_numpy()
-        b_asr = df.loc[df["model_type"] == CGAN, "asr"].dropna().to_numpy()
+        a_asr = q_rows["asr"].dropna().to_numpy()
+        b_asr = c_rows["asr"].dropna().to_numpy()
         _dega = find_degenerate_groups({"quantum": a_asr, "classical": b_asr})
         if _dega["degenerate"]:
             result["asr"] = {"status": "degenerate_by_design", "reason": _dega["reason"],
@@ -189,6 +264,10 @@ def test_h4_quantum_advantage(df: pd.DataFrame) -> dict:
             result["asr"] = _compare_two(a_asr, b_asr, QGAN, CGAN, REPEAT_CMD.format(model=QGAN, n=2))
     else:
         result["asr"] = {"error": "no 'asr' column"}
+    if forecast_design == "generator_on_forecast_path":
+        result["note"] = ("forecast = linear([X, G(X)]) for BOTH models, same rows, same head, same evaluation "
+                          "subsample (src/utils/generator_path.py): a gap is attributable to the generator. "
+                          "It is a claim about this feature-map design, not about quantum models in general.")
     result["caveat"] = ("RMSE here now reflects the fixed one-step-ahead target "
                          "(see src/evaluation/one_step_ahead.py) rather than the old "
                          "same-row-leaked values -- numbers from before that fix are "
@@ -208,8 +287,7 @@ def test_h5_tomography_correlation(df: pd.DataFrame) -> dict:
             continue
         sub = df.dropna(subset=["entanglement_entropy", col])
         if len(sub) >= 4 or col == "accuracy":
-            result = _safe(pearson_correlation_with_ci, sub["entanglement_entropy"].to_numpy(),
-                           sub[col].to_numpy(), need_n=4)
+            result = _entropy_correlation(sub, col)
             result["detector"] = detector
             result["note"] = (f"accuracy column used: {col}. "
                               + ("" if col == "llm_threat_accuracy" else
@@ -224,6 +302,34 @@ def test_m2_dv2_mediation(df: pd.DataFrame) -> dict:
     CAVEAT -- these rows are one per model CONFIG, not one per
     independent run, so this is still underpowered even when it runs
     without error; reported for completeness, not as a settled result."""
+    sw = sweep_subset(df, {"asr", "entanglement_entropy"}) if "run_id" in df.columns else None
+    if sw is not None:
+        # Controlled sweep: IV = designed entangling level (manipulated), M = MEASURED entanglement
+        # entropy, DV = ASR (continuous; the sweep rows need no category approximation). One row per
+        # independent (level, seed) run. Variables are z-scored so the paths are comparable.
+        def z(a):
+            a = np.asarray(a, dtype=float)
+            sd = a.std()
+            return (a - a.mean()) / sd if sd > 0 else None
+        iv, m, dv = z(sw["sweep_level"]), z(sw["entanglement_entropy"]), z(sw["asr"])
+        if iv is None or m is None or dv is None:
+            return {"error": "a sweep variable has zero variance (level, entropy or ASR is constant) -- "
+                             "mediation is undefined"}
+        try:
+            result = mediation_analysis(iv, m, dv, n_bootstrap=5000, seed=42)
+        except Exception as exc:
+            return {"error": str(exc)}
+        result.update(_sweep_design_info(sw, "asr"))
+        result.update({
+            "n_observations": int(len(sw)),
+            "pathway": "designed entangling level -> measured entanglement entropy -> ASR",
+            "iv_name": "designed entangling level (L1-L6, ordinal)", "mediator_name": "entanglement_entropy",
+            "dv_name": "asr", "standardized": True,
+            "caveat": ("circuit depth also changes parameter count; treat the level as 'entangling "
+                       "structure', not entanglement alone"),
+        })
+        return result
+
     if "asr" not in df.columns or "model_type" not in df.columns:
         return {"error": "need model_type and asr columns"}
     sub = df.dropna(subset=["asr"]).copy()
@@ -237,6 +343,7 @@ def test_m2_dv2_mediation(df: pd.DataFrame) -> dict:
                                        sub["entanglement_topology"].tolist(),
                                        sub["asr"].to_numpy())
         result["n_observations"] = len(sub)
+        result.update({"design": "pooled_configs", "unit": "config"})
         result["caveat"] = ("rows here are one per model CONFIG (ablation), not one per "
                              "independent experimental run -- see mediation_pipelines.py's "
                              "UNIT-OF-ANALYSIS CAVEAT; treat as exploratory, not confirmatory")
@@ -345,8 +452,7 @@ def main():
     ap.add_argument("--no-dedupe", action="store_true", help="same as --dedupe none")
     args = ap.parse_args()
 
-    if not os.path.exists(args.results_csv):
-        raise SystemExit(f"{args.results_csv} not found -- run the pipeline first.")
+    require_results(args.results_csv, "run_hypothesis_tests")   # exits with "run src.experiments.run_all first" if empty
     df = pd.read_csv(args.results_csv)
     n_raw = len(df)
     mode = "none" if args.no_dedupe else args.dedupe

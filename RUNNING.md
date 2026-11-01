@@ -119,6 +119,15 @@ exact serialization format (e.g. how a row of OHLCV + indicators becomes
 a training prompt), so this is a real design decision for you to make and
 document, not something safe to guess at silently.
 
+> **Order matters: `run_all` first.** `results/all_results.csv` is written only by `src.experiments.run_all`
+> (directly, via `run_pipeline.py`, or via `scripts.run_repeated_experiment`, which calls it per seed).
+> `verify_chapter4` and `run_hypothesis_tests` only read that file, and both now stop with exit code 2 and a
+> pointer back here if it is missing or empty.
+>
+> 1. `python -m src.experiments.run_all`
+> 2. `python -m scripts.verify_chapter4`
+> 3. `python -m scripts.run_hypothesis_tests`
+
 ## Step 4 — Verify against the manuscript's claims
 
 ```bash
