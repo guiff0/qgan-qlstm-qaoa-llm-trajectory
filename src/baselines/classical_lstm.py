@@ -146,12 +146,22 @@ class ClassicalLSTM(BaseForecastingModel):
             generator=seeded_generator(self.seed),
         )
         val_ds = WindowedSequenceDataset(X_val, y_val, sequence_length=seq_len)
+        # Early stopping only needs a stable validation signal, not all ~744k overlapping windows every
+        # epoch: a fixed-seed subsample (same rows every epoch, so val losses stay comparable).
+        n_val = self.config.get("val_samples")
+        if n_val and int(n_val) < len(val_ds):
+            sel = np.sort(np.random.default_rng(self.seed).choice(len(val_ds), int(n_val), replace=False))
+            val_ds = torch.utils.data.Subset(val_ds, sel.tolist())
         val_loader = DataLoader(val_ds, batch_size=self.config["batch_size"], shuffle=False)
 
         best_val_loss = float("inf")
         patience_counter = 0
         n_epochs = self.config["epochs"]
-        total_batches = len(train_loader)
+        # Compute budget. Consecutive 1-minute windows share 59 of 60 rows, so a full pass over all ~3.7M
+        # windows (58k batches of 64, ~2 h/epoch on CPU) mostly re-reads the same data. With shuffle=True the
+        # first `max_batches_per_epoch` batches are a fresh random subsample every epoch (None = full pass).
+        max_batches = self.config.get("max_batches_per_epoch")
+        total_batches = min(len(train_loader), int(max_batches)) if max_batches else len(train_loader)
 
         # Two-level progress: an outer bar over epochs (stays on screen the
         # whole run) and an inner bar over batches within the current epoch
@@ -174,6 +184,8 @@ class ClassicalLSTM(BaseForecastingModel):
                     n_batches += 1
                     batch_bar.update(1)
                     batch_bar.set_postfix(loss=f"{epoch_loss / n_batches:.3e}")
+                    if n_batches >= total_batches:
+                        break
                     if run_logger and log_every and n_batches % log_every == 0:
                         log_progress_milestone(run_logger, f"TRAIN epoch {epoch}", n_batches, total_batches,
                                                running_loss=f"{epoch_loss / n_batches:.3e}")

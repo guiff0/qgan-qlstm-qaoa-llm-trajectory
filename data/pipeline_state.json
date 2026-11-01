@@ -33,8 +33,10 @@
       "detail": "artifact verified"
     },
     "verify_environment": {
-      "status": "running",
-      "started_utc": "2026-11-01T03:48:54Z"
+      "status": "failed",
+      "failed_utc": "2026-11-01T04:20:48Z",
+      "duration_seconds": 9.5,
+      "returncode": 1
     },
     "step_a": {
       "status": "completed",
@@ -71,11 +73,28 @@
       "completed_utc": "2026-11-01T03:48:54Z",
       "duration_seconds": 1.0,
       "detail": "x"
+    },
+    "acquire_dukascopy": {
+      "status": "running",
+      "started_utc": "2026-11-01T04:20:48Z"
+    },
+    "acquire_xval": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T04:20:49Z",
+      "duration_seconds": 1.3,
+      "detail": "artifact verified"
+    },
+    "acquire_fred": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T04:20:50Z",
+      "duration_seconds": 1.4,
+      "detail": "artifact verified"
     }
   },
-  "updated_utc": "2026-11-01T03:48:54Z",
-  "pipeline_run_id": "P20261101T034847Z-nogit",
+  "updated_utc": "2026-11-01T04:20:50Z",
+  "pipeline_run_id": "P20261101T042039Z-22bfa15",
   "pipeline_runs": [
-    "P20261101T034847Z-nogit"
+    "P20261101T034847Z-nogit",
+    "P20261101T042039Z-22bfa15"
   ]
 }

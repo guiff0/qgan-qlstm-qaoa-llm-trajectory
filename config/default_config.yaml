@@ -96,6 +96,12 @@ classical_lstm:
   # Number of epochs without validation-loss improvement tolerated before
   # stopping early — this is what triggered "Early stopping at epoch 11" in
   # your Classical LSTM run.
+  max_batches_per_epoch: 2000
+  # Batches drawn per epoch (null = full pass: 58,061 batches of 64 = all 3.7M overlapping
+  # windows, ~2 h/epoch on CPU, up to 50 epochs). Shuffled, so each epoch sees a fresh random
+  # 128k-window subsample; 50 epochs x 2000 batches = 100k steps, ~6.4M windows seen.
+  val_samples: 20000
+  # Fixed-seed validation subsample for early stopping (null = whole 744k-row split).
 
 classical_gan_llm:
   # ---- generator on the forecast path (src/utils/generator_path.py) -------------------------------

@@ -21,3 +21,8 @@ Tests: tests/test_dukascopy_rate_limit.py (no network).
 Files: scripts/run_hypothesis_tests.py, src/baselines/qlstm_forecaster.py, src/quantum/*.py,
 src/attacks/quantum_attacks.py, src/evaluation/{entanglement_design,mediation_pipelines}.py,
 config/default_config.yaml, tests/test_no_config_pooling.py, tests/test_entanglement_sweep.py.
+
+## Classical LSTM compute budget (src/baselines/classical_lstm.py, config/default_config.yaml)
+58,061 batches/epoch (3.7M overlapping windows / 64) was ~2 h/epoch on CPU, up to 50 epochs.
+New `classical_lstm.max_batches_per_epoch: 2000` (shuffled -> fresh random subsample each epoch;
+null = old full pass) and `val_samples: 20000` (fixed-seed validation subsample). Not run here (no torch).
