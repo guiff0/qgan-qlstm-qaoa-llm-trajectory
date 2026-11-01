@@ -1,0 +1,1 @@
+{"run_id": "qgan_llm_12_qubit_20261101T141432Z", "timestamp_utc": "2026-11-01T14:36:08Z", "phase": "TRAIN", "step_id": 1, "execution_time_ms": 1295513.441, "memory_usage_mb": 1275.17, "metrics": {"reused_checkpoint": false, "n_train_rows": 3730628}, "severity": "INFO", "message": "Trained QGAN-LLM (12-qubit)"}

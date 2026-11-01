@@ -42,3 +42,10 @@ the breaker. To retry skipped days later: delete that year's eurusd_1min_<year>.
 - `src/evaluation/verdicts.py`: equivalence is reported beside the superiority verdict, never rewrites it.
 - `HYPOTHESES_REVISED.md`: draft statements, margins to freeze, power table, disclosure text.
 - tests/test_equivalence_tost.py
+
+## One-launch study runner (scripts/run_full_study.py, scripts/run_full_study.ps1)
+`.\scripts\run_full_study.ps1` (or `python -m scripts.run_full_study`) runs 7 conditions x 5 seeds (primary
+QGAN-LLM, Classical GAN-LLM, QGAN-LLM (no noise), sweep levels 0/2/4/6), repeating passes until every
+(condition, seed) is in results/all_results.csv, then runs the hypothesis tests. Resumable; retries failed
+runs with waiting; gives up only after 5 no-progress passes (`--max-stalled-passes 0` = never). Refuses to
+start if forecast_path is not `generator`. Options: --n-runs, --levels, --status, --dry-run. Tests: tests/test_run_full_study.py.

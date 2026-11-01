@@ -34,8 +34,8 @@
     },
     "verify_environment": {
       "status": "failed",
-      "failed_utc": "2026-11-01T04:20:48Z",
-      "duration_seconds": 9.5,
+      "failed_utc": "2026-11-01T11:48:03Z",
+      "duration_seconds": 9.6,
       "returncode": 1
     },
     "step_a": {
@@ -75,10 +75,10 @@
       "detail": "x"
     },
     "acquire_dukascopy": {
-      "status": "failed",
-      "failed_utc": "2026-11-01T05:06:06Z",
-      "duration_seconds": 2717.6,
-      "returncode": 1
+      "status": "completed",
+      "completed_utc": "2026-11-01T13:20:16Z",
+      "duration_seconds": 5532.4,
+      "detail": "artifact verified"
     },
     "acquire_xval": {
       "status": "completed",
@@ -109,12 +109,73 @@
       "failed_utc": "2026-11-01T05:06:19Z",
       "duration_seconds": 8.3,
       "returncode": 2
+    },
+    "prepare_data": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T13:21:24Z",
+      "duration_seconds": 68.8,
+      "detail": "artifact verified"
+    },
+    "train_eval:Classical LSTM": {
+      "status": "running",
+      "started_utc": "2026-11-01T13:21:24Z"
+    },
+    "train_eval:Classical GAN-LLM": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T13:46:29Z",
+      "duration_seconds": 1504.7,
+      "detail": "artifact verified"
+    },
+    "train_eval:QGAN-LLM": {
+      "status": "running",
+      "started_utc": "2026-11-01T13:21:24Z"
+    },
+    "train_eval:QLSTM Forecaster": {
+      "status": "running",
+      "started_utc": "2026-11-01T13:21:24Z"
+    },
+    "train_eval:QAOA-Enhanced LLM": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T15:19:13Z",
+      "duration_seconds": 7068.1,
+      "detail": "artifact verified"
+    },
+    "train_eval:LLM Forecaster": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T13:41:21Z",
+      "duration_seconds": 1196.8,
+      "detail": "artifact verified"
+    },
+    "train_eval:QLSTM-LLM": {
+      "status": "running",
+      "started_utc": "2026-11-01T13:41:21Z"
+    },
+    "train_eval:QAOA-LLM": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T13:59:21Z",
+      "duration_seconds": 772.0,
+      "detail": "artifact verified"
+    },
+    "train_eval:Classical-Features-LLM": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T14:14:09Z",
+      "duration_seconds": 887.7,
+      "detail": "artifact verified"
+    },
+    "train_eval:QGAN-LLM (12-qubit)": {
+      "status": "running",
+      "started_utc": "2026-11-01T14:14:09Z"
+    },
+    "train_eval:QGAN-LLM (linear topology)": {
+      "status": "running",
+      "started_utc": "2026-11-01T15:19:13Z"
     }
   },
-  "updated_utc": "2026-11-01T05:06:19Z",
-  "pipeline_run_id": "P20261101T042039Z-22bfa15",
+  "updated_utc": "2026-11-01T15:19:13Z",
+  "pipeline_run_id": "P20261101T114754Z-3ded574",
   "pipeline_runs": [
     "P20261101T034847Z-nogit",
-    "P20261101T042039Z-22bfa15"
+    "P20261101T042039Z-22bfa15",
+    "P20261101T114754Z-3ded574"
   ]
 }

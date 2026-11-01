@@ -1,0 +1,51 @@
+{
+  "pipeline_run_id": "P20261101T114754Z-3ded574",
+  "created_utc": "20261101T132121Z",
+  "config_sha256": "b1d62eacd1e92a0a8c2ecec47c337a4b6961df9d06984cee61a6e899e3c26f12",
+  "files": {
+    "X_test.npy": {
+      "bytes": 95333120,
+      "sha256": "8f6d2743a612db964ddc84ba7491c12ffb0da42ea8e9e8655ba5932484e1252e"
+    },
+    "X_train.npy": {
+      "bytes": 477520512,
+      "sha256": "e30ca4d569e8c8c45a54878a52acb5af7d8a014f4dc0965ff92352582087cdc5"
+    },
+    "X_val.npy": {
+      "bytes": 95232640,
+      "sha256": "1ffeda899a1093c99d7de5f1e04f74ed1836dc3f126f3523f569e54e63a1fdf3"
+    },
+    "pca.joblib": {
+      "bytes": 15975,
+      "sha256": "989d26b3d37203ce3d6eb41cafb42c66a763d2857afd30c1e5d46214741fde71"
+    },
+    "scaler.joblib": {
+      "bytes": 1879,
+      "sha256": "cbb3de39b3ec6668da1f8deaa0be28a5cc06ea2df6731bfe18a6f826e3c239aa"
+    },
+    "vix_test.npy": {
+      "bytes": 2979284,
+      "sha256": "2035d41a51e993060529606b51185f7ec7e284bcad71633658965b8e967c807e"
+    },
+    "vix_train.npy": {
+      "bytes": 14922640,
+      "sha256": "22b3b09fb975bca65cbfed283dd5d7ad5699589c3377445acb27a7f793800930"
+    },
+    "vix_val.npy": {
+      "bytes": 2976144,
+      "sha256": "35fe01785a2c70cdfb215d57cceeac444d8287b3388695769706f383154e503a"
+    },
+    "y_test.npy": {
+      "bytes": 2979284,
+      "sha256": "5b68ca59b1c23b55abc6f1191a02cc8629b1d924afd965646f443c0682165b6d"
+    },
+    "y_train.npy": {
+      "bytes": 14922640,
+      "sha256": "b5a7f30bd6ea32fd642dbce89e883eadfc73e6680bf8274884408abe269689f2"
+    },
+    "y_val.npy": {
+      "bytes": 2976144,
+      "sha256": "d756d0ed8521d7ba6e9c8bd3d8fefccf3b4a9f9d476d0b7aa3957fc4db726878"
+    }
+  }
+}
