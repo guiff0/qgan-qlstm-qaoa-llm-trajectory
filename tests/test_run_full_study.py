@@ -136,3 +136,115 @@ def test_head_only_forecast_path_is_detected(tmp_path):
 
 def test_repo_config_passes_the_forecast_path_check():
     assert fs.check_forecast_path("config/default_config.yaml") == []
+
+
+# ------------------------------------------------------------------ --workers
+def test_worker_env_splits_logical_cpus():
+    assert fs.worker_env(2, 8)["OMP_NUM_THREADS"] == "4"
+    assert fs.worker_env(4, 8)["MKL_NUM_THREADS"] == "2"
+    assert fs.worker_env(3, 8)["OPENBLAS_NUM_THREADS"] == "2"
+    assert fs.worker_env(16, 8)["OMP_NUM_THREADS"] == "1"          # never 0
+    assert fs.worker_env(1, 8)["NUMEXPR_NUM_THREADS"] == "8"
+
+
+def test_parallel_pass_runs_each_missing_pair_once_with_bounded_concurrency(cwd, monkeypatch):
+    import threading
+    import time as _t
+    active, peak, ran = {"n": 0}, {"n": 0}, []
+    lock = threading.Lock()
+
+    class _P:
+        def __init__(self, rc): self.returncode = rc
+
+    def fake_subprocess_run(cmd, stdout=None, stderr=None, env=None):
+        model, seed = cmd[cmd.index("--only") + 1], int(cmd[cmd.index("--seed") + 1])
+        with lock:
+            active["n"] += 1
+            peak["n"] = max(peak["n"], active["n"])
+            ran.append((model, seed, env["OMP_NUM_THREADS"]))
+        _t.sleep(0.05)
+        _append(model, seed)
+        with lock:
+            active["n"] -= 1
+        return _P(0)
+
+    monkeypatch.setattr(fs.subprocess, "run", fake_subprocess_run)
+    monkeypatch.setattr(fs.os, "cpu_count", lambda: 8)
+    models = ["A", "B (x)", "C", "D"]
+    _append("A", 43)                                               # already done: must not run again
+    rc = fs._run_pass_parallel(models, 2, 43, None, workers=2)
+    assert rc == 0 and fs.remaining(models, [43, 44]) == []
+    assert sorted((m, s) for m, s, _ in ran) == sorted((m, s) for s in (43, 44) for m in models if (m, s) != ("A", 43))
+    assert peak["n"] == 2 and {t for *_, t in ran} == {"4"}
+    assert os.path.isfile(os.path.join("logs", "study", "b_x_seed43.log"))
+    # state files updated
+    assert 44 in rre._load_state(rre._default_tag("C"))["completed_seeds"]
+
+
+def test_parallel_pass_reports_failure_and_does_not_mark_it_done(cwd, monkeypatch):
+    class _P:
+        def __init__(self, rc): self.returncode = rc
+
+    def fake(cmd, stdout=None, stderr=None, env=None):
+        model, seed = cmd[cmd.index("--only") + 1], int(cmd[cmd.index("--seed") + 1])
+        if model == "B (x)":
+            return _P(1)
+        _append(model, seed)
+        return _P(0)
+
+    monkeypatch.setattr(fs.subprocess, "run", fake)
+    assert fs._run_pass_parallel(["A", "B (x)"], 1, 43, None, workers=2) == 1
+    assert fs.remaining(["A", "B (x)"], [43]) == [("B (x)", 43)]
+    assert 43 in rre._load_state(rre._default_tag("B (x)"))["failed_seeds"]
+
+
+def test_parallel_pass_never_runs_the_same_condition_twice_at_once(cwd, monkeypatch):
+    import threading
+    import time as _t
+    running, violations, peak = set(), [], {"n": 0}
+    lock = threading.Lock()
+
+    class _P:
+        def __init__(self, rc): self.returncode = rc
+
+    def fake(cmd, stdout=None, stderr=None, env=None):
+        model, seed = cmd[cmd.index("--only") + 1], int(cmd[cmd.index("--seed") + 1])
+        with lock:
+            if model in running:
+                violations.append(model)
+            running.add(model)
+            peak["n"] = max(peak["n"], len(running))
+        _t.sleep(0.03)
+        _append(model, seed)
+        with lock:
+            running.discard(model)
+        return _P(0)
+
+    monkeypatch.setattr(fs.subprocess, "run", fake)
+    assert fs._run_pass_parallel(["A", "B (x)", "C"], 4, 43, None, workers=3) == 0
+    assert violations == [] and peak["n"] == 3
+    assert fs.remaining(["A", "B (x)", "C"], [43, 44, 45, 46]) == []
+
+
+def test_tail_of_one_condition_runs_sequentially_not_in_parallel(cwd, monkeypatch):
+    import threading
+    import time as _t
+    active, peak, lock = {"n": 0}, {"n": 0}, threading.Lock()
+
+    class _P:
+        returncode = 0
+
+    def fake(cmd, stdout=None, stderr=None, env=None):
+        model, seed = cmd[cmd.index("--only") + 1], int(cmd[cmd.index("--seed") + 1])
+        with lock:
+            active["n"] += 1
+            peak["n"] = max(peak["n"], active["n"])
+        _t.sleep(0.02)
+        _append(model, seed)
+        with lock:
+            active["n"] -= 1
+        return _P()
+
+    monkeypatch.setattr(fs.subprocess, "run", fake)
+    assert fs._run_pass_parallel(["A"], 4, 43, None, workers=4) == 0
+    assert peak["n"] == 1

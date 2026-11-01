@@ -49,3 +49,8 @@ QGAN-LLM, Classical GAN-LLM, QGAN-LLM (no noise), sweep levels 0/2/4/6), repeati
 (condition, seed) is in results/all_results.csv, then runs the hypothesis tests. Resumable; retries failed
 runs with waiting; gives up only after 5 no-progress passes (`--max-stalled-passes 0` = never). Refuses to
 start if forecast_path is not `generator`. Options: --n-runs, --levels, --status, --dry-run. Tests: tests/test_run_full_study.py.
+
+## `--workers N` for run_full_study
+N (condition, seed) runs at a time, each its own process with logical_cpus // N BLAS/OpenMP threads
+(OMP/MKL/OPENBLAS/NUMEXPR); per-run output in logs/study/<condition>_seed<k>.log. Two runs of the same
+condition never overlap (run_ids are claimed check-then-create per second). Default 1 = sequential.

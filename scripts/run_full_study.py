@@ -22,6 +22,10 @@ WHAT "ONLY STOPS WHEN DONE" MEANS
   * The one thing that can stop it early is a SYSTEMATIC error: if `--max-stalled-passes` passes in a row
     complete nothing new (default 5), retrying forever would only burn time, so it exits with code 1 and
     names the runs that keep failing. `--max-stalled-passes 0` = never give up.
+  * `--workers N` runs N (condition, seed) runs at the same time, each in its own process with
+    cpu_count // N BLAS/OpenMP threads (4 cores / 8 logical: N=2 -> 4 threads each, N=4 -> 2 each). Each run's
+    console output goes to logs/study/<condition>_seed<k>.log. Two runs of the same condition never overlap. Quantum simulation is mostly single-threaded, so
+    N = number of physical cores (4) usually beats N=1 with 8 threads; watch RAM (each process loads the data).
   * On Windows it asks the OS not to sleep while running (the display may still turn off).
   * When all runs are complete it runs scripts.run_hypothesis_tests and writes logs/full_study_status.json.
 
@@ -71,6 +75,80 @@ def done_seeds(model: str) -> set[int]:
 def remaining(models, seeds) -> list[tuple[str, int]]:
     """(model, seed) pairs still missing, seed-major so an early stop leaves balanced groups."""
     return [(m, s) for s in seeds for m in models if s not in done_seeds(m)]
+
+
+def worker_env(workers: int, logical_cpus: int | None = None) -> dict:
+    """Environment for one worker: the machine's logical CPUs split evenly, at least 1 thread each."""
+    threads = str(max(1, (logical_cpus or os.cpu_count() or 1) // max(1, workers)))
+    env = dict(os.environ)
+    for k in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
+        env[k] = threads
+    return env
+
+
+def _mark_state(model: str, seed: int, ok: bool, lock) -> None:
+    with lock:
+        tag = rre._default_tag(model)
+        st = rre._load_state(tag)
+        if ok:
+            if seed not in st["completed_seeds"]:
+                st["completed_seeds"].append(seed)
+            if seed in st["failed_seeds"]:
+                st["failed_seeds"].remove(seed)
+        elif seed not in st["failed_seeds"]:
+            st["failed_seeds"].append(seed)
+        rre._save_state(tag, st)
+
+
+def _run_one(model: str, seed: int, config, env: dict, lock) -> bool:
+    """One (condition, seed) run in its own process; output to logs/study/. True only if its row was recorded."""
+    log_dir = os.path.join("logs", "study")
+    os.makedirs(log_dir, exist_ok=True)
+    log = os.path.join(log_dir, f"{rre._model_slug(model)}_seed{seed}.log")
+    cmd = [sys.executable, "-m", "src.experiments.run_all", "--only", model, "--seed", str(seed)]
+    if config:
+        cmd += ["--config", config]
+    print(f"[worker] start  {model!r} seed {seed}  (log: {log})", flush=True)
+    t0 = time.time()
+    with open(log, "a", encoding="utf-8", errors="replace") as f:
+        rc = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, env=env).returncode
+    ok = rc == 0 and seed in rre._csv_seeds(model)
+    _mark_state(model, seed, ok, lock)
+    print(f"[worker] {'OK   ' if ok else 'FAIL '} {model!r} seed {seed} exit {rc} in {(time.time() - t0) / 60:.1f} min",
+          flush=True)
+    return ok
+
+
+def _run_pass_parallel(models, n_runs, base_seed, config, workers: int) -> int:
+    """One pass over everything missing with `workers` runs at a time. Queue order is seed-major, so an
+    interruption leaves balanced groups. Returns 0 if every attempted run succeeded, else 1."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    seeds = [base_seed + i for i in range(n_runs)]
+    todo = remaining(models, seeds)
+    env, lock = worker_env(workers), threading.Lock()
+    print(f"[workers] {len(todo)} runs, {workers} at a time, "
+          f"{env['OMP_NUM_THREADS']} thread(s) each", flush=True)
+    # Never two runs of the SAME condition at once: a run_id is "<model slug>_<UTC second>" and is claimed
+    # check-then-create (run_identity.unique_run_id), so two same-model processes starting in the same second
+    # could share a run_id and overwrite each other's log. Different conditions have different slugs.
+    from concurrent.futures import FIRST_COMPLETED, wait
+    pending, active, results = list(todo), {}, []
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        while pending or active:
+            i = 0
+            while len(active) < workers and i < len(pending):
+                model, seed = pending[i]
+                if model in active.values():
+                    i += 1                              # that condition is already running; take the next
+                    continue
+                pending.pop(i)
+                active[ex.submit(_run_one, model, seed, config, env, lock)] = model
+            done, _ = wait(list(active), return_when=FIRST_COMPLETED)
+            for fut in done:
+                results.append(fut.result())
+                del active[fut]
+    return 0 if all(results) else 1
 
 
 def _run_pass(models, n_runs, base_seed, config) -> int:
@@ -177,6 +255,9 @@ def main() -> None:
     ap.add_argument("--levels", default=",".join(map(str, DEFAULT_LEVELS)),
                     help="entanglement-sweep levels to run, e.g. 0,2,4,6 or 'all' (default 0,2,4,6)")
     ap.add_argument("--config", default="config/default_config.yaml")
+    ap.add_argument("--workers", type=int, default=1,
+                    help="runs executed at the same time (default 1); threads per run = logical CPUs // workers. "
+                         "4 cores / 8 logical: try 2-4")
     ap.add_argument("--max-stalled-passes", type=int, default=5,
                     help="give up after this many passes in a row with no new completed run (0 = never)")
     ap.add_argument("--retry-wait", type=float, default=300.0, help="seconds between passes (default 300)")
@@ -212,7 +293,14 @@ def main() -> None:
         raise SystemExit(f"[study] unknown model name(s) {[m for m in models if m not in known]}; run_all knows {known}")
     keep_awake()
 
-    rc = run_study(models, args.n_runs, args.base_seed, args.config, args.max_stalled_passes, args.retry_wait)
+    if args.workers < 1:
+        raise SystemExit("--workers must be >= 1")
+    pass_fn = None
+    if args.workers > 1:
+        w = args.workers
+        pass_fn = lambda ms, n, b, c: _run_pass_parallel(ms, n, b, c, w)   # noqa: E731
+    rc = run_study(models, args.n_runs, args.base_seed, args.config, args.max_stalled_passes, args.retry_wait,
+                   run_pass=pass_fn)
     if rc != 0:
         sys.exit(rc)
     print("\n[study] ALL RUNS COMPLETE.", flush=True)
