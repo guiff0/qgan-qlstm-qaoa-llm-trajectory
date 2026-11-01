@@ -75,8 +75,10 @@
       "detail": "x"
     },
     "acquire_dukascopy": {
-      "status": "running",
-      "started_utc": "2026-11-01T04:20:48Z"
+      "status": "failed",
+      "failed_utc": "2026-11-01T05:06:06Z",
+      "duration_seconds": 2717.6,
+      "returncode": 1
     },
     "acquire_xval": {
       "status": "completed",
@@ -89,9 +91,27 @@
       "completed_utc": "2026-11-01T04:20:50Z",
       "duration_seconds": 1.4,
       "detail": "artifact verified"
+    },
+    "make_figures": {
+      "status": "completed",
+      "completed_utc": "2026-11-01T05:06:09Z",
+      "duration_seconds": 2.9,
+      "detail": "artifact verified"
+    },
+    "verify_chapter4": {
+      "status": "failed",
+      "failed_utc": "2026-11-01T05:06:11Z",
+      "duration_seconds": 2.4,
+      "returncode": 2
+    },
+    "run_hypothesis_tests": {
+      "status": "failed",
+      "failed_utc": "2026-11-01T05:06:19Z",
+      "duration_seconds": 8.3,
+      "returncode": 2
     }
   },
-  "updated_utc": "2026-11-01T04:20:50Z",
+  "updated_utc": "2026-11-01T05:06:19Z",
   "pipeline_run_id": "P20261101T042039Z-22bfa15",
   "pipeline_runs": [
     "P20261101T034847Z-nogit",

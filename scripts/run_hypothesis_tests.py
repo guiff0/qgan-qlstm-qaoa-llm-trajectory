@@ -31,6 +31,7 @@ import pandas as pd
 
 from src.evaluation.statistical_tests import (
     ancova, crawford_howell, independent_ttest, pearson_correlation_with_ci,
+    tost_correlation, tost_equivalence,
 )
 from src.evaluation.mediation_pipelines import run_m2_dv2_mediation
 from src.metrics.resilience import cqrs, qar
@@ -43,6 +44,47 @@ from src.utils.run_identity import config_of_run_id
 from src.utils.require_results import require_results
 
 QGAN, CGAN = "QGAN-LLM", "Classical GAN-LLM"
+
+
+# ---- Equivalence (TOST) margins: the smallest difference that would matter. FIX THESE BEFORE the confirmatory
+# runs and record them in HYPOTHESES_REVISED.md; a margin picked after seeing results proves nothing.
+#   ("abs", x)              x in the metric's own units
+#   ("rel_ref", f)          f x |mean of the reference (classical) group|   -- reference-dependent
+#   ("rel_persistence", f)  f x mean persistence RMSE of the rows used      -- model-independent scale
+EQUIV_MARGINS: dict = {
+    "fid": ("rel_ref", 0.10),
+    "rmse": ("rel_persistence", 0.02),
+    "asr": ("abs", 5.0),                  # percentage points
+    "poisoning": ("abs", 5.0),            # percentage points of RMSE degradation
+    "r0": ("abs", 0.30),                  # smallest correlation of interest (H2/H5)
+}
+EQUIV_ALPHA = 0.05
+
+
+def _margin_value(key: str, ref_mean: float, persistence: float | None = None) -> tuple[float, str]:
+    kind, x = EQUIV_MARGINS[key]
+    if kind == "abs":
+        return float(x), f"{x:g} (absolute)"
+    if kind == "rel_persistence" and persistence is not None and np.isfinite(persistence) and persistence > 0:
+        return float(x) * float(persistence), f"{x:g} x persistence RMSE ({persistence:.6g})"
+    return float(x) * abs(float(ref_mean)), f"{x:g} x |reference mean| ({abs(ref_mean):.6g})"
+
+
+def _equivalence(a, b, key: str, persistence: float | None = None) -> dict | None:
+    """TOST of |mean(a) - mean(b)| < margin; None when either group has < 2 finite values."""
+    a, b = np.asarray(a, float), np.asarray(b, float)
+    a, b = a[np.isfinite(a)], b[np.isfinite(b)]
+    if len(a) < 2 or len(b) < 2:
+        return None
+    margin, how = _margin_value(key, float(np.mean(b)), persistence)
+    try:
+        out = tost_equivalence(a, b, margin, EQUIV_ALPHA)
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+    out.update({"metric": key, "margin_rule": how,
+                "reading": ("EQUIVALENT: the true difference lies within +/- margin" if out["equivalent"] else
+                            "equivalence NOT shown (not the same as 'different'; the data may simply be too noisy)")})
+    return out
 
 
 REPEAT_CMD = 'python -m scripts.run_repeated_experiment --model "{model}" --n-runs {n} --base-seed 43'
@@ -149,6 +191,7 @@ def test_h1_synthetic_data_fidelity(df: pd.DataFrame) -> dict:
         result["note_covariate"] = ("no usable 'vix' covariate (or < 2 runs per side) in "
                                     "results/all_results.csv -- ran a plain comparison instead of "
                                     "the ANCOVA Ch.3 specifies")
+    result["equivalence"] = _equivalence(q_rows["fid"].to_numpy(), c_rows["fid"].to_numpy(), "fid")
     n_q, n_c = _n_configs(q_rows), _n_configs(c_rows)
     result["configs_used"] = {QGAN: _PRIMARY_SLUG[QGAN] if q_primary else "all rows (no primary-config rows found)",
                               CGAN: _PRIMARY_SLUG[CGAN] if c_primary else "all rows (no primary-config rows found)"}
@@ -177,6 +220,17 @@ def _sweep_design_info(sw: pd.DataFrame, ycol: str) -> dict:
     return info
 
 
+def _r_equivalence(res: dict) -> dict | None:
+    """'No practically relevant correlation': is |true r| < r0? (TOST on Fisher z; see tost_correlation)"""
+    try:
+        out = tost_correlation(res["r"], int(res["df"]) + 2, EQUIV_MARGINS["r0"][1], EQUIV_ALPHA)
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
+    out["reading"] = ("EQUIVALENT TO ZERO: |r| < r0 is supported" if out["equivalent"] else
+                      "no-relevant-correlation NOT shown (CI too wide or r too large)")
+    return out
+
+
 def _entropy_correlation(df: pd.DataFrame, ycol: str) -> dict:
     """Pearson r between measured entanglement entropy and `ycol`.
 
@@ -191,12 +245,14 @@ def _entropy_correlation(df: pd.DataFrame, ycol: str) -> dict:
                        sw[ycol].to_numpy(), need_n=4)
         if "r" in result:
             result.update(_sweep_design_info(sw, ycol))
+            result["equivalence_r"] = _r_equivalence(result)
         return result
     sub = df.dropna(subset=list(cols))
     result = _safe(pearson_correlation_with_ci, sub["entanglement_entropy"].to_numpy(),
                    sub[ycol].to_numpy(), need_n=4)
     if "r" in result:
         result.update({"design": "pooled_configs", "unit": "config"})
+        result["equivalence_r"] = _r_equivalence(result)
     return result
 
 
@@ -235,6 +291,7 @@ def test_h3_poisoning_resistance(df: pd.DataFrame) -> dict:
             result = _compare_two(nn_rows[col].dropna().to_numpy(), noisy_rows[col].dropna().to_numpy(),
                                   "no_noise", "noisy", fix)
             result["design"] = "matched_config_noise_only"
+            result["equivalence"] = _equivalence(nn_rows[col].to_numpy(), noisy_rows[col].to_numpy(), "poisoning")
             result["n_per_group_used"] = {"no_noise": int(nn_rows[col].notna().sum()),
                                           "noisy": int(noisy_rows[col].notna().sum())}
             result["configs_used"] = {"no_noise": _NO_NOISE_SLUG, "noisy": _PRIMARY_SLUG[QGAN]}
@@ -299,6 +356,9 @@ def test_h4_quantum_advantage(df: pd.DataFrame) -> dict:
                               "mean_b": float(np.mean(b_rmse)) if len(b_rmse) else None}
         else:
             result["rmse"] = _compare_two(a_rmse, b_rmse, QGAN, CGAN, REPEAT_CMD.format(model=QGAN, n=2))
+            pers = (float(pd.concat([q_rows, c_rows])["persistence_rmse"].mean())
+                    if "persistence_rmse" in q_rows.columns else None)
+            result["rmse"]["equivalence"] = _equivalence(a_rmse, b_rmse, "rmse", pers)
     else:
         result["rmse"] = {"error": "no 'rmse' column"}
     if "asr" in df.columns:
@@ -310,6 +370,7 @@ def test_h4_quantum_advantage(df: pd.DataFrame) -> dict:
                              "why": _DEGENERATE_WHY}
         else:
             result["asr"] = _compare_two(a_asr, b_asr, QGAN, CGAN, REPEAT_CMD.format(model=QGAN, n=2))
+            result["asr"]["equivalence"] = _equivalence(a_asr, b_asr, "asr")
     else:
         result["asr"] = {"error": "no 'asr' column"}
     if forecast_design == "generator_on_forecast_path":
@@ -497,8 +558,16 @@ def main():
                     help="config_seed (default): re-evaluations of one checkpoint collapse, but each "
                          "different seed counts as an independent run. config: one row per config "
                          "(the old behaviour). none: every row is an observation.")
+    ap.add_argument("--equiv-margin", action="append", default=[], metavar="KEY=VALUE",
+                    help="override an equivalence margin value, e.g. fid=0.15 asr=3 rmse=0.01 r0=0.25 "
+                         "(keeps the margin's kind; see EQUIV_MARGINS). Fix margins BEFORE the confirmatory runs.")
     ap.add_argument("--no-dedupe", action="store_true", help="same as --dedupe none")
     args = ap.parse_args()
+    for item in args.equiv_margin:
+        k, _, v = item.partition("=")
+        if k not in EQUIV_MARGINS or not v:
+            raise SystemExit(f"--equiv-margin: unknown key or empty value in {item!r}; keys: {sorted(EQUIV_MARGINS)}")
+        EQUIV_MARGINS[k] = (EQUIV_MARGINS[k][0], float(v))
 
     require_results(args.results_csv, "run_hypothesis_tests")   # exits with "run src.experiments.run_all first" if empty
     df = pd.read_csv(args.results_csv)
@@ -516,6 +585,7 @@ def main():
         "n_rows_raw": n_raw,
         "n_rows": len(df),
         "dedupe": mode,
+        "equivalence_margins": {k: {"kind": v[0], "value": v[1]} for k, v in EQUIV_MARGINS.items()},
         "n_runs_per_model": df.groupby("model_type").size().to_dict() if "model_type" in df.columns else {},
         "n_runs_per_config": (df["run_id"].map(config_of_run_id).value_counts().to_dict()
                               if "run_id" in df.columns else {}),

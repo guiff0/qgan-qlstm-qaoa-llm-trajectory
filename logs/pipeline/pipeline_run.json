@@ -1,9 +1,9 @@
 {
-  "pipeline_run_id": "P20261031T195151Z-69d557b",
+  "pipeline_run_id": "P20261101T042039Z-22bfa15",
   "status": "aborted",
-  "started_utc": "20261031T195151Z",
-  "finished_utc": "20261031T201802Z",
-  "duration_s": 1571.6,
+  "started_utc": "20261101T042039Z",
+  "finished_utc": "20261101T050619Z",
+  "duration_s": 2740.8,
   "argv": [
     "--jobs",
     "6"
@@ -19,26 +19,26 @@
   "steps": {
     "verify_environment": {
       "status": "failed",
-      "failed_utc": "2026-10-31T19:52:00Z",
+      "failed_utc": "2026-11-01T04:20:48Z",
       "duration_seconds": 9.5,
       "returncode": 1
     },
     "acquire_dukascopy": {
       "status": "failed",
-      "failed_utc": "2026-10-31T20:17:55Z",
-      "duration_seconds": 1554.9,
+      "failed_utc": "2026-11-01T05:06:06Z",
+      "duration_seconds": 2717.6,
       "returncode": 1
     },
     "acquire_xval": {
       "status": "completed",
-      "completed_utc": "2026-10-31T19:43:16Z",
-      "duration_seconds": 320.0,
+      "completed_utc": "2026-11-01T04:20:49Z",
+      "duration_seconds": 1.3,
       "detail": "artifact verified"
     },
     "acquire_fred": {
       "status": "completed",
-      "completed_utc": "2026-10-31T19:37:59Z",
-      "duration_seconds": 3.4,
+      "completed_utc": "2026-11-01T04:20:50Z",
+      "duration_seconds": 1.4,
       "detail": "artifact verified"
     },
     "prepare_data": {
@@ -80,26 +80,47 @@
     "train_eval:QGAN-LLM (no noise)": {
       "status": "pending"
     },
+    "train_eval:QGAN-LLM (ent-L0 none-d4)": {
+      "status": "pending"
+    },
+    "train_eval:QGAN-LLM (ent-L1 linear-d1)": {
+      "status": "pending"
+    },
+    "train_eval:QGAN-LLM (ent-L2 linear-d2)": {
+      "status": "pending"
+    },
+    "train_eval:QGAN-LLM (ent-L3 linear-d4)": {
+      "status": "pending"
+    },
+    "train_eval:QGAN-LLM (ent-L4 ring-d4)": {
+      "status": "pending"
+    },
+    "train_eval:QGAN-LLM (ent-L5 full-d2)": {
+      "status": "pending"
+    },
+    "train_eval:QGAN-LLM (ent-L6 full-d4)": {
+      "status": "pending"
+    },
     "run_qpca": {
       "status": "pending"
     },
     "make_figures": {
       "status": "completed",
-      "completed_utc": "2026-10-31T20:17:57Z",
-      "duration_seconds": 1.8,
+      "completed_utc": "2026-11-01T05:06:09Z",
+      "duration_seconds": 2.9,
       "detail": "artifact verified"
     },
     "verify_chapter4": {
       "status": "failed",
-      "failed_utc": "2026-10-31T20:17:58Z",
-      "duration_seconds": 1.0,
-      "returncode": 1
+      "failed_utc": "2026-11-01T05:06:11Z",
+      "duration_seconds": 2.4,
+      "returncode": 2
     },
     "run_hypothesis_tests": {
       "status": "failed",
-      "failed_utc": "2026-10-31T20:18:02Z",
-      "duration_seconds": 4.2,
-      "returncode": 1
+      "failed_utc": "2026-11-01T05:06:19Z",
+      "duration_seconds": 8.3,
+      "returncode": 2
     },
     "scan_logs_for_pii": {
       "status": "pending"

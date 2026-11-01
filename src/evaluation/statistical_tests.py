@@ -90,6 +90,65 @@ def independent_ttest(group_a: np.ndarray, group_b: np.ndarray) -> dict:
     }
 
 
+def tost_equivalence(group_a: np.ndarray, group_b: np.ndarray, margin: float, alpha: float = 0.05) -> dict:
+    """Two one-sided tests (TOST) of EQUIVALENCE for two independent groups, Welch version.
+
+    Question: is the true mean difference (a - b) inside (-margin, +margin)? H0 is "not equivalent":
+    diff <= -margin OR diff >= +margin. Equivalence is declared when BOTH one-sided nulls are rejected at
+    `alpha`, i.e. p_tost = max(p_lower, p_upper) < alpha, which is the same as the (1 - 2*alpha) CI of the
+    difference (90 % for alpha = .05) lying wholly inside (-margin, +margin).
+
+    `margin` is the smallest difference that would matter (the "smallest effect size of interest"). It must be
+    fixed BEFORE looking at the data and in the units of the metric; a margin chosen after seeing the data
+    proves nothing. "Not significantly different" (p > .05) is NOT evidence of equivalence; this test is.
+    """
+    a, b = np.asarray(group_a, float), np.asarray(group_b, float)
+    a, b = a[np.isfinite(a)], b[np.isfinite(b)]
+    na, nb = len(a), len(b)
+    if na < 2 or nb < 2:
+        raise ValueError(f"TOST needs >= 2 observations per group, have {na} and {nb}")
+    margin = float(margin)
+    if not margin > 0:
+        raise ValueError("equivalence margin must be > 0")
+    va, vb = a.var(ddof=1), b.var(ddof=1)
+    diff = float(a.mean() - b.mean())
+    se = float(np.sqrt(va / na + vb / nb))
+    if se == 0.0:                                   # both groups constant: no sampling uncertainty to test
+        eq = abs(diff) < margin
+        return {"equivalent": bool(eq), "diff": diff, "margin": margin, "se": 0.0, "df": float(na + nb - 2),
+                "p_lower": 0.0 if diff > -margin else 1.0, "p_upper": 0.0 if diff < margin else 1.0,
+                "p_tost": 0.0 if eq else 1.0, "ci_level": 1 - 2 * alpha, "ci_low": diff, "ci_high": diff,
+                "alpha": alpha, "n_a": na, "n_b": nb, "note": "zero variance in both groups"}
+    df = float((va / na + vb / nb) ** 2 / ((va / na) ** 2 / (na - 1) + (vb / nb) ** 2 / (nb - 1)))
+    t_lo, t_hi = (diff + margin) / se, (diff - margin) / se
+    p_lower = float(1 - stats.t.cdf(t_lo, df))      # H0: diff <= -margin
+    p_upper = float(stats.t.cdf(t_hi, df))          # H0: diff >= +margin
+    p_tost = max(p_lower, p_upper)
+    tcrit = stats.t.ppf(1 - alpha, df)
+    return {"equivalent": bool(p_tost < alpha), "diff": diff, "margin": margin, "se": se, "df": df,
+            "p_lower": p_lower, "p_upper": p_upper, "p_tost": float(p_tost),
+            "ci_level": 1 - 2 * alpha, "ci_low": float(diff - tcrit * se), "ci_high": float(diff + tcrit * se),
+            "alpha": alpha, "n_a": na, "n_b": nb}
+
+
+def tost_correlation(r: float, n: int, r0: float = 0.3, alpha: float = 0.05) -> dict:
+    """TOST for 'no practically relevant correlation': is the true r inside (-r0, +r0)?
+    Fisher-z version: equivalence iff the (1 - 2*alpha) CI of r lies wholly inside (-r0, +r0). r0 is the
+    smallest correlation worth caring about, fixed in advance."""
+    if n < 4:
+        raise ValueError("need n >= 4")
+    z, se = float(np.arctanh(np.clip(r, -0.999999, 0.999999))), 1.0 / np.sqrt(n - 3)
+    zc = stats.norm.ppf(1 - alpha)
+    lo, hi = float(np.tanh(z - zc * se)), float(np.tanh(z + zc * se))
+    zr0 = float(np.arctanh(r0))
+    p_lower = float(1 - stats.norm.cdf((z + zr0) / se))
+    p_upper = float(stats.norm.cdf((z - zr0) / se))
+    p_tost = max(p_lower, p_upper)
+    return {"equivalent": bool(p_tost < alpha), "r": float(r), "n": int(n), "r0": float(r0),
+            "p_lower": p_lower, "p_upper": p_upper, "p_tost": float(p_tost),
+            "ci_level": 1 - 2 * alpha, "ci_low": lo, "ci_high": hi, "alpha": alpha}
+
+
 def crawford_howell(case: float, controls: np.ndarray) -> dict:
     """Crawford & Howell (1998) modified t-test: is ONE observation (`case`) unusual relative to a
     small sample (`controls`, n >= 2)? t = (case - mean) / (sd * sqrt((n + 1) / n)), df = n - 1.

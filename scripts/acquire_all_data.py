@@ -223,6 +223,16 @@ class DukascopyRateLimited(RuntimeError):
     wait (minutes to an hour) and re-run the same command."""
 
 
+class DukascopyDayUnavailable(RuntimeError):
+    """One day answered HTTP 5xx on every attempt (never 429). That is the server failing on that file, not
+    us being throttled, so it must not abort the whole step: the day is skipped, logged in
+    GAP_LOG, and not cached (a re-run asks again)."""
+
+
+DUKA_MAX_GAP_DAYS = int(os.environ.get("DUKASCOPY_MAX_GAP_DAYS", "5"))   # tolerated per year
+GAP_LOG = os.path.join(CACHE_DIR, "missing_days.csv")
+
+
 class _Throttle:
     """Shared by every worker thread: a minimum spacing between requests, plus a global cool-down
     (`penalize`) so a 429 seen by one thread pauses all of them, not just itself."""
@@ -299,6 +309,7 @@ def _download_day(session, day: pd.Timestamp, throttle: _Throttle, stats: dict):
     url = (f"https://datafeed.dukascopy.com/datafeed/EURUSD/"
            f"{day.year}/{day.month - 1:02d}/{day.day:02d}/BID_candles_min_1.bi5")
     last = None
+    saw_throttle = False        # any 429 / network error (as opposed to pure 5xx)
     for attempt in range(1, DUKA_DAY_ATTEMPTS + 1):
         throttle.wait()
         wait_s = None
@@ -314,6 +325,7 @@ def _download_day(session, day: pd.Timestamp, throttle: _Throttle, stats: dict):
                 except ValueError:
                     wait_s = None
                 last = f"HTTP {resp.status_code}"
+                saw_throttle = saw_throttle or resp.status_code == 429
             else:
                 resp.raise_for_status()
                 body = resp.content
@@ -326,13 +338,15 @@ def _download_day(session, day: pd.Timestamp, throttle: _Throttle, stats: dict):
                 return body
         except requests.RequestException as e:
             last = f"{type(e).__name__}"
+            saw_throttle = True
         # exponential back-off with jitter, applied to ALL workers; the server's Retry-After wins
         import random
         pause = wait_s if wait_s is not None else min(DUKA_BACKOFF_BASE * 2 ** (attempt - 1), DUKA_BACKOFF_MAX)
         pause *= 1.0 + 0.2 * random.random()
         if attempt < DUKA_DAY_ATTEMPTS:
             throttle.penalize(pause)
-    raise DukascopyRateLimited(f"{day.date()}: {last} after {DUKA_DAY_ATTEMPTS} attempts")
+    msg = f"{day.date()}: {last} after {DUKA_DAY_ATTEMPTS} attempts"
+    raise (DukascopyRateLimited if saw_throttle else DukascopyDayUnavailable)(msg)
 
 
 def _fetch_dukascopy_direct(start: dt.datetime, end: dt.datetime) -> pd.DataFrame:
@@ -360,6 +374,8 @@ def _fetch_dukascopy_direct(start: dt.datetime, end: dt.datetime) -> pd.DataFram
             return None
         try:
             body = _download_day(session, day, throttle, stats)
+        except DukascopyDayUnavailable:
+            raise                       # a broken file on the server, not throttling: no breaker
         except DukascopyRateLimited as e:
             with fail_lock:
                 streak["n"] += 1
@@ -371,13 +387,15 @@ def _fetch_dukascopy_direct(start: dt.datetime, end: dt.datetime) -> pd.DataFram
             streak["n"] = 0
         return None if body is None else _parse_bi5(body, day)
 
-    parts, errors = [], []
+    parts, errors, gaps = [], [], []
     with ThreadPoolExecutor(max_workers=max(1, DUKA_WORKERS)) as ex:
         for fut in [ex.submit(one_day, d) for d in days]:
             try:
                 r = fut.result()
                 if r is not None:
                     parts.append(r)
+            except DukascopyDayUnavailable as e:
+                gaps.append(str(e))
             except DukascopyRateLimited as e:
                 errors.append(e)
             except Exception:           # corrupt body etc.: stop queuing work, surface the real error
@@ -391,6 +409,17 @@ def _fetch_dukascopy_direct(start: dt.datetime, end: dt.datetime) -> pd.DataFram
             f"Slower is safer: set DUKASCOPY_WORKERS=1 DUKASCOPY_MIN_INTERVAL=1.0")
     if errors:
         raise DukascopyRateLimited(f"{len(errors)} day(s) failed (first: {errors[0]}); re-run to retry only those")
+    if gaps:
+        if len(gaps) > DUKA_MAX_GAP_DAYS:
+            raise DukascopyRateLimited(f"{len(gaps)} days returned HTTP 5xx (first: {gaps[0]}); "
+                                       f"the server is unhealthy -- re-run later; cached days are kept")
+        os.makedirs(os.path.dirname(GAP_LOG), exist_ok=True)
+        with open(GAP_LOG, "a", encoding="utf-8") as f:
+            for g in gaps:
+                f.write(f"{dt.datetime.now(dt.timezone.utc):%Y-%m-%dT%H:%M:%SZ},{g}\n")
+        print(f"    [WARN] {len(gaps)} day(s) skipped after persistent HTTP 5xx (logged in {GAP_LOG}): "
+              f"{'; '.join(gaps)}. To retry them later delete that year's eurusd_1min_<year>.csv "
+              f"(and the master) and re-run; downloaded days are cached.")
     print(f"    days: {stats['cached']} from cache, {stats['downloaded']} downloaded")
     if not parts:
         return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])

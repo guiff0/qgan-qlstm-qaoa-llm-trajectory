@@ -128,3 +128,30 @@ def test_rate_limit_is_fatal_in_retry_wrapper():
     with pytest.raises(a.DukascopyRateLimited):
         a._retry(boom, "t", attempts=3, base_sleep=0, fatal=(a.DukascopyRateLimited,))
     assert n["c"] == 1
+
+
+def test_persistent_5xx_on_one_day_is_skipped_not_fatal(fast, monkeypatch):
+    monkeypatch.setattr(a, "DUKA_DAY_ATTEMPTS", 2)
+    monkeypatch.setattr(a, "GAP_LOG", str(fast / "missing_days.csv"))
+    _FakeSession.script = staticmethod(
+        lambda url, n: _Resp(503) if "/2024/02/05/" in url else _Resp(200, _body()))   # 2024-03-05
+    df = a._fetch_dukascopy_direct(*_span("2024-03-04", "2024-03-07"))               # Mon-Wed
+    assert len(df) == 6                                                              # 2 good days kept
+    assert "2024-03-05" in open(a.GAP_LOG).read()
+    assert not os.path.isfile(a._day_paths(pd.Timestamp("2024-03-05"))[1])           # not cached as 'no data'
+
+
+def test_5xx_everywhere_is_still_fatal(fast, monkeypatch):
+    monkeypatch.setattr(a, "DUKA_DAY_ATTEMPTS", 1)
+    monkeypatch.setattr(a, "DUKA_MAX_GAP_DAYS", 2)
+    monkeypatch.setattr(a, "GAP_LOG", str(fast / "missing_days.csv"))
+    _FakeSession.script = staticmethod(lambda url, n: _Resp(503))
+    with pytest.raises(a.DukascopyRateLimited, match="unhealthy"):
+        a._fetch_dukascopy_direct(*_span("2024-03-04", "2024-03-12"))
+
+
+def test_429_on_a_day_is_not_downgraded_to_a_gap(fast, monkeypatch):
+    monkeypatch.setattr(a, "DUKA_DAY_ATTEMPTS", 2)
+    _FakeSession.script = staticmethod(lambda url, n: _Resp(503) if n == 0 else _Resp(429))
+    with pytest.raises(a.DukascopyRateLimited):
+        a._fetch_dukascopy_direct(*_span("2024-03-04", "2024-03-05"))

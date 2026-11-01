@@ -26,3 +26,19 @@ config/default_config.yaml, tests/test_no_config_pooling.py, tests/test_entangle
 58,061 batches/epoch (3.7M overlapping windows / 64) was ~2 h/epoch on CPU, up to 50 epochs.
 New `classical_lstm.max_batches_per_epoch: 2000` (shuffled -> fresh random subsample each epoch;
 null = old full pass) and `val_samples: 20000` (fixed-seed validation subsample). Not run here (no torch).
+
+## Dukascopy: one HTTP 503 day aborted the step (2017-08-27) -- scripts/acquire_all_data.py
+Years 2012-2016 downloaded fine (cached); 2017 stopped because a single day answered 503 six times.
+A day that fails only with 5xx (never 429/network errors) is now skipped, logged in
+data/raw/dukascopy_cache/missing_days.csv, not cached, and the year continues (tolerance
+`DUKASCOPY_MAX_GAP_DAYS`, default 5/year; more than that = server unhealthy = fatal). 429s still trip
+the breaker. To retry skipped days later: delete that year's eurusd_1min_<year>.csv and the master, re-run.
+
+## Equivalence (TOST) + revised hypotheses
+- `src/evaluation/statistical_tests.py`: `tost_equivalence` (Welch TOST on a mean difference) and
+  `tost_correlation` (Fisher-z, |r| < r0).
+- `scripts/run_hypothesis_tests.py`: `EQUIV_MARGINS` (+ `--equiv-margin KEY=VALUE`); `equivalence` blocks for
+  H1 (FID), H3 (poisoning %), H4 (RMSE vs persistence scale, ASR), `equivalence_r` for H2/H5.
+- `src/evaluation/verdicts.py`: equivalence is reported beside the superiority verdict, never rewrites it.
+- `HYPOTHESES_REVISED.md`: draft statements, margins to freeze, power table, disclosure text.
+- tests/test_equivalence_tost.py

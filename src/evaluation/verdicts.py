@@ -289,12 +289,47 @@ def verdict_m2(res):
 _FN = {"H1": verdict_h1, "H2": verdict_h2, "H3": verdict_h3, "H4": verdict_h4, "H5": verdict_h5, "M2": verdict_m2}
 
 
+def _equiv_findings(res) -> list:
+    """All TOST blocks in a hypothesis result (top level, or nested per metric for H4)."""
+    found = []
+    if isinstance(res, dict):
+        for k in ("equivalence", "equivalence_r"):
+            e = res.get(k)
+            if isinstance(e, dict) and "equivalent" in e:
+                found.append((e.get("metric") or ("r" if k == "equivalence_r" else k), e))
+        for k in ("rmse", "asr"):
+            if isinstance(res.get(k), dict):
+                found += _equiv_findings(res[k])
+    return found
+
+
+def _attach_equivalence(d: dict, res) -> None:
+    """Equivalence is a SEPARATE, secondary claim ("no difference larger than the margin"). It never rewrites
+    the superiority verdict (SUPPORTED / NOT_SUPPORTED ...); it is reported next to it, because
+    'NOT_SUPPORTED' (no superiority) and 'EQUIVALENT' (provably no meaningful difference) are different findings."""
+    items = _equiv_findings(res)
+    if not items:
+        return
+    d["equivalence"] = {}
+    for name, e in items:
+        if "r0" in e:
+            line = (f"equivalence ({name}): 90% CI of r [{e['ci_low']:.2f}, {e['ci_high']:.2f}] vs +/-{e['r0']:g} "
+                    f"-> {'EQUIVALENT TO ZERO' if e['equivalent'] else 'not shown'} (p_TOST = {e['p_tost']:.3f})")
+        else:
+            line = (f"equivalence ({name}): diff = {e['diff']:.4g}, 90% CI [{e['ci_low']:.4g}, {e['ci_high']:.4g}] "
+                    f"vs +/-{e['margin']:.4g} ({e.get('margin_rule', '')}) -> "
+                    f"{'EQUIVALENT' if e['equivalent'] else 'not shown'} (p_TOST = {e['p_tost']:.3f})")
+        d["equivalence"][name] = {"equivalent": e["equivalent"], "p_tost": e["p_tost"]}
+        d["why"].append(line)
+
+
 def compute_verdicts(out: dict) -> dict:
     """Pure function: results dict (as written by run_hypothesis_tests) -> verdicts dict."""
     v = {}
     for key, short in NAMES.items():
         try:
             v[key] = _FN[short](out.get(key, {}))
+            _attach_equivalence(v[key], out.get(key, {}))
         except Exception as exc:  # never let the verdict layer break the run
             v[key] = _out("UNTESTABLE", "NONE", "U4_verdict_error", f"{short}: verdict failed ({exc})",
                           [repr(exc)], [], "")
