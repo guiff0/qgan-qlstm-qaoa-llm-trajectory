@@ -41,6 +41,7 @@ neither had any implementation anywhere in this codebase before this:
 """
 from __future__ import annotations
 
+import gc
 import os
 
 import numpy as np
@@ -83,19 +84,26 @@ def evaluate_poisoning_resistance(model, X_test: np.ndarray, y_test: np.ndarray,
     clean_rmse: this model's own already-computed clean-data RMSE
     (self.results["rmse"]), used as the baseline for the degradation %.
     """
-    X_test = np.asarray(X_test, dtype=np.float64)
+    # MEMORY: features are kept in float32. Both linear heads below are fitted and evaluated in float32 anyway
+    # (torch.as_tensor(..., dtype=float32)), so this is numerically identical to the old float64 path but holds
+    # half the bytes, and it avoids a separate X_train_diag copy (X_mixed is built straight from the split).
+    # A 744k x 32 test set made this step fail with "Unable to allocate 90.9 MiB" on a loaded Windows machine.
+    gc.collect()
+    X_test = np.asarray(X_test, dtype=np.float32)
     y_test = np.asarray(y_test, dtype=np.float64)
     n = len(X_test)
     half = n // 2
     rng = np.random.default_rng(seed)
     perm = rng.permutation(n)
     train_idx, eval_idx = perm[:half], perm[half:]
-    X_train_diag, y_train_diag = X_test[train_idx], y_test[train_idx]
+    del perm
+    y_train_diag = y_test[train_idx]
     X_eval_diag, y_eval_diag = X_test[eval_idx], y_test[eval_idx]
+    X_mixed = X_test[train_idx]            # fancy indexing already copies; mutated in place below
+    del X_test, train_idx, eval_idx
 
     synthetic_ratio = float(getattr(model, "config", {}).get("synthetic_ratio", 0.0) or 0.0)
-    n_synth = int(len(X_train_diag) * synthetic_ratio)
-    X_mixed = X_train_diag.copy()
+    n_synth = int(len(X_mixed) * synthetic_ratio)
     if n_synth > 0 and hasattr(model, "generate_synthetic_data"):
         # Cap generated rows and resample up to n_synth (a quantum generator costs
         # ~0.8 s/row at 20 qubits; n_synth is ~149k -> ~35 h otherwise).
@@ -103,13 +111,14 @@ def evaluate_poisoning_resistance(model, X_test: np.ndarray, y_test: np.ndarray,
             max_synthetic = int(os.environ.get("GAN_EVAL_SAMPLES") or 5000)
         n_gen = min(n_synth, max_synthetic)
         with stage(f"poisoning: generate {n_gen:,} synthetic rows"):
-            synthetic = np.asarray(model.generate_synthetic_data(n_gen), dtype=np.float64)
+            synthetic = np.asarray(model.generate_synthetic_data(n_gen), dtype=np.float32)
         if n_gen < n_synth:
             synthetic = synthetic[rng.integers(0, n_gen, size=n_synth)]
         # Synthetic rows REPLACE the first n_synth rows' FEATURES only; the
         # real target at that position stays attached (standard GAN data-
         # augmentation scheme -- not a claim the generator predicts targets).
         X_mixed[:n_synth] = synthetic
+        del synthetic
     y_mixed = y_train_diag.copy()
 
     poison = invert_continuous_targets(y_mixed, fraction=fraction, seed=seed)
@@ -135,6 +144,8 @@ def evaluate_poisoning_resistance(model, X_test: np.ndarray, y_test: np.ndarray,
         if control_rmse > 0 and not np.isnan(control_rmse) else float("nan")
     )
 
+    del X_mixed, head, control_head
+    gc.collect()
     result = {
         "poisoned_rmse": poisoned_rmse,
         "poisoning_control_rmse": control_rmse,
