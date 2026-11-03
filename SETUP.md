@@ -22,7 +22,9 @@ most of it waiting on data exports and package installs, not active work.
 - **Disk space**: budget at least 15–20 GB free for the raw minute-level
   CSVs (5.5M + 5.2M rows across two sources) plus their processed/derived
   arrays.
-
+   venv\Scripts\python.exe -m scripts.freeze_preregistration
+   .\scripts\run_full_study.ps1 --n-runs 10 --dry-run
+   .\scripts\run_full_study.ps1 --n-runs 10 --workers 4
 ## 2. Python environment
 
 ```bash

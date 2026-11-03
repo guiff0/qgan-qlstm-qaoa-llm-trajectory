@@ -15,6 +15,7 @@ requests>=2.28.0
 histdata
 lxml>=4.9.0
 
+
 # Data Ingestion & Dukascopy
 dukascopy-python>=4.0.0
 

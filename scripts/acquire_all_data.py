@@ -514,7 +514,11 @@ def consolidate_dukascopy() -> None:
         print(f" -> [WARN] a gap of {gaps.max():.1f} days ending "
               f"{df.loc[gaps.idxmax(), 'timestamp']} -- inspect before training")
     _atomic_to_csv(df, DUKASCOPY_MASTER, index=False)
-    print(f"    [OK] wrote {DUKASCOPY_MASTER}")
+    # Confirm the write landed where the rest of the pipeline will look (the path is absolute, anchored at
+    # the repo root by load_config) -- never report success for a file that is not there.
+    if not os.path.isfile(DUKASCOPY_MASTER) or os.path.getsize(DUKASCOPY_MASTER) == 0:
+        raise RuntimeError(f"master CSV was not written to {DUKASCOPY_MASTER}")
+    print(f"    [OK] wrote {os.path.abspath(DUKASCOPY_MASTER)} ({os.path.getsize(DUKASCOPY_MASTER) / 1e6:,.0f} MB)")
 
 
 def _refuse_if_incomplete_year(end_year: int, now: dt.datetime = None) -> None:

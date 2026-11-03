@@ -1,0 +1,63 @@
+{
+  "frozen_utc": "20261103T050103Z",
+  "git_commit": "8c532d8601a55699d4eaf67f8f13112c5d4dab51",
+  "equivalence": {
+    "alpha": 0.05,
+    "margins": {
+      "fid": [
+        "rel_ref",
+        0.1
+      ],
+      "rmse": [
+        "rel_persistence",
+        0.02
+      ],
+      "asr": [
+        "abs",
+        5.0
+      ],
+      "poisoning": [
+        "abs",
+        5.0
+      ],
+      "r0": [
+        "abs",
+        0.3
+      ]
+    }
+  },
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "feature_map_runs": [
+    {
+      "n_qubits": 8,
+      "n_layers": 3
+    },
+    {
+      "n_qubits": 12,
+      "n_layers": 3
+    }
+  ],
+  "file_sha256": {
+    "config/default_config.yaml": "039b23a0c4661d68a2f4b447eadadc89f2209688e18c120e85355dbe24bc09a9",
+    "PREREGISTRATION.md": "e9925bac6f4a4770aea3f3846bf52854c7ce09523c356d4a6578cf9d89601b9d",
+    "scripts/run_hypothesis_tests.py": "af118d99e797187f434b678a29ccb58dd51744a2bc4fdf32dc3c3f038dde8f28",
+    "scripts/run_feature_map_experiment.py": "46ec44e093161368bee1d00b26fac5539af5e45e3019616be53370a4fc9b4f62",
+    "src/baselines/feature_map_forecaster.py": "0d07a4c8f53f9384eee4d42c3201eef5cace31ffaf64a0f3865163b76d5016c6",
+    "src/quantum/feature_map.py": "fc50f1f429e9722014fcbde27da98a0e905b69c7d4d215ef078ff6e3a7d71856",
+    "src/utils/generator_path.py": "28d25dac5efdc1bd4ecf1cfc44772158d347e4a4342b14cfb6e162e9ada97f78",
+    "src/utils/capacity_match.py": "a613d8feefdcebb4aa009dd6a87f3bee23ebb61c45b3fb5b2d4f1a3f087b51f6",
+    "src/baselines/qgan_llm.py": "84c1f9ec112ac60c97d0e08653d1b70b192bc5dfa77bca99095c1254ef180a8b",
+    "src/baselines/classical_gan_llm.py": "53886f1c0543dbd5ced97b223bf1f3c46c255550c3ec53531a3bccd7e31d9567"
+  }
+}

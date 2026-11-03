@@ -1,0 +1,351 @@
+{
+  "state": "running",
+  "updated_utc": "2026-11-03T05:02:43Z",
+  "models": [
+    "QGAN-LLM",
+    "Classical GAN-LLM",
+    "Classical GAN-LLM (matched)",
+    "QGAN-LLM (no noise)",
+    "QGAN-LLM (ent-L0 none-d4)",
+    "QGAN-LLM (ent-L2 linear-d2)",
+    "QGAN-LLM (ent-L4 ring-d4)",
+    "QGAN-LLM (ent-L6 full-d4)"
+  ],
+  "seeds": [
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52
+  ],
+  "total": 80,
+  "completed": 0,
+  "remaining": [
+    {
+      "model": "QGAN-LLM",
+      "seed": 43
+    },
+    {
+      "model": "Classical GAN-LLM",
+      "seed": 43
+    },
+    {
+      "model": "Classical GAN-LLM (matched)",
+      "seed": 43
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 43
+    },
+    {
+      "model": "QGAN-LLM (ent-L0 none-d4)",
+      "seed": 43
+    },
+    {
+      "model": "QGAN-LLM (ent-L2 linear-d2)",
+      "seed": 43
+    },
+    {
+      "model": "QGAN-LLM (ent-L4 ring-d4)",
+      "seed": 43
+    },
+    {
+      "model": "QGAN-LLM (ent-L6 full-d4)",
+      "seed": 43
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 44
+    },
+    {
+      "model": "Classical GAN-LLM",
+      "seed": 44
+    },
+    {
+      "model": "Classical GAN-LLM (matched)",
+      "seed": 44
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 44
+    },
+    {
+      "model": "QGAN-LLM (ent-L0 none-d4)",
+      "seed": 44
+    },
+    {
+      "model": "QGAN-LLM (ent-L2 linear-d2)",
+      "seed": 44
+    },
+    {
+      "model": "QGAN-LLM (ent-L4 ring-d4)",
+      "seed": 44
+    },
+    {
+      "model": "QGAN-LLM (ent-L6 full-d4)",
+      "seed": 44
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 45
+    },
+    {
+      "model": "Classical GAN-LLM",
+      "seed": 45
+    },
+    {
+      "model": "Classical GAN-LLM (matched)",
+      "seed": 45
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 45
+    },
+    {
+      "model": "QGAN-LLM (ent-L0 none-d4)",
+      "seed": 45
+    },
+    {
+      "model": "QGAN-LLM (ent-L2 linear-d2)",
+      "seed": 45
+    },
+    {
+      "model": "QGAN-LLM (ent-L4 ring-d4)",
+      "seed": 45
+    },
+    {
+      "model": "QGAN-LLM (ent-L6 full-d4)",
+      "seed": 45
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 46
+    },
+    {
+      "model": "Classical GAN-LLM",
+      "seed": 46
+    },
+    {
+      "model": "Classical GAN-LLM (matched)",
+      "seed": 46
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 46
+    },
+    {
+      "model": "QGAN-LLM (ent-L0 none-d4)",
+      "seed": 46
+    },
+    {
+      "model": "QGAN-LLM (ent-L2 linear-d2)",
+      "seed": 46
+    },
+    {
+      "model": "QGAN-LLM (ent-L4 ring-d4)",
+      "seed": 46
+    },
+    {
+      "model": "QGAN-LLM (ent-L6 full-d4)",
+      "seed": 46
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 47
+    },
+    {
+      "model": "Classical GAN-LLM",
+      "seed": 47
+    },
+    {
+      "model": "Classical GAN-LLM (matched)",
+      "seed": 47
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 47
+    },
+    {
+      "model": "QGAN-LLM (ent-L0 none-d4)",
+      "seed": 47
+    },
+    {
+      "model": "QGAN-LLM (ent-L2 linear-d2)",
+      "seed": 47
+    },
+    {
+      "model": "QGAN-LLM (ent-L4 ring-d4)",
+      "seed": 47
+    },
+    {
+      "model": "QGAN-LLM (ent-L6 full-d4)",
+      "seed": 47
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 48
+    },
+    {
+      "model": "Classical GAN-LLM",
+      "seed": 48
+    },
+    {
+      "model": "Classical GAN-LLM (matched)",
+      "seed": 48
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 48
+    },
+    {
+      "model": "QGAN-LLM (ent-L0 none-d4)",
+      "seed": 48
+    },
+    {
+      "model": "QGAN-LLM (ent-L2 linear-d2)",
+      "seed": 48
+    },
+    {
+      "model": "QGAN-LLM (ent-L4 ring-d4)",
+      "seed": 48
+    },
+    {
+      "model": "QGAN-LLM (ent-L6 full-d4)",
+      "seed": 48
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 49
+    },
+    {
+      "model": "Classical GAN-LLM",
+      "seed": 49
+    },
+    {
+      "model": "Classical GAN-LLM (matched)",
+      "seed": 49
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 49
+    },
+    {
+      "model": "QGAN-LLM (ent-L0 none-d4)",
+      "seed": 49
+    },
+    {
+      "model": "QGAN-LLM (ent-L2 linear-d2)",
+      "seed": 49
+    },
+    {
+      "model": "QGAN-LLM (ent-L4 ring-d4)",
+      "seed": 49
+    },
+    {
+      "model": "QGAN-LLM (ent-L6 full-d4)",
+      "seed": 49
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 50
+    },
+    {
+      "model": "Classical GAN-LLM",
+      "seed": 50
+    },
+    {
+      "model": "Classical GAN-LLM (matched)",
+      "seed": 50
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 50
+    },
+    {
+      "model": "QGAN-LLM (ent-L0 none-d4)",
+      "seed": 50
+    },
+    {
+      "model": "QGAN-LLM (ent-L2 linear-d2)",
+      "seed": 50
+    },
+    {
+      "model": "QGAN-LLM (ent-L4 ring-d4)",
+      "seed": 50
+    },
+    {
+      "model": "QGAN-LLM (ent-L6 full-d4)",
+      "seed": 50
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 51
+    },
+    {
+      "model": "Classical GAN-LLM",
+      "seed": 51
+    },
+    {
+      "model": "Classical GAN-LLM (matched)",
+      "seed": 51
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 51
+    },
+    {
+      "model": "QGAN-LLM (ent-L0 none-d4)",
+      "seed": 51
+    },
+    {
+      "model": "QGAN-LLM (ent-L2 linear-d2)",
+      "seed": 51
+    },
+    {
+      "model": "QGAN-LLM (ent-L4 ring-d4)",
+      "seed": 51
+    },
+    {
+      "model": "QGAN-LLM (ent-L6 full-d4)",
+      "seed": 51
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 52
+    },
+    {
+      "model": "Classical GAN-LLM",
+      "seed": 52
+    },
+    {
+      "model": "Classical GAN-LLM (matched)",
+      "seed": 52
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 52
+    },
+    {
+      "model": "QGAN-LLM (ent-L0 none-d4)",
+      "seed": 52
+    },
+    {
+      "model": "QGAN-LLM (ent-L2 linear-d2)",
+      "seed": 52
+    },
+    {
+      "model": "QGAN-LLM (ent-L4 ring-d4)",
+      "seed": 52
+    },
+    {
+      "model": "QGAN-LLM (ent-L6 full-d4)",
+      "seed": 52
+    }
+  ],
+  "pass": 1
+}
