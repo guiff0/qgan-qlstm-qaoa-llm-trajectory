@@ -8,6 +8,12 @@ FRED_API_KEY
 [System.Environment]::SetEnvironmentVariable('FRED_API_KEY', '<your-fred-key>', 'User')
 [System.Environment]::SetEnvironmentVariable('NVIDIA_API_KEY', '<your-nvidia-key>', 'User')
 
+
+python -m scripts.freeze_preregistration
+.\scripts\run_full_study.ps1 --n-runs 10 --dry-run
+.\scripts\run_full_study.ps1 --n-runs 10 --workers 4
+
+
 ## Current methodology (2-3 November 2026)
 
 The earlier comparison could not test a quantum contribution: the forecast head of both GAN models was fitted on real

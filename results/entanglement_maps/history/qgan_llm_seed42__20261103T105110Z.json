@@ -1,0 +1,44 @@
+{
+  "model": "QGAN-LLM",
+  "seed": 42,
+  "entanglement_topology": "ring",
+  "noise_strength": 0.0,
+  "n_layers": 1,
+  "n_qubits": 4,
+  "unit": "bits",
+  "mean_pairwise_mi": 0.07514925896208961,
+  "max_pairwise_mi": 0.12712658135124882,
+  "single_qubit_entropy": [
+    0.12289327862112477,
+    0.03448977300952083,
+    0.11867706025375979,
+    0.125056408194556
+  ],
+  "mutual_information": [
+    [
+      0.0,
+      0.03050451491072856,
+      0.1130449778270606,
+      0.12712658135124882
+    ],
+    [
+      0.03050451491072856,
+      0.0,
+      0.03234372779884864,
+      0.031020820156252515
+    ],
+    [
+      0.1130449778270606,
+      0.03234372779884864,
+      0.0,
+      0.11685493172839856
+    ],
+    [
+      0.12712658135124882,
+      0.031020820156252515,
+      0.11685493172839856,
+      0.0
+    ]
+  ],
+  "note": "Exact simulator statevector, fixed reference input; no density matrix is reconstructed from measurements."
+}
