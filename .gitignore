@@ -49,7 +49,7 @@ venv.bak/
 #!data/synthetic/.gitkeep
 
 # Common data file extensions
-*.csv
+#*.csv
 *.npy
 *.npz
 *.parquet
