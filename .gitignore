@@ -50,13 +50,13 @@ venv.bak/
 
 # Common data file extensions
 #*.csv
-*.npy
-*.npz
-*.parquet
-*.bi5
-*.zst
-*.h5
-*.hdf5
+#*.npy
+#*.npz
+#*.parquet
+#*.bi5
+#*.zst
+#*.h5
+#*.hdf5
 
 # ==============================================================================
 # Trained Model Checkpoints & Weights
@@ -65,10 +65,10 @@ models/*
 !.gitkeep
 #*.pt
 #*.pth
-*.bin
-*.onnx
-*.ckpt
-*.safetensors
+#*.bin
+#*.onnx
+#*.ckpt
+#*.safetensors
 
 # ==============================================================================
 # Experiment Logs, Traces, and Execution Outputs
@@ -95,15 +95,15 @@ service-account*.json
 # ==============================================================================
 # Testing, Coverage, and Quality Assurance
 # ==============================================================================
-.pytest_cache/
-.coverage
-.coverage.*
-htmlcov/
-.noserc
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
+#.pytest_cache/
+#.coverage
+#.coverage.*
+#htmlcov/
+#.noserc
+#nosetests.xml
+#coverage.xml
+#*.cover
+#.hypothesis/
 
 # ==============================================================================
 # Jupyter Notebooks & Interactive Environments
