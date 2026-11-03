@@ -10,8 +10,14 @@
 .EXAMPLE
   .\rebuild_env.ps1            # incremental: skip everything already satisfied
   .\rebuild_env.ps1 -Force     # wipe venv and rebuild
+  .\rebuild_env.ps1 -SkipPrepare   # environment only, do not run prepare_data
+
+  After the environment is verified this also runs `python -m scripts.prepare_data` (raw files -> data\processed).
+  It needs the raw files from scripts.acquire_all_data. Before preparing, it ASKS whether ingestion is needed:
+  raw data missing -> "run ingestion?"; raw data present -> "re-run ingestion to refresh?". Default is No, so the
+  ~90-minute download never starts on its own. -AcquireData answers yes without asking; -NoPrompt answers no.
 #>
-param([switch]$Force)
+param([switch]$Force, [switch]$SkipPrepare, [switch]$AcquireData, [switch]$NoPrompt)
 
 $ErrorActionPreference = "Continue"   # native stderr (pip warnings) must not abort; Invoke-Step checks exit codes
 Write-Host "=== QGAN-LLM Environment Rebuild Script ===" -ForegroundColor Cyan
@@ -158,5 +164,45 @@ if ($LASTEXITCODE -ne 0) {
 # --env-only skips raw/processed data-file checks (they don't exist right after a rebuild).
 # Run `python -m scripts.verify_environment` after data acquisition + prepare_data.
 python -m scripts.verify_environment --env-only
+
+# -----------------------------
+# 9. Prepare data (raw -> data\processed)
+# -----------------------------
+if ($SkipPrepare) {
+    Write-Host "`nSkipping prepare_data (-SkipPrepare)." -ForegroundColor Yellow
+} else {
+    # Paths come from config/default_config.yaml (anchored at the repo root by src/utils/config.py).
+    $rawPaths = @(python -c "from src.utils.config import load_config; d = load_config()['data']; print(d['dukascopy_file']); print(d['fred_file'])")
+    $missing = @($rawPaths | Where-Object { $_ -and -not (Test-Path $_) })
+
+    # Ask whether ingestion is needed (default No). acquire_all_data reuses its per-day cache and returns
+    # quickly when the master CSV already covers the study window, so answering yes on present data is cheap.
+    $ingest = [bool]$AcquireData
+    if (-not $ingest -and -not $NoPrompt) {
+        if ($missing.Count -gt 0) {
+            $q = "Raw data missing ($($missing.Count) file(s)). Run ingestion now (acquire_all_data, can take ~90 min)? [y/N]"
+        } else {
+            $q = "Raw data already present. Re-run ingestion to refresh/extend it? [y/N]"
+        }
+        $ans = Read-Host $q
+        $ingest = ($ans -match '^\s*(y|yes)\s*$')
+    }
+    if ($ingest) {
+        Write-Host "`nRunning acquire_all_data..." -ForegroundColor Cyan
+        Invoke-Step "acquire_all_data" { python -m scripts.acquire_all_data }
+        $missing = @($rawPaths | Where-Object { $_ -and -not (Test-Path $_) })
+    }
+
+    if ($missing.Count -gt 0) {
+        Write-Host "`nSkipping prepare_data: raw data file(s) not found:" -ForegroundColor Yellow
+        $missing | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+        Write-Host "Run  python -m scripts.acquire_all_data  (or rerun this script and answer y, or pass -AcquireData), then  python -m scripts.prepare_data" -ForegroundColor Yellow
+    } else {
+        Write-Host "`nRunning prepare_data..." -ForegroundColor Cyan
+        Invoke-Step "prepare_data" { python -m scripts.prepare_data }
+        Write-Host "Running full verification (including data files)..." -ForegroundColor Cyan
+        python -m scripts.verify_environment
+    }
+}
 
 Write-Host "`n=== Environment rebuild complete ===" -ForegroundColor Green

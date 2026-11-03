@@ -53,8 +53,18 @@ def main():
     # Needed by scripts/acquire_all_data.py and scripts/prepare_data.py. These were
     # previously unchecked, so a missing one only surfaced partway through a run.
     print("\n-- Data-acquisition / preparation packages --")
-    for pkg in ["yfinance", "dukascopy_python", "histdata", "psutil"]:
+    for pkg in ["yfinance", "histdata", "psutil"]:
         check(f"Package installed: {pkg}", lambda p=pkg: importlib.import_module(p) is not None)
+
+    # dukascopy_python raises NameError("requests") inside the package (a bug in the package itself, not a
+    # missing dependency, so `pip install requests` cannot fix it). scripts/acquire_all_data.py falls back to
+    # its own datafeed client, so this is a warning, not a failure.
+    try:
+        importlib.import_module("dukascopy_python")
+        print("  [ OK ] Package installed: dukascopy_python")
+    except Exception as e:
+        print(f"  [WARN] dukascopy_python unusable ({type(e).__name__}: {e}); "
+              "acquire_all_data.py uses its direct Dukascopy client instead (not a failure)")
 
     def numpy_pennylane_compat():
         import numpy
