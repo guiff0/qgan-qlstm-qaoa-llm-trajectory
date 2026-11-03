@@ -150,7 +150,7 @@ _PRIMARY_SLUG = {"QGAN-LLM": "qgan_llm", "Classical GAN-LLM": "classical_gan_llm
 _NO_NOISE_SLUG = "qgan_llm_no_noise"
 
 
-def _primary_rows(df: pd.DataFrame, model_type: str) -> tuple[pd.DataFrame, bool]:
+def _primary_rows(df: pd.DataFrame, model_type: str, slug: str | None = None) -> tuple[pd.DataFrame, bool]:
     """Rows of the PRIMARY config of `model_type`, plus whether that restriction actually applied.
 
     Every QGAN-LLM ablation (no noise, 12-qubit, linear, the entanglement-sweep levels) is stored with
@@ -160,7 +160,7 @@ def _primary_rows(df: pd.DataFrame, model_type: str) -> tuple[pd.DataFrame, bool
     (second return value False) so the caller labels the result as pooled/exploratory."""
     rows = df[df["model_type"] == model_type]
     if "run_id" in rows.columns and len(rows):
-        ok = rows["run_id"].map(config_of_run_id) == _PRIMARY_SLUG[model_type]
+        ok = rows["run_id"].map(config_of_run_id) == (slug or _PRIMARY_SLUG[model_type])
         if ok.any():
             return rows[ok], True
     return rows, False
@@ -316,7 +316,7 @@ _DEGENERATE_WHY = ("In QGAN-LLM and Classical GAN-LLM the forecast head is a lin
                    "generator (or its output) to feed the forecast -- see the Ch.4 diagnosis.")
 
 
-def _h4_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, str]:
+def _h4_rows(df: pd.DataFrame, classical_slug: str | None = None) -> tuple[pd.DataFrame, pd.DataFrame, str]:
     """Rows for the H4 comparison.
 
     * Only the PRIMARY config of each model: every QGAN-LLM ablation (no noise, 12-qubit, the entanglement
@@ -327,7 +327,7 @@ def _h4_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, str]:
       have such rows. Otherwise the comparison is the legacy head-only one, in which the forecast cannot depend
       on the generator at all (labelled so the verdict layer and the reader know).
     """
-    q, c = _primary_rows(df, QGAN)[0], _primary_rows(df, CGAN)[0]
+    q, c = _primary_rows(df, QGAN)[0], _primary_rows(df, CGAN, classical_slug)[0]
     if "forecast_path" in df.columns:
         qg, cg = q[q["forecast_path"] == "generator"], c[c["forecast_path"] == "generator"]
         if len(qg) and len(cg):
@@ -335,12 +335,13 @@ def _h4_rows(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, str]:
     return q, c, "head_only_or_mixed"
 
 
-def test_h4_quantum_advantage(df: pd.DataFrame) -> dict:
+def test_h4_quantum_advantage(df: pd.DataFrame, classical_slug: str | None = None) -> dict:
     needed = {QGAN, CGAN}
     if not needed.issubset(set(df["model_type"])):
         return {"error": f"need both {QGAN!r} and {CGAN!r} rows"}
-    q_rows, c_rows, forecast_design = _h4_rows(df)
+    q_rows, c_rows, forecast_design = _h4_rows(df, classical_slug)
     result = {"forecast_design": forecast_design,
+              "classical_comparator": classical_slug or _PRIMARY_SLUG[CGAN],
               "n_runs": {QGAN: int(len(q_rows)), CGAN: int(len(c_rows))}}
     if "rmse" in df.columns:
         a_rmse = q_rows["rmse"].dropna().to_numpy()
@@ -382,6 +383,18 @@ def test_h4_quantum_advantage(df: pd.DataFrame) -> dict:
                          "same-row-leaked values -- numbers from before that fix are "
                          "not comparable to numbers generated after it")
     return result
+
+
+def test_h4_matched_capacity(df: pd.DataFrame) -> dict:
+    """H4 again, against the classical generator matched to the QGAN's parameter count (config
+    classical_ablations). Reported BESIDE the large-classical H4 so the result brackets the capacity confound:
+    a quantum gap that survives against both is not a capacity artefact; one that appears only against the
+    matched generator is a statement about small models."""
+    slug = "classical_gan_llm_matched"
+    if "run_id" not in df.columns or not (df["run_id"].map(config_of_run_id) == slug).any():
+        return {"status": "no_matched_rows",
+                "note": f"no rows with run_id slug {slug!r}; run the 'Classical GAN-LLM (matched)' condition"}
+    return test_h4_quantum_advantage(df, classical_slug=slug)
 
 
 def test_h5_tomography_correlation(df: pd.DataFrame) -> dict:
@@ -546,7 +559,8 @@ def _status_of(result: dict) -> str:
 
 def build_summary(out: dict) -> dict:
     keys = ["H1_synthetic_data_fidelity", "H2_adversarial_resilience", "H3_poisoning_resistance",
-            "H4_quantum_advantage", "H5_threat_detection_tomography_correlation", "M2_DV2_mediation"]
+            "H4_quantum_advantage", "H4_matched_capacity", "H5_threat_detection_tomography_correlation",
+            "M2_DV2_mediation"]
     return {k: _status_of(out.get(k, {})) for k in keys}
 
 
@@ -593,10 +607,9 @@ def main():
         "H2_adversarial_resilience": _guard(test_h2_adversarial_resilience, df),
         "H3_poisoning_resistance": _guard(test_h3_poisoning_resistance, df),
         "H4_quantum_advantage": _guard(test_h4_quantum_advantage, df),
+        "H4_matched_capacity": _guard(test_h4_matched_capacity, df),
         "H5_threat_detection_tomography_correlation": _guard(test_h5_tomography_correlation, df),
         "M2_DV2_mediation": _guard(test_m2_dv2_mediation, df),
-        "QAR": _guard(test_qar, df),
-        "CQRS_per_model": _guard(compute_cqrs_per_row, df),
     }
     out["summary"] = build_summary(out)          # execution status only: could the test RUN?
     out["verdicts"] = compute_verdicts(out)       # what the test SAYS, how far to trust it, and why

@@ -33,9 +33,10 @@ MODELS = ["A", "B (x)"]
 
 def test_conditions_default_and_all():
     names = fs.build_conditions(fs.DEFAULT_LEVELS)
-    assert names[:3] == fs.PRIMARY and len(names) == 3 + 4
+    assert names[:len(fs.PRIMARY)] == fs.PRIMARY and len(names) == len(fs.PRIMARY) + 4
+    assert "Classical GAN-LLM (matched)" in fs.PRIMARY
     assert "QGAN-LLM (ent-L0 none-d4)" in names
-    assert len(fs.build_conditions("all")) == 3 + 7
+    assert len(fs.build_conditions("all")) == len(fs.PRIMARY) + 7
     with pytest.raises(SystemExit):
         fs.build_conditions((9,))
 

@@ -31,10 +31,9 @@ source venv/bin/activate          # on Windows: venv\Scripts\activate
 pip install --upgrade pip
 pip install -r requirements.txt
 ```'
-Se7rF1kGGAQ38Jjy9zjDB9DGRlb22wVO8x7Nyehy
 FRED_API_KEY
-[System.Environment]::SetEnvironmentVariable('FRED_API_KEY', '687e6d45e4a553c4e3e69e24c55fa1de', 'User')
-[System.Environment]::SetEnvironmentVariable('NVIDIA_API_KEY', 'Se7rF1kGGAQ38Jjy9zjDB9DGRlb22wVO8x7Nyehy', 'User')
+[System.Environment]::SetEnvironmentVariable('FRED_API_KEY', '<your-fred-key>', 'User')
+[System.Environment]::SetEnvironmentVariable('NVIDIA_API_KEY', '<your-nvidia-key>', 'User')
 If you have a CUDA GPU, install the CUDA-matched PyTorch build *before*
 installing the rest of `requirements.txt` (PyTorch's default pip package
 may install a CPU-only build depending on your platform) — see

@@ -1,0 +1,314 @@
+{
+  "n_rows_raw": 23,
+  "n_rows": 12,
+  "dedupe": "config_seed",
+  "n_runs_per_model": {
+    "Classical GAN-LLM": 1,
+    "Classical LSTM": 1,
+    "Classical-Features-LLM": 1,
+    "LLM Forecaster": 1,
+    "QAOA-Enhanced LLM": 1,
+    "QAOA-LLM": 1,
+    "QGAN-LLM": 4,
+    "QLSTM Forecaster": 1,
+    "QLSTM-LLM": 1
+  },
+  "n_runs_per_config": {
+    "qaoa_enhanced_llm": 1,
+    "qlstm_forecaster": 1,
+    "classical_lstm": 1,
+    "qgan_llm": 1,
+    "classical_gan_llm": 1,
+    "llm_forecaster": 1,
+    "qlstm_llm": 1,
+    "qaoa_llm": 1,
+    "classical_features_llm": 1,
+    "qgan_llm_12_qubit": 1,
+    "qgan_llm_linear_topology": 1,
+    "qgan_llm_no_noise": 1
+  },
+  "H1_synthetic_data_fidelity": {
+    "t_statistic": -4.2195175273093275,
+    "df": 3,
+    "p_value": 0.024331362500221207,
+    "case_value": 103.34409478640238,
+    "control_mean": 131.13033780911863,
+    "control_sd": 5.889955696213697,
+    "n_controls": 4,
+    "status": "exploratory_single_case",
+    "single_condition": "Classical GAN-LLM",
+    "sample_condition": "QGAN-LLM",
+    "n_per_group": {
+      "QGAN-LLM": 4,
+      "Classical GAN-LLM": 1
+    },
+    "note": "Classical GAN-LLM has ONE run, so a two-sample test is impossible. This Crawford-Howell test asks whether that single run lies outside the spread of QGAN-LLM; it is exploratory, not confirmatory.",
+    "how_to_fix": "python -m scripts.run_repeated_experiment --model \"Classical GAN-LLM\" --n-runs 2 --base-seed 43",
+    "note_covariate": "no usable 'vix' covariate (or < 2 runs per side) in results/all_results.csv -- ran a plain comparison instead of the ANCOVA Ch.3 specifies",
+    "pooled_qgan_configs": true
+  },
+  "H2_adversarial_resilience": {
+    "r": -0.9973297598255654,
+    "df": 3,
+    "p_value": 0.00016557139923433113,
+    "r_squared": 0.9946666498337199,
+    "ci_low": -0.9998327702784334,
+    "ci_high": -0.9581469983372751,
+    "status": "ok"
+  },
+  "H3_poisoning_resistance": {
+    "t_statistic": -0.12524062535048525,
+    "df": 2,
+    "p_value": 0.9117867399408432,
+    "case_value": 0.0003606299395136,
+    "control_mean": 0.00040497832909596663,
+    "control_sd": 0.00030666432627414095,
+    "n_controls": 3,
+    "status": "exploratory_single_case",
+    "single_condition": "no_noise",
+    "sample_condition": "noisy",
+    "n_per_group": {
+      "no_noise": 1,
+      "noisy": 3
+    },
+    "note": "no_noise has ONE run, so a two-sample test is impossible. This Crawford-Howell test asks whether that single run lies outside the spread of noisy; it is exploratory, not confirmatory.",
+    "how_to_fix": "python -m scripts.run_repeated_experiment --model \"QGAN-LLM (no noise)\" --n-runs 2 --base-seed 43",
+    "confound_warning": "noisy = 20-qubit ring + 12-qubit + linear-topology configs pooled; they differ from no_noise in more than the noise level only",
+    "interpretation": "positive t (no_noise mean > noisy mean) supports Ha3: noise injection -> lower poisoning degradation"
+  },
+  "H4_quantum_advantage": {
+    "rmse": {
+      "status": "degenerate_by_design",
+      "reason": "all 5 observations are identical (value=0.00013621); the quantity does not depend on the model under test, so no test statistic exists",
+      "why": "In QGAN-LLM and Classical GAN-LLM the forecast head is a linear layer fitted in closed form on REAL rows only; the generator is never on the forecast path. More seeds cannot create a difference. A quantum-vs-classical RMSE/ASR comparison needs the generator (or its output) to feed the forecast -- see the Ch.4 diagnosis.",
+      "mean_a": 0.0001362099554855,
+      "mean_b": 0.0001362099554855
+    },
+    "asr": {
+      "status": "degenerate_by_design",
+      "reason": "all 5 observations are identical (value=43.161); the quantity does not depend on the model under test, so no test statistic exists",
+      "why": "In QGAN-LLM and Classical GAN-LLM the forecast head is a linear layer fitted in closed form on REAL rows only; the generator is never on the forecast path. More seeds cannot create a difference. A quantum-vs-classical RMSE/ASR comparison needs the generator (or its output) to feed the forecast -- see the Ch.4 diagnosis."
+    },
+    "caveat": "RMSE here now reflects the fixed one-step-ahead target (see src/evaluation/one_step_ahead.py) rather than the old same-row-leaked values -- numbers from before that fix are not comparable to numbers generated after it"
+  },
+  "H5_threat_detection_tomography_correlation": {
+    "r": 0.7136986618195099,
+    "df": 2,
+    "p_value": 0.2863013381804902,
+    "r_squared": 0.5093657798829592,
+    "ci_low": -0.7876769982698618,
+    "ci_high": 0.9933918709340289,
+    "status": "ok",
+    "detector": "LLM threat probability (threat_scoring.py)",
+    "note": "accuracy column used: llm_threat_accuracy. "
+  },
+  "M2_DV2_mediation": {
+    "path_a": -0.12499999999999988,
+    "path_b": -0.5714285714285727,
+    "path_c": -2.201292032950401e-16,
+    "path_c_prime": -0.07142857142857195,
+    "indirect_effect": 0.07142857142857152,
+    "ci_low": -2.5188018541005727e-16,
+    "ci_high": 0.33333333333333304,
+    "proportion_mediated": null,
+    "significant": false,
+    "n_bootstrap": 5000,
+    "n_observations": 12,
+    "mediation_type": "none",
+    "pathway": "M2 -> DV2 (decomposes H2)",
+    "mediator_name": "Qubit Entanglement Level",
+    "dv_name": "Attack Success Rate Category",
+    "caveat": "rows here are one per model CONFIG (ablation), not one per independent experimental run -- see mediation_pipelines.py's UNIT-OF-ANALYSIS CAVEAT; treat as exploratory, not confirmatory"
+  },
+  "QAR": {
+    "qar": null,
+    "n_quantum_rows": 4,
+    "n_classical_rows": 1,
+    "caveat": "averaged over < 2 runs per side -- a point estimate, not yet a tested difference"
+  },
+  "CQRS_per_model": {
+    "QLSTM Forecaster_qlstm_forecaster_20261031T173907Z": {
+      "CQRS": 2.4669524945965193,
+      "weights_used": {
+        "qsfr": 0.29411764705882354,
+        "eer": 0.29411764705882354,
+        "ctr": 0.23529411764705885,
+        "nlcs": 0.17647058823529413
+      },
+      "missing_metrics": [
+        "qar"
+      ],
+      "renormalized": true
+    },
+    "QGAN-LLM_qgan_llm_20261031T173910Z": {
+      "CQRS": 1.9736055542169448,
+      "weights_used": {
+        "qsfr": 0.3846153846153846,
+        "eer": 0.3846153846153846,
+        "nlcs": 0.23076923076923075
+      },
+      "missing_metrics": [
+        "ctr",
+        "qar"
+      ],
+      "renormalized": true
+    },
+    "QGAN-LLM_qgan_llm_12_qubit_20261031T190846Z": {
+      "CQRS": 1.3156518356568525,
+      "weights_used": {
+        "qsfr": 0.29411764705882354,
+        "eer": 0.29411764705882354,
+        "ctr": 0.23529411764705885,
+        "nlcs": 0.17647058823529413
+      },
+      "missing_metrics": [
+        "qar"
+      ],
+      "renormalized": true
+    },
+    "QGAN-LLM_qgan_llm_linear_topology_20261031T191650Z": {
+      "CQRS": 4.558908094659905,
+      "weights_used": {
+        "qsfr": 0.29411764705882354,
+        "eer": 0.29411764705882354,
+        "ctr": 0.23529411764705885,
+        "nlcs": 0.17647058823529413
+      },
+      "missing_metrics": [
+        "qar"
+      ],
+      "renormalized": true
+    },
+    "QGAN-LLM_qgan_llm_no_noise_20261031T204052Z": {
+      "CQRS": 1.9344190403069181,
+      "weights_used": {
+        "qsfr": 0.3846153846153846,
+        "eer": 0.3846153846153846,
+        "nlcs": 0.23076923076923075
+      },
+      "missing_metrics": [
+        "ctr",
+        "qar"
+      ],
+      "renormalized": true
+    }
+  },
+  "summary": {
+    "H1_synthetic_data_fidelity": "exploratory_single_case",
+    "H2_adversarial_resilience": "ok",
+    "H3_poisoning_resistance": "exploratory_single_case",
+    "H4_quantum_advantage": "degenerate_by_design",
+    "H5_threat_detection_tomography_correlation": "ok",
+    "M2_DV2_mediation": "ok"
+  },
+  "verdicts": {
+    "H1_synthetic_data_fidelity": {
+      "verdict": "SUGGESTIVE_AGAINST",
+      "tier": "EXPLORATORY",
+      "rule": "R2x_sig_opposite_direction_exploratory",
+      "lean": "against",
+      "headline": "H1 (QGAN FID lower): SUGGESTIVE_AGAINST (exploratory) -- observed QGAN-LLM > Classical GAN-LLM, p=0.024.",
+      "why": [
+        "observed direction: QGAN-LLM > Classical GAN-LLM; hypothesis expects: QGAN-LLM < Classical GAN-LLM",
+        "single Classical GAN-LLM run = 103.3; QGAN-LLM mean = 131.1 (sd 5.89, n=4)",
+        "p = 0.024, alpha = 0.05"
+      ],
+      "blockers": [
+        "Classical GAN-LLM has only 1 run (two-sample test impossible)",
+        "QGAN-LLM runs pooled across different configs (qubits/topology/noise), so they are not repeats of one condition"
+      ],
+      "next_action": "python -m scripts.run_repeated_experiment --model \"Classical GAN-LLM\" --n-runs 2 --base-seed 43",
+      "p_value": 0.024331362500221207
+    },
+    "H2_adversarial_resilience": {
+      "verdict": "SUGGESTIVE_FOR",
+      "tier": "EXPLORATORY",
+      "rule": "R1x_sig_expected_direction_exploratory",
+      "lean": "for",
+      "headline": "H2 (entanglement vs ASR): SUGGESTIVE_FOR (exploratory) -- r=-1.00, p=<0.001, n=5.",
+      "why": [
+        "r = -0.997, 95% CI [-1.00, -0.96], p < 0.001, n = 5",
+        "hypothesis expects r < 0; observed r < 0",
+        "|r| > 0.99 on so few points usually reflects configs differing in many ways at once, not a clean dose-response"
+      ],
+      "blockers": [
+        "only n=5 points (< 10); each point is one model config, not an independent run"
+      ],
+      "next_action": "Collect >= 30 independent runs spanning entanglement levels (vary seed AND entanglement setting).",
+      "p_value": 0.00016557139923433113,
+      "r": -0.9973297598255654
+    },
+    "H3_poisoning_resistance": {
+      "verdict": "INCONCLUSIVE",
+      "tier": "EXPLORATORY",
+      "rule": "R4_underpowered_not_significant",
+      "lean": "against",
+      "headline": "H3 (noise lowers poisoning degradation): INCONCLUSIVE (exploratory) -- observed no_noise < noisy, p=0.912.",
+      "why": [
+        "observed direction: no_noise < noisy; hypothesis expects: no_noise > noisy",
+        "single no_noise run = 0.0003606; noisy mean = 0.000405 (sd 0.000307, n=3)",
+        "p = 0.912, alpha = 0.05"
+      ],
+      "blockers": [
+        "no_noise has only 1 run (two-sample test impossible)",
+        "noisy = 20-qubit ring + 12-qubit + linear-topology configs pooled; they differ from no_noise in more than the noise level only"
+      ],
+      "next_action": "python -m scripts.run_repeated_experiment --model \"QGAN-LLM (no noise)\" --n-runs 2 --base-seed 43",
+      "p_value": 0.9117867399408432
+    },
+    "H4_quantum_advantage": {
+      "verdict": "UNTESTABLE",
+      "tier": "NONE",
+      "rule": "U3_degenerate_by_design",
+      "lean": null,
+      "headline": "H4 (quantum advantage): UNTESTABLE -- RMSE and ASR are identical for QGAN and classical GAN.",
+      "why": [
+        "all 5 observations are identical (value=0.00013621); the quantity does not depend on the model under test, so no test statistic exists",
+        "all 5 observations are identical (value=43.161); the quantity does not depend on the model under test, so no test statistic exists",
+        "forecast head is a closed-form linear fit on REAL rows; the generator never reaches the forecast"
+      ],
+      "blockers": [
+        "generator is not on the forecast path -- more seeds cannot change this"
+      ],
+      "next_action": "Feed generator output into the forecast (e.g. train the head on real + synthetic rows) or restate H4 as a claim about generation quality (H1) only."
+    },
+    "H5_threat_detection_tomography_correlation": {
+      "verdict": "INCONCLUSIVE",
+      "tier": "EXPLORATORY",
+      "rule": "R4_underpowered_not_significant",
+      "lean": "for",
+      "headline": "H5 (entanglement vs detection accuracy): INCONCLUSIVE (exploratory) -- r=0.71, p=0.286, n=4.",
+      "why": [
+        "r = 0.714, 95% CI [-0.79, 0.99], p = 0.286, n = 4",
+        "hypothesis expects r > 0; observed r > 0",
+        "CI contains 0: the data are compatible with no relationship at all",
+        "~13 points would give 80% power if the true r equals the observed 0.71; 30 points if the true r is 0.5"
+      ],
+      "blockers": [
+        "only n=4 points (< 10); each point is one model config, not an independent run"
+      ],
+      "next_action": "Collect >= 30 independent runs spanning entanglement levels (vary seed AND entanglement setting).",
+      "p_value": 0.2863013381804902,
+      "r": 0.7136986618195099
+    },
+    "M2_DV2_mediation": {
+      "verdict": "INCONCLUSIVE",
+      "tier": "EXPLORATORY",
+      "rule": "R7_indirect_ci_includes_0",
+      "lean": null,
+      "headline": "M2 (entanglement mediates): INCONCLUSIVE (exploratory) -- indirect CI [-0.00, 0.33] includes 0.",
+      "why": [
+        "indirect effect = 0.071, bootstrap 95% CI [-0.000, 0.333] (5000 resamples)",
+        "proportion mediated = nan%",
+        "a-path = -0.125, b-path = -0.571, total c = -0.000, direct c' = -0.071",
+        "CI contains 0: no evidence that entanglement mediates the effect"
+      ],
+      "blockers": [
+        "12 rows are model CONFIGS, not independent runs (unit-of-analysis caveat)"
+      ],
+      "next_action": "Need repeated independent runs per config before mediation can be confirmatory."
+    }
+  },
+  "pipeline_run_id": "P20261031T173751Z-a04a86f",
+  "generated_utc": "20261101T210418Z"
+}

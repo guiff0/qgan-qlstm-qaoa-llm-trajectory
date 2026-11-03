@@ -150,6 +150,7 @@ class ClassicalGANLLM(BaseForecastingModel):
             "resume": True,                  # resume/skip from models/*.ckpt when config+seed match
             "forecast_path": "head_only",    # "generator" = forecast([X, G(X)]) -- see src/utils/generator_path.py
             "head_fit_rows": 4000,           # train rows used to fit the generator-path head
+            "generator_input_dims": None,    # generator mode: only the first k features reach G (None = all); set = qgan_llm.n_qubits
             "forecast_eval_samples": 2000,   # test rows for RMSE/MAE/ASR in generator mode (fixed-seed subsample)
             "attack_samples": 50,            # rows attacked / threat-scored in generator mode
             "forecast_chunk": 256,           # rows per generator call when predicting
@@ -182,7 +183,8 @@ class ClassicalGANLLM(BaseForecastingModel):
         if self._gen_path:
             # forecast = linear([X, G(X)]): the generator is on the inference path (generator_path.py)
             self.forecast_head = make_generator_path_head(self.generator, self.config["output_dim"],
-                                                          latent_dim=self.config["latent_dim"])
+                                                          latent_dim=self.config["latent_dim"],
+                                                          active_dims=self.config.get("generator_input_dims"))
         else:
             self.forecast_head = nn.Linear(self.config["output_dim"], 1)
         self.forecast_optimizer = torch.optim.Adam(self.forecast_head.parameters(), lr=self.config["learning_rate"])
@@ -197,6 +199,9 @@ class ClassicalGANLLM(BaseForecastingModel):
         fake_out = self.discriminator(fake.detach())
         d_loss = self.criterion(real_out, torch.ones(batch_size, 1)) + \
             self.criterion(fake_out, torch.zeros(batch_size, 1))
+
+        with torch.no_grad():  # batch accuracy of the critic (real -> 1, fake -> 0); logged per epoch as d_acc
+            self._last_d_acc = 0.5 * (float((real_out > 0.5).float().mean()) + float((fake_out <= 0.5).float().mean()))
 
         self.d_optimizer.zero_grad()
         d_loss.backward()
@@ -305,12 +310,14 @@ class ClassicalGANLLM(BaseForecastingModel):
                 idx = epoch_row_indices(n_rows, batch_size, max_batches, self.seed, epoch)
                 total_batches = (len(idx) + batch_size - 1) // batch_size
                 d_loss_total, g_loss_total, n_batches = 0.0, 0.0, 0
+                d_acc_total = 0.0
                 batch_bar = progress_bar(total=total_batches, desc=f"  epoch {epoch} batches", unit="batch")
                 for s_ in range(0, len(idx), batch_size):
                     X_batch = X_t[idx[s_:s_ + batch_size]]
                     fake = self.generator(torch.randn(len(X_batch), self.config["latent_dim"]))
                     for _ in range(self.config["n_critic"]):
                         d_loss_total += self._train_discriminator_step(X_batch, fake.detach())
+                        d_acc_total += self._last_d_acc
                     g_loss_total += self._train_generator_step(X_batch, fake)
                     n_batches += 1
                     batch_bar.update(1)
@@ -322,8 +329,9 @@ class ClassicalGANLLM(BaseForecastingModel):
 
                 d_avg = d_loss_total / max(n_batches * self.config["n_critic"], 1)
                 g_avg = g_loss_total / max(n_batches, 1)
+                d_acc_avg = d_acc_total / max(n_batches * self.config["n_critic"], 1)
                 if run_logger:
-                    run_logger.log_epoch(epoch, d_loss=d_avg, g_loss=g_avg, forecast_loss=head_mse)
+                    run_logger.log_epoch(epoch, d_loss=d_avg, g_loss=g_avg, d_acc=d_acc_avg, forecast_loss=head_mse)
 
                 # generator-path mode: only "completed" once the head has been fitted (below)
                 save_checkpoint(self.checkpoint_path,

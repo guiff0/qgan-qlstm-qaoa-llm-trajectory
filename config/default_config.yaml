@@ -110,6 +110,8 @@ classical_gan_llm:
   # behaviour (head fitted on real rows only, forecast independent of the generator).
   forecast_path: generator
   head_fit_rows: 4000           # train rows used to fit the head (each costs one generator call)
+  generator_input_dims: 20      # only the first 20 of the 32 features reach G, as the 20-qubit circuit encodes only its first n_qubits.
+  # MUST equal qgan_llm.n_qubits (tests enforce it); null would give this generator 32 inputs against the circuit's 20.
   forecast_eval_samples: 2000   # test rows scored for RMSE/MAE/ASR (fixed-seed subsample, same rows for both models)
   attack_samples: 50            # rows attacked / threat-scored (gradients go through the generator)
   forecast_chunk: 256
@@ -219,6 +221,15 @@ qgan_llm:
   resume: true
   # Resume from / skip to a matching checkpoint in models/*.ckpt.
 
+
+classical_ablations:
+# Config-defined variants of classical_gan_llm, merged over it in run_all.py exactly as `ablations` are merged
+# over qgan_llm. The matched generator brackets the capacity confound: the primary classical generator has 87,072
+# parameters against ~912 for the 20-qubit circuit (src/utils/capacity_match.py picks hidden=6 -> 896).
+  - name: "Classical GAN-LLM (matched)"
+    generator_hidden: 6
+    latent_dim: 20
+    generator_input_dims: 20
 
 ablations:
 # Config-defined variants of qgan_llm, expanded in run_all.py's main() via

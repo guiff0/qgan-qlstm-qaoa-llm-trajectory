@@ -4,12 +4,33 @@ A rebuilt, genuinely-functional version of the QGAN-LLM comparison framework
 (Classical LSTM vs. Classical GAN-LLM vs. QGAN-LLM, plus ablations) for the
 "quantum-enhanced financial forecasting + cybersecurity threat detection"
 dissertation project.
-Se7rF1kGGAQ38Jjy9zjDB9DGRlb22wVO8x7Nyehy
 FRED_API_KEY
-[System.Environment]::SetEnvironmentVariable('FRED_API_KEY', '687e6d45e4a553c4e3e69e24c55fa1de', 'User')
-[System.Environment]::SetEnvironmentVariable('NVIDIA_API_KEY', 'Se7rF1kGGAQ38Jjy9zjDB9DGRlb22wVO8x7Nyehy', 'User')
+[System.Environment]::SetEnvironmentVariable('FRED_API_KEY', '<your-fred-key>', 'User')
+[System.Environment]::SetEnvironmentVariable('NVIDIA_API_KEY', '<your-nvidia-key>', 'User')
+
+## Current methodology (2-3 November 2026)
+
+The earlier comparison could not test a quantum contribution: the forecast head of both GAN models was fitted on real
+rows only, so the generator never reached the forecast. The study is now a pre-registered, paired design
+(`PREREGISTRATION.md`, wording per outcome in `CHAPTER_FRAMING.md`, changes in `CHANGES_NOV02.md` / `CHANGES_NOV03.md`):
+
+- **Q1, feature map (3 arms):** inputs only, classical random-feature map, quantum circuit feature map; identical
+  chronological splits, seeds, ridge tuning on validation rows, target = one-step change over persistence.
+  `python -m scripts.run_feature_map_experiment --seeds 0 1 2 3 4 5 6 7 8 9 --n-qubits 8` (then 12).
+- **Q2, generator on the inference path:** forecast = linear([X, G(X)]); QGAN (about 912 parameters) against a large
+  (87,072) and a capacity-matched (896) classical generator, same 20 input features.
+  `python -m scripts.run_full_study` = 8 conditions x 10 seeds (80 runs), then the hypothesis tests.
+- **Order:** `python -m scripts.freeze_preregistration` before any confirmatory run, `--check` after.
+- **Primary metrics:** persistence skill (RMSE / persistence RMSE), RMSE, ASR, FID, latency (simulation time only).
+  QGOM, CTR, TaLIS, QAR and CQRS are not used as evidence (see PREREGISTRATION.md).
+- **Verdicts:** advantage only if the quantum arm beats both controls (paired DM, same sign in >= 8 of 10 seeds) and
+  beats persistence; equivalence by TOST; everything else is inconclusive. No confirmatory result exists yet, and
+  `scripts/verify_chapter4.py` no longer contains hard-coded manuscript numbers.
+- **Diagnostics added:** per-epoch discriminator accuracy (`d_acc`) in both GAN trainers; `scripts/run_loss_landscape.py`
+  (descriptive loss slice and Hessian sharpness of one trained generator).
+- All quantum components are classically simulated; no runtime or hardware advantage is claimed.
+
 ## Why this rebuild exists
-[System.Environment]::SetEnvironmentVariable('NVIDIA_API_KEY', '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', 'User')
 An earlier version of this codebase had two functions that returned
 hardcoded numbers instead of computing anything:
 
@@ -70,7 +91,7 @@ no data or GPU required):**
   known zero-entanglement circuit in `test_entanglement_entropy_is_zero_for_unentangled_circuit`.
 - Adversarial Success Rate was a hardcoded return. Now real FGSM/PGD/CW
   attacks with gradient-based perturbations.
-- FID/MMD/Wasserstein distance, ANCOVA/chi-square/correlation with CI,
+- FID/MMD/Wasserstein distance, paired Diebold-Mariano, Welch, Spearman/Pearson correlation with CI, TOST equivalence,
   and single-sample inference latency measurement — none of these existed
   in the original code despite Chapter 4 reporting specific numbers for
   all of them. All implemented from their standard definitions.
@@ -134,7 +155,7 @@ quantum circuit), not confounded by two different discriminators.
 through `test_rq5_entanglement_correlation.py`, sharing fixtures via
 `conftest.py`), each exercising the real metric + real statistical test
 Ch. 3/4 names for that hypothesis (FID/MMD/Wasserstein for H1, ASR +
-chi-square for H2, ANCOVA for H3, RMSE-and-ASR ANCOVA + the
+Spearman dose-response for H2, matched Welch for H3, paired Diebold-Mariano on persistence skill + the
 results-verification pipeline for H4, entanglement entropy + Pearson
 correlation for H5) against small synthetic data with a deliberately
 injected effect — a positive control (can it detect a real effect?) and,
@@ -155,7 +176,7 @@ src/data/                    Loading raw CSVs, MAD outlier cleaning, technical
 src/quantum/                 The QLSTM generator circuit (fixed) and real
                               tomography (entropy/purity/fidelity).
 src/attacks/                 Real FGSM/PGD/CW adversarial attacks.
-src/evaluation/               RMSE/MAE, FID/MMD/Wasserstein, ANCOVA/chi-sq/
+src/evaluation/               RMSE/MAE, FID/MMD/Wasserstein, DM/Welch/TOST/
                               correlation, and latency measurement.
 src/baselines/                Four model classes: ClassicalLSTM, ClassicalGANLLM,
                               QGANLLM, and QLSTMForecaster (quantum circuit as the
@@ -185,6 +206,7 @@ pytest tests/ -v        # all 31 tests: pipeline smoke tests (incl. the 4th
                           # baseline, QLSTMForecaster) + RQ1-RQ5 hypothesis
                           # tests, ~25-30 seconds total, no data or GPU needed
 ```
-
+[System.Environment]::SetEnvironmentVariable('NVIDIA_API_KEY', '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', 'User')
 Then see **SETUP.md** (getting real data + API access in place) and
 **RUNNING.md** (the actual multi-hour run, and exactly what to send back).
+[System.Environment]::SetEnvironmentVariable('FRED_API_KEY', '687e6d45e4a553c4e3e69e24c55fa1de', 'User')

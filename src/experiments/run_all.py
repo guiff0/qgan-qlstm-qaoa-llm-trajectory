@@ -225,6 +225,12 @@ def main():
         ablation_cfg = merge_override(cfg["qgan_llm"], {k: v for k, v in ablation.items() if k != "name"})
         models_to_run[ablation["name"]] = (lambda c=ablation_cfg: QGANLLM(c, seed=seed))
 
+    # Classical-GAN variants (e.g. a generator matched to the QGAN's parameter count), merged over
+    # classical_gan_llm exactly as the QGAN ablations are merged over qgan_llm.
+    for ablation in cfg.get("classical_ablations") or []:
+        c_cfg = merge_override(cfg["classical_gan_llm"], {k: v for k, v in ablation.items() if k != "name"})
+        models_to_run[ablation["name"]] = (lambda c=c_cfg: ClassicalGANLLM(c, seed=seed))
+
     if args.only:
         selected = set(name.strip() for name in args.only.split(","))
         models_to_run = {k: v for k, v in models_to_run.items() if k in selected}

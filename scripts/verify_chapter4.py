@@ -1,7 +1,7 @@
 """
 Compares ACTUAL results (results/all_results.csv, produced by a real
-run of src/experiments/run_all.py) against the dissertation's claimed
-numbers — which you enter explicitly in DISSERTATION_CLAIMS below.
+run of src/experiments/run_all.py) against any numeric claims the manuscript makes — which you
+enter explicitly in DISSERTATION_CLAIMS below (empty since 2 Nov 2026) — and prints design checks.
 
 This is deliberately NOT automatic. The original check_consistency.py
 had the dissertation's numbers hardcoded as "expected" values and
@@ -33,17 +33,11 @@ from src.utils.config import load_config
 # Leave a field as None if the manuscript doesn't claim it / you haven't
 # decided on it yet — the script will just skip that comparison and say so.
 # ---------------------------------------------------------------------------
-DISSERTATION_CLAIMS = {
-    "Classical LSTM":     {"rmse": 0.523, "asr": None},
-    "Classical GAN-LLM":  {"rmse": 0.492, "asr": 31.0},
-    "QGAN-LLM":           {"rmse": 0.364, "asr": 8.7},
-    # Manuscript text (Alternative Configurations): 12-qubit RMSE 0.452 (the
-    # previous value here, 0.432, does not appear in the manuscript); linear
-    # topology RMSE 0.350, ASR 12.1. The 12-qubit ASR of 11.3 is not found in
-    # the manuscript text -- confirm its source or set it to None.
-    "QGAN-LLM (12-qubit)":        {"rmse": 0.452, "asr": 11.3},
-    "QGAN-LLM (linear topology)": {"rmse": 0.350, "asr": 12.1},
-}
+DISSERTATION_CLAIMS: dict = {}
+# The earlier table of claimed numbers (RMSE 0.523 / 0.492 / 0.364 / 0.452 / 0.350 and ASR 31.0 / 8.7 / 11.3 /
+# 12.1) was REMOVED on 2 Nov 2026: none of those values was ever produced by a logged run, and the manuscript
+# no longer states them. Add an entry here only for a number the revised manuscript actually reports, in the
+# metric's own units, e.g.  {"QGAN-LLM": {"rmse": 0.000613, "asr": None}}.
 # ---------------------------------------------------------------------------
 
 
@@ -72,6 +66,9 @@ def main():
     print(" This does not hardcode or assume the dissertation numbers are correct.)\n")
 
     any_flagged = False
+    n_compared = 0
+    if not DISSERTATION_CLAIMS:
+        print("  (no numeric manuscript claims registered: the earlier hard-coded claims were removed)")
     for model, claims in DISSERTATION_CLAIMS.items():
         for metric, claimed_val in claims.items():
             actual_val = None
@@ -81,6 +78,7 @@ def main():
                 actual_val = None if (val != val) else float(val)  # NaN check
             line = compare_value(model, metric, claimed_val, actual_val)
             print(line)
+            n_compared += claimed_val is not None
             if "<--" in line:
                 any_flagged = True
 
@@ -100,12 +98,19 @@ def main():
         if len(pers):
             print(f"  [INFO] Test-split persistence RMSE = {pers.iloc[-1]:.6f}; every model's "
                   "rmse should be read against it (rmse_over_persistence > 1 means worse).")
-    print("  [INFO] Claimed values are on a different scale from the processed target "
-          "series (rmse ~1e-3 to 1e-1), so large percentage differences reflect unsupported "
-          "claims, not a small tolerance miss.")
+    # ---- design checks for the pre-registered paired comparison (see PREREGISTRATION.md) ----
+    if "classical_gan_llm_matched" not in summary.index:
+        print("  [WARN] No 'Classical GAN-LLM (matched)' run: the capacity-matched classical comparator "
+              "of the pre-registered Q2 is missing, so the QGAN is only compared with the 87,072-parameter generator.")
+    if "n_runs" in summary.columns or True:
+        print("  [INFO] One row per configuration is shown here; the confirmatory test needs >= 10 independent "
+              "seeds per condition (scripts.run_full_study) and is reported by scripts.run_hypothesis_tests.")
 
     print("\n" + "=" * 90)
-    if any_flagged:
+    if n_compared == 0:
+        print("No numeric manuscript claims were compared. Confirmatory conclusions come from")
+        print("scripts.run_hypothesis_tests (superiority, TOST equivalence, paired DM tests).")
+    elif any_flagged:
         print("Some values differ from the dissertation's claims by more than 1%.")
         print("This isn't necessarily wrong — it means the manuscript's number should")
         print("be updated to match this run's real output, or the run's config should")

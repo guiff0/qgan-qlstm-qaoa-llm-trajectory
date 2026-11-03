@@ -1,7 +1,7 @@
 r"""
 Launch the WHOLE confirmatory study once; it stops only when every run is done.
 
-    python -m scripts.run_full_study                       # 7 conditions x 5 seeds, then the hypothesis tests
+    python -m scripts.run_full_study                       # 8 conditions x 10 seeds, then the hypothesis tests
     python -m scripts.run_full_study --status              # what is done / remaining, nothing run
     python -m scripts.run_full_study --dry-run             # the plan, nothing run
     python -m scripts.run_full_study --n-runs 8 --levels all
@@ -47,7 +47,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts import run_repeated_experiment as rre  # noqa: E402
 from src.evaluation.entanglement_design import LEVELS, sweep_name  # noqa: E402
 
-PRIMARY = ["QGAN-LLM", "Classical GAN-LLM", "QGAN-LLM (no noise)"]
+PRIMARY = ["QGAN-LLM", "Classical GAN-LLM", "Classical GAN-LLM (matched)", "QGAN-LLM (no noise)"]
 DEFAULT_LEVELS = (0, 2, 4, 6)
 STATUS_FILE = os.path.join("logs", "full_study_status.json")
 
@@ -250,7 +250,7 @@ def run_study(models, n_runs, base_seed, config, max_stalled: int, wait_s: float
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--n-runs", type=int, default=5, help="seeds per condition (default 5)")
+    ap.add_argument("--n-runs", type=int, default=10, help="seeds per condition (default 10, as pre-registered)")
     ap.add_argument("--base-seed", type=int, default=43)
     ap.add_argument("--levels", default=",".join(map(str, DEFAULT_LEVELS)),
                     help="entanglement-sweep levels to run, e.g. 0,2,4,6 or 'all' (default 0,2,4,6)")

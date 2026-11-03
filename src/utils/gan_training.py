@@ -30,7 +30,7 @@ import torch
 _FINGERPRINT_IGNORE = {"forecast_target", "forecast_eval_samples", "attack_samples", "forecast_chunk"}
 # These two matter only when the generator is on the forecast path; in the legacy "head_only" mode they
 # are dropped so existing (12 h) checkpoints keep their fingerprint and still resume.
-_GENERATOR_PATH_KEYS = ("forecast_path", "head_fit_rows")
+_GENERATOR_PATH_KEYS = ("forecast_path", "head_fit_rows", "generator_input_dims")
 
 
 def config_fingerprint(config: dict, seed: int, tag: str = "") -> str:

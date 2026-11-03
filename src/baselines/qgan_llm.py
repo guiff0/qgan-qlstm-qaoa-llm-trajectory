@@ -137,7 +137,8 @@ class QGANLLM(BaseForecastingModel):
         self.mse_loss = nn.MSELoss()
         if self._gen_path:
             # forecast = linear([X, G(X)]): the circuit is on the inference path (generator_path.py)
-            self.forecast_head = make_generator_path_head(self.generator, self.config["n_features"])
+            self.forecast_head = make_generator_path_head(self.generator, self.config["n_features"],
+                                                          active_dims=self.config["n_qubits"])
         else:
             self.forecast_head = nn.Linear(self.config["n_features"], 1)
         self.forecast_optimizer = torch.optim.Adam(self.forecast_head.parameters(), lr=self.config["learning_rate"])
@@ -152,6 +153,9 @@ class QGANLLM(BaseForecastingModel):
         fake_out = self.discriminator(fake.detach())
         d_loss = self.criterion(real_out, torch.ones(batch_size, 1)) + \
             self.criterion(fake_out, torch.zeros(batch_size, 1))
+
+        with torch.no_grad():  # batch accuracy of the critic (real -> 1, fake -> 0); logged per epoch as d_acc
+            self._last_d_acc = 0.5 * (float((real_out > 0.5).float().mean()) + float((fake_out <= 0.5).float().mean()))
 
         self.d_optimizer.zero_grad()
         d_loss.backward()
@@ -276,6 +280,7 @@ class QGANLLM(BaseForecastingModel):
                 idx = epoch_row_indices(n_rows, batch_size, max_batches, self.seed, epoch)
                 total_batches = (len(idx) + batch_size - 1) // batch_size
                 d_loss_total, g_loss_total, n_batches = 0.0, 0.0, 0
+                d_acc_total = 0.0
                 batch_bar = progress_bar(total=total_batches, desc=f"  epoch {epoch} batches", unit="batch")
                 for s_ in range(0, len(idx), batch_size):
                     X_batch = X_t[idx[s_:s_ + batch_size]]
@@ -284,6 +289,7 @@ class QGANLLM(BaseForecastingModel):
                     fake = self.generator(torch.randn(len(X_batch), self.config["n_features"]))
                     for _ in range(self.config["n_critic"]):
                         d_loss_total += self._train_discriminator_step(X_batch, fake.detach())
+                        d_acc_total += self._last_d_acc
                     g_losses = self._train_generator_step(X_batch, fake)
                     g_loss_total += g_losses["total_loss"]
                     n_batches += 1
@@ -296,6 +302,7 @@ class QGANLLM(BaseForecastingModel):
 
                 epoch_metrics = {
                     "d_loss": d_loss_total / max(n_batches * self.config["n_critic"], 1),
+                    "d_acc": d_acc_total / max(n_batches * self.config["n_critic"], 1),
                     "g_loss": g_loss_total / max(n_batches, 1),
                     "forecast_loss": head_mse,
                 }

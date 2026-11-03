@@ -94,7 +94,8 @@ def _torch():
     return torch
 
 
-def make_generator_path_head(generator, n_features: int, latent_dim: Optional[int] = None):
+def make_generator_path_head(generator, n_features: int, latent_dim: Optional[int] = None,
+                             active_dims: Optional[int] = None):
     """Build the head module. Defined lazily so importing this file never requires torch."""
     torch = _torch()
     nn = torch.nn
@@ -112,6 +113,10 @@ def make_generator_path_head(generator, n_features: int, latent_dim: Optional[in
             self._gen_ref = [generator]
             self.n_features = int(n_features)
             self.latent_dim = None if latent_dim is None else int(latent_dim)
+            # active_dims: only the first k standardised features reach the generator; the rest are
+            # set to 0 (their mean). Gives a classical generator the SAME input information as a
+            # circuit that encodes only its first n_qubits features, so a gap is not an input-width gap.
+            self.active_dims = None if active_dims is None else int(active_dims)
             self.linear = nn.Linear(2 * self.n_features, 1)
             self.register_buffer("z_mean", torch.zeros(self.n_features))
             self.register_buffer("z_std", torch.ones(self.n_features))
@@ -122,6 +127,9 @@ def make_generator_path_head(generator, n_features: int, latent_dim: Optional[in
 
         def _latent(self, X):
             z = (X - self.z_mean) / self.z_std
+            k = self.active_dims
+            if k is not None and 0 < k < z.shape[1]:
+                z = torch.cat([z[:, :k], torch.zeros_like(z[:, k:])], dim=1)
             if self.latent_dim is not None and z.shape[1] != self.latent_dim:
                 if z.shape[1] > self.latent_dim:
                     z = z[:, : self.latent_dim]

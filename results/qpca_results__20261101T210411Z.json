@@ -1,0 +1,48 @@
+{
+  "n_rows": 20000,
+  "n_features": 5,
+  "n_clock": 9,
+  "n_clock_requested": 8,
+  "eigenvectors_match_classical": true,
+  "qubits_simulated": 15,
+  "quantum_eigenvalues": [
+    0.24195272159960263,
+    0.2129479486271721
+  ],
+  "classical_eigenvalues": [
+    0.2415743957587746,
+    0.21327141834008725
+  ],
+  "eigenvalue_max_abs_error": 0.000378325840828031,
+  "eigenvector_abs_overlap": [
+    1.0000000000000002,
+    1.0
+  ],
+  "explained_variance_ratio": [
+    0.24195272159960263,
+    0.2129479486271721
+  ],
+  "eigenvectors": [
+    [
+      0.6853718675672282,
+      0.13751784486038293
+    ],
+    [
+      0.21441442609839534,
+      -0.632923715994525
+    ],
+    [
+      -0.6415442593252911,
+      -0.33199496673428136
+    ],
+    [
+      0.14600447786338358,
+      -0.12905808289205187
+    ],
+    [
+      -0.22670578466133187,
+      0.6735130031261233
+    ]
+  ],
+  "note": "Simulated QPCA on classical data features; NOT on quantum-state metrics."
+}
