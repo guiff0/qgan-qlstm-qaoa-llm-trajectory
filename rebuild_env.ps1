@@ -146,11 +146,13 @@ if ($todo.Count -eq 0) {
 Write-Host "`nRunning environment verification..." -ForegroundColor Cyan
 
 # PyPI "dukascopy-python" is imported as `dukascopy_python` (no top-level `dukascopy`).
-python -c "import dukascopy_python; print('dukascopy_python loaded from:', dukascopy_python.__file__)"
+# Known package bug: its __init__.py annotates with `requests.Session` without importing requests, so the
+# import raises NameError even when requests is installed. Reinstalling cannot fix it, and
+# scripts/acquire_all_data.py falls back to its own Dukascopy client, so this is a warning only.
+$null = python -c "import dukascopy_python" 2>&1
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "dukascopy_python failed to import; reinstalling it..." -ForegroundColor Yellow
-    pip install --force-reinstall dukascopy-python requests
-    python -c "import dukascopy_python; print('dukascopy_python OK after reinstall')"
+    Write-Host "dukascopy_python does not import (known package bug, not a missing dependency); acquire_all_data.py uses its direct Dukascopy client instead. Continuing." -ForegroundColor Yellow
+    $global:LASTEXITCODE = 0
 }
 
 # --env-only skips raw/processed data-file checks (they don't exist right after a rebuild).
