@@ -8,6 +8,7 @@ FRED_API_KEY
 [System.Environment]::SetEnvironmentVariable('FRED_API_KEY', '<your-fred-key>', 'User')
 [System.Environment]::SetEnvironmentVariable('NVIDIA_API_KEY', '<your-nvidia-key>', 'User')
 
+python -m scripts.gen_entanglement_sweep
 
 python -m scripts.freeze_preregistration
 .\scripts\run_full_study.ps1 --n-runs 10 --dry-run

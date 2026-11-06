@@ -46,10 +46,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts import run_repeated_experiment as rre  # noqa: E402
 from src.evaluation.entanglement_design import LEVELS, sweep_name  # noqa: E402
+from scripts.study_dashboard import StudyDashboard  # noqa: E402
+from scripts.study_diagnose import diagnose_failure, one_line  # noqa: E402
 
 PRIMARY = ["QGAN-LLM", "Classical GAN-LLM", "Classical GAN-LLM (matched)", "QGAN-LLM (no noise)"]
 DEFAULT_LEVELS = (0, 2, 4, 6)
 STATUS_FILE = os.path.join("logs", "full_study_status.json")
+FAILURE_LOG = os.path.join("logs", "study", "failures.log")
+DASH: StudyDashboard | None = None      # set in main(); None (e.g. in unit tests) = plain one-line output
+
+
+def _log_path(model: str, seed: int) -> str:
+    return os.path.join("logs", "study", f"{rre._model_slug(model)}_seed{seed}.log")
 
 
 def build_conditions(levels) -> list[str]:
@@ -104,18 +112,38 @@ def _run_one(model: str, seed: int, config, env: dict, lock) -> bool:
     """One (condition, seed) run in its own process; output to logs/study/. True only if its row was recorded."""
     log_dir = os.path.join("logs", "study")
     os.makedirs(log_dir, exist_ok=True)
-    log = os.path.join(log_dir, f"{rre._model_slug(model)}_seed{seed}.log")
+    log = _log_path(model, seed)
     cmd = [sys.executable, "-m", "src.experiments.run_all", "--only", model, "--seed", str(seed)]
     if config:
         cmd += ["--config", config]
-    print(f"[worker] start  {model!r} seed {seed}  (log: {log})", flush=True)
+    if DASH:
+        DASH.run_started(model, seed, log)
+    else:
+        print(f"[worker] start  {model!r} seed {seed}  (log: {log})", flush=True)
     t0 = time.time()
     with open(log, "a", encoding="utf-8", errors="replace") as f:
+        f.write(f"\n===== attempt started {time.strftime('%Y-%m-%d %H:%M:%S')} =====\n")
+        f.flush()
         rc = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, env=env).returncode
-    ok = rc == 0 and seed in rre._csv_seeds(model)
+    recorded = seed in rre._csv_seeds(model)
+    ok = rc == 0 and recorded
     _mark_state(model, seed, ok, lock)
-    print(f"[worker] {'OK   ' if ok else 'FAIL '} {model!r} seed {seed} exit {rc} in {(time.time() - t0) / 60:.1f} min",
-          flush=True)
+    minutes = (time.time() - t0) / 60
+    why = ""
+    if not ok:
+        try:
+            why = one_line(diagnose_failure(log, rc, recorded, minutes))
+        except Exception as exc:  # noqa: BLE001  -- the diagnosis must never break the study
+            why = f"why: could not classify the failure ({exc!r}) -> fix: read {log}"
+        with lock:
+            with open(FAILURE_LOG, "a", encoding="utf-8") as ff:
+                ff.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  {model} seed {seed} exit {rc} "
+                         f"after {minutes:.1f} min  {why}\n")
+    if DASH:
+        DASH.run_finished(model, seed, ok, rc, log, why)
+    else:
+        print(f"[worker] {'OK   ' if ok else 'FAIL '} {model!r} seed {seed} exit {rc} in {minutes:.1f} min"
+              + (f"\n         {why}" if why else ""), flush=True)
     return ok
 
 
@@ -263,6 +291,10 @@ def main() -> None:
     ap.add_argument("--retry-wait", type=float, default=300.0, help="seconds between passes (default 300)")
     ap.add_argument("--allow-head-only", action="store_true", help="skip the forecast_path=generator check")
     ap.add_argument("--no-hypothesis-tests", action="store_true")
+    ap.add_argument("--no-dashboard", action="store_true",
+                    help="plain output; with --workers 1 this uses the old sequential pass")
+    ap.add_argument("--status-interval", type=float, default=120.0,
+                    help="seconds between the live per-run subtask blocks (default 120)")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--status", action="store_true")
     args = ap.parse_args()
@@ -296,9 +328,15 @@ def main() -> None:
     if args.workers < 1:
         raise SystemExit("--workers must be >= 1")
     pass_fn = None
-    if args.workers > 1:
+    if args.workers > 1 or not args.no_dashboard:       # one worker still goes through the dashboard path
         w = args.workers
         pass_fn = lambda ms, n, b, c: _run_pass_parallel(ms, n, b, c, w)   # noqa: E731
+    if not args.no_dashboard:
+        global DASH
+        DASH = StudyDashboard(models, seeds, lambda: remaining(models, seeds), _log_path,
+                              interval=args.status_interval)
+        DASH.header()
+        DASH.start_monitor()
     rc = run_study(models, args.n_runs, args.base_seed, args.config, args.max_stalled_passes, args.retry_wait,
                    run_pass=pass_fn)
     if rc != 0:

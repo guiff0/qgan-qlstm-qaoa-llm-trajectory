@@ -1,0 +1,457 @@
+{
+  "n_rows_raw": 43,
+  "n_rows": 32,
+  "dedupe": "config_seed",
+  "equivalence_margins": {
+    "fid": {
+      "kind": "rel_ref",
+      "value": 0.1
+    },
+    "rmse": {
+      "kind": "rel_persistence",
+      "value": 0.02
+    },
+    "asr": {
+      "kind": "abs",
+      "value": 5.0
+    },
+    "poisoning": {
+      "kind": "abs",
+      "value": 5.0
+    },
+    "r0": {
+      "kind": "abs",
+      "value": 0.3
+    }
+  },
+  "n_runs_per_model": {
+    "Classical GAN-LLM": 7,
+    "Classical LSTM": 1,
+    "Classical-Features-LLM": 1,
+    "LLM Forecaster": 1,
+    "QAOA-Enhanced LLM": 1,
+    "QAOA-LLM": 1,
+    "QGAN-LLM": 18,
+    "QLSTM Forecaster": 1,
+    "QLSTM-LLM": 1
+  },
+  "n_runs_per_config": {
+    "classical_gan_llm": 5,
+    "qgan_llm_ent_l0_none_d4": 4,
+    "qgan_llm_ent_l2_linear_d2": 4,
+    "qgan_llm_ent_l4_ring_d4": 4,
+    "qgan_llm_ent_l6_full_d4": 2,
+    "classical_gan_llm_matched": 2,
+    "qlstm_forecaster": 1,
+    "qaoa_enhanced_llm": 1,
+    "classical_lstm": 1,
+    "qgan_llm": 1,
+    "llm_forecaster": 1,
+    "qlstm_llm": 1,
+    "qaoa_llm": 1,
+    "classical_features_llm": 1,
+    "qgan_llm_12_qubit": 1,
+    "qgan_llm_linear_topology": 1,
+    "qgan_llm_no_noise": 1
+  },
+  "H1_synthetic_data_fidelity": {
+    "t_statistic": 0.6693325887466542,
+    "df": 4,
+    "p_value": 0.5399348380767772,
+    "case_value": 133.18279136954757,
+    "control_mean": 121.84275709756398,
+    "control_sd": 15.466134171248953,
+    "n_controls": 5,
+    "status": "exploratory_single_case",
+    "single_condition": "QGAN-LLM",
+    "sample_condition": "Classical GAN-LLM",
+    "n_per_group": {
+      "QGAN-LLM": 1,
+      "Classical GAN-LLM": 5
+    },
+    "note": "QGAN-LLM has ONE run, so a two-sample test is impossible. This Crawford-Howell test asks whether that single run lies outside the spread of Classical GAN-LLM; it is exploratory, not confirmatory.",
+    "how_to_fix": "python -m scripts.run_repeated_experiment --model \"Classical GAN-LLM\" --n-runs 2 --base-seed 43",
+    "note_covariate": "no usable 'vix' covariate (or < 2 runs per side) in results/all_results.csv -- ran a plain comparison instead of the ANCOVA Ch.3 specifies",
+    "equivalence": null,
+    "configs_used": {
+      "QGAN-LLM": "qgan_llm",
+      "Classical GAN-LLM": "classical_gan_llm"
+    },
+    "n_per_group_used": {
+      "QGAN-LLM": 1,
+      "Classical GAN-LLM": 5
+    },
+    "pooled_qgan_configs": false,
+    "pooled_classical_configs": false
+  },
+  "H2_adversarial_resilience": {
+    "r": -0.15266975079759945,
+    "df": 12,
+    "p_value": 0.6023312349421948,
+    "r_squared": 0.02330805280860112,
+    "ci_low": -0.6320509516983618,
+    "ci_high": 0.4112199852973737,
+    "status": "ok",
+    "design": "controlled_sweep",
+    "unit": "run",
+    "n_levels": 4,
+    "runs_per_level": {
+      "0": 4,
+      "2": 4,
+      "4": 4,
+      "6": 2
+    },
+    "min_runs_per_level": 2,
+    "manipulation_check_level_vs_entropy": {
+      "spearman_rho": 0.6357313035052256,
+      "p_value": 0.014542363198008178
+    },
+    "dose_response_level_vs_outcome": {
+      "outcome": "asr",
+      "spearman_rho": 0.1118057272150852,
+      "p_value": 0.7035503659360973
+    },
+    "equivalence_r": {
+      "equivalent": false,
+      "r": -0.15266975079759945,
+      "n": 14,
+      "r0": 0.3,
+      "p_lower": 0.3028496254504731,
+      "p_upper": 0.062159068846300056,
+      "p_tost": 0.3028496254504731,
+      "ci_level": 0.9,
+      "ci_low": -0.5715452731980003,
+      "ci_high": 0.32932349407785105,
+      "alpha": 0.05,
+      "reading": "no-relevant-correlation NOT shown (CI too wide or r too large)"
+    }
+  },
+  "H3_poisoning_resistance": {
+    "status": "insufficient_data",
+    "message": "insufficient data: need >= 2 observations per group, have {'no_noise': 1, 'noisy': 1} -- repeated runs needed",
+    "short_groups": {
+      "no_noise": 1,
+      "noisy": 1
+    },
+    "how_to_fix": "python -m scripts.run_repeated_experiment --model \"QGAN-LLM (no noise)\" --n-runs 2 --base-seed 43",
+    "design": "matched_config_noise_only",
+    "equivalence": null,
+    "n_per_group_used": {
+      "no_noise": 1,
+      "noisy": 1
+    },
+    "configs_used": {
+      "no_noise": "qgan_llm_no_noise",
+      "noisy": "qgan_llm"
+    },
+    "interpretation": "positive t (no_noise mean > noisy mean) supports Ha3: noise injection -> lower poisoning degradation"
+  },
+  "H4_quantum_advantage": {
+    "forecast_design": "head_only_or_mixed",
+    "classical_comparator": "classical_gan_llm",
+    "n_runs": {
+      "QGAN-LLM": 1,
+      "Classical GAN-LLM": 5
+    },
+    "rmse": {
+      "t_statistic": -1.0677002657545436,
+      "df": 4,
+      "p_value": 0.3458099292855314,
+      "case_value": 0.0001362099554855,
+      "control_mean": 0.00017703092160292001,
+      "control_sd": 3.490143672775716e-05,
+      "n_controls": 5,
+      "status": "exploratory_single_case",
+      "single_condition": "QGAN-LLM",
+      "sample_condition": "Classical GAN-LLM",
+      "n_per_group": {
+        "QGAN-LLM": 1,
+        "Classical GAN-LLM": 5
+      },
+      "note": "QGAN-LLM has ONE run, so a two-sample test is impossible. This Crawford-Howell test asks whether that single run lies outside the spread of Classical GAN-LLM; it is exploratory, not confirmatory.",
+      "how_to_fix": "python -m scripts.run_repeated_experiment --model \"QGAN-LLM\" --n-runs 2 --base-seed 43",
+      "equivalence": null
+    },
+    "asr": {
+      "t_statistic": 1.3191895400832236,
+      "df": 4,
+      "p_value": 0.2575531949840799,
+      "case_value": 43.161046504974365,
+      "control_mean": 23.43220941722393,
+      "control_sd": 13.652232144522776,
+      "n_controls": 5,
+      "status": "exploratory_single_case",
+      "single_condition": "QGAN-LLM",
+      "sample_condition": "Classical GAN-LLM",
+      "n_per_group": {
+        "QGAN-LLM": 1,
+        "Classical GAN-LLM": 5
+      },
+      "note": "QGAN-LLM has ONE run, so a two-sample test is impossible. This Crawford-Howell test asks whether that single run lies outside the spread of Classical GAN-LLM; it is exploratory, not confirmatory.",
+      "how_to_fix": "python -m scripts.run_repeated_experiment --model \"QGAN-LLM\" --n-runs 2 --base-seed 43",
+      "equivalence": null
+    },
+    "caveat": "RMSE here now reflects the fixed one-step-ahead target (see src/evaluation/one_step_ahead.py) rather than the old same-row-leaked values -- numbers from before that fix are not comparable to numbers generated after it"
+  },
+  "H4_matched_capacity": {
+    "forecast_design": "head_only_or_mixed",
+    "classical_comparator": "classical_gan_llm_matched",
+    "n_runs": {
+      "QGAN-LLM": 1,
+      "Classical GAN-LLM": 2
+    },
+    "rmse": {
+      "t_statistic": -2.234444800688921,
+      "df": 1,
+      "p_value": 0.2678928014511048,
+      "case_value": 0.0001362099554855,
+      "control_mean": 0.0001485490808947,
+      "control_sd": 4.508884580699403e-06,
+      "n_controls": 2,
+      "status": "exploratory_single_case",
+      "single_condition": "QGAN-LLM",
+      "sample_condition": "Classical GAN-LLM",
+      "n_per_group": {
+        "QGAN-LLM": 1,
+        "Classical GAN-LLM": 2
+      },
+      "note": "QGAN-LLM has ONE run, so a two-sample test is impossible. This Crawford-Howell test asks whether that single run lies outside the spread of Classical GAN-LLM; it is exploratory, not confirmatory.",
+      "how_to_fix": "python -m scripts.run_repeated_experiment --model \"QGAN-LLM\" --n-runs 2 --base-seed 43",
+      "equivalence": null
+    },
+    "asr": {
+      "t_statistic": -0.4935588586580802,
+      "df": 1,
+      "p_value": 0.7081216555469371,
+      "case_value": 43.161046504974365,
+      "control_mean": 49.99999850988388,
+      "control_sd": 11.313708246103669,
+      "n_controls": 2,
+      "status": "exploratory_single_case",
+      "single_condition": "QGAN-LLM",
+      "sample_condition": "Classical GAN-LLM",
+      "n_per_group": {
+        "QGAN-LLM": 1,
+        "Classical GAN-LLM": 2
+      },
+      "note": "QGAN-LLM has ONE run, so a two-sample test is impossible. This Crawford-Howell test asks whether that single run lies outside the spread of Classical GAN-LLM; it is exploratory, not confirmatory.",
+      "how_to_fix": "python -m scripts.run_repeated_experiment --model \"QGAN-LLM\" --n-runs 2 --base-seed 43",
+      "equivalence": null
+    },
+    "caveat": "RMSE here now reflects the fixed one-step-ahead target (see src/evaluation/one_step_ahead.py) rather than the old same-row-leaked values -- numbers from before that fix are not comparable to numbers generated after it"
+  },
+  "H5_threat_detection_tomography_correlation": {
+    "r": -0.3548631910442036,
+    "df": 12,
+    "p_value": 0.21313232599678922,
+    "r_squared": 0.12592788435807495,
+    "ci_low": -0.7451445427491075,
+    "ci_high": 0.21647488074335547,
+    "status": "ok",
+    "design": "controlled_sweep",
+    "unit": "run",
+    "n_levels": 4,
+    "runs_per_level": {
+      "0": 4,
+      "2": 4,
+      "4": 4,
+      "6": 2
+    },
+    "min_runs_per_level": 2,
+    "manipulation_check_level_vs_entropy": {
+      "spearman_rho": 0.6357313035052256,
+      "p_value": 0.014542363198008178
+    },
+    "dose_response_level_vs_outcome": {
+      "outcome": "llm_threat_accuracy",
+      "spearman_rho": -0.07907746600150586,
+      "p_value": 0.7881491652405638
+    },
+    "equivalence_r": {
+      "equivalent": false,
+      "r": -0.3548631910442036,
+      "n": 14,
+      "r0": 0.3,
+      "p_lower": 0.5807827689624161,
+      "p_upper": 0.012003500639444753,
+      "p_tost": 0.5807827689624161,
+      "ci_level": 0.9,
+      "ci_low": -0.699815425822411,
+      "ci_high": 0.1242991947265885,
+      "alpha": 0.05,
+      "reading": "no-relevant-correlation NOT shown (CI too wide or r too large)"
+    },
+    "detector": "LLM threat probability (threat_scoring.py)",
+    "note": "accuracy column used: llm_threat_accuracy. "
+  },
+  "M2_DV2_mediation": {
+    "path_a": 0.5657606329736056,
+    "path_b": -0.357692607667366,
+    "path_c": 0.16001605574613517,
+    "path_c_prime": 0.3623844518700039,
+    "indirect_effect": -0.20236839612386853,
+    "ci_low": -1.4033370975901251,
+    "ci_high": 0.19189669262761364,
+    "proportion_mediated": -1.2646755675875763,
+    "significant": false,
+    "n_bootstrap": 5000,
+    "n_observations": 14,
+    "mediation_type": "none",
+    "design": "controlled_sweep",
+    "unit": "run",
+    "n_levels": 4,
+    "runs_per_level": {
+      "0": 4,
+      "2": 4,
+      "4": 4,
+      "6": 2
+    },
+    "min_runs_per_level": 2,
+    "manipulation_check_level_vs_entropy": {
+      "spearman_rho": 0.6357313035052256,
+      "p_value": 0.014542363198008178
+    },
+    "dose_response_level_vs_outcome": {
+      "outcome": "asr",
+      "spearman_rho": 0.1118057272150852,
+      "p_value": 0.7035503659360973
+    },
+    "pathway": "designed entangling level -> measured entanglement entropy -> ASR",
+    "iv_name": "designed entangling level (L1-L6, ordinal)",
+    "mediator_name": "entanglement_entropy",
+    "dv_name": "asr",
+    "standardized": true,
+    "caveat": "circuit depth also changes parameter count; treat the level as 'entangling structure', not entanglement alone"
+  },
+  "summary": {
+    "H1_synthetic_data_fidelity": "exploratory_single_case",
+    "H2_adversarial_resilience": "ok",
+    "H3_poisoning_resistance": "insufficient_data",
+    "H4_quantum_advantage": "exploratory_single_case",
+    "H4_matched_capacity": "exploratory_single_case",
+    "H5_threat_detection_tomography_correlation": "ok",
+    "M2_DV2_mediation": "ok"
+  },
+  "verdicts": {
+    "H1_synthetic_data_fidelity": {
+      "verdict": "INCONCLUSIVE",
+      "tier": "EXPLORATORY",
+      "rule": "R4_underpowered_not_significant",
+      "lean": "against",
+      "headline": "H1 (QGAN FID lower): INCONCLUSIVE (exploratory) -- observed QGAN-LLM > Classical GAN-LLM, p=0.540.",
+      "why": [
+        "observed direction: QGAN-LLM > Classical GAN-LLM; hypothesis expects: QGAN-LLM < Classical GAN-LLM",
+        "single QGAN-LLM run = 133.2; Classical GAN-LLM mean = 121.8 (sd 15.5, n=5)",
+        "p = 0.540, alpha = 0.05"
+      ],
+      "blockers": [
+        "QGAN-LLM has only 1 run (two-sample test impossible)"
+      ],
+      "next_action": "python -m scripts.run_repeated_experiment --model \"Classical GAN-LLM\" --n-runs 2 --base-seed 43",
+      "p_value": 0.5399348380767772
+    },
+    "H2_adversarial_resilience": {
+      "verdict": "INCONCLUSIVE",
+      "tier": "EXPLORATORY",
+      "rule": "R4_underpowered_not_significant",
+      "lean": "for",
+      "headline": "H2 (entanglement vs ASR): INCONCLUSIVE (exploratory) -- r=-0.15, p=0.602, n=14.",
+      "why": [
+        "r = -0.153, 95% CI [-0.63, 0.41], p = 0.602, n = 14",
+        "hypothesis expects r < 0; observed r < 0",
+        "CI contains 0: the data are compatible with no relationship at all",
+        "~335 points would give 80% power if the true r equals the observed 0.15; 30 points if the true r is 0.5",
+        "equivalence (r): 90% CI of r [-0.57, 0.33] vs +/-0.3 -> not shown (p_TOST = 0.303)"
+      ],
+      "blockers": [
+        "thinnest sweep level has only 2 runs (< 3); per-level spread cannot be estimated"
+      ],
+      "next_action": "Collect >= 30 independent runs spanning entanglement levels (vary seed AND entanglement setting).",
+      "p_value": 0.6023312349421948,
+      "r": -0.15266975079759945,
+      "equivalence": {
+        "r": {
+          "equivalent": false,
+          "p_tost": 0.3028496254504731
+        }
+      }
+    },
+    "H3_poisoning_resistance": {
+      "verdict": "UNTESTABLE",
+      "tier": "NONE",
+      "rule": "U1_insufficient_data",
+      "lean": null,
+      "headline": "H3: not enough runs to test.",
+      "why": [
+        "insufficient data: need >= 2 observations per group, have {'no_noise': 1, 'noisy': 1} -- repeated runs needed"
+      ],
+      "blockers": [
+        "too few runs in at least one condition"
+      ],
+      "next_action": "python -m scripts.run_repeated_experiment --model \"QGAN-LLM (no noise)\" --n-runs 2 --base-seed 43"
+    },
+    "H4_quantum_advantage": {
+      "verdict": "INCONCLUSIVE",
+      "tier": "EXPLORATORY",
+      "rule": "R4_underpowered_not_significant",
+      "lean": "for",
+      "headline": "H4 (RMSE): INCONCLUSIVE (exploratory) -- observed QGAN-LLM < Classical GAN-LLM, p=0.346.",
+      "why": [
+        "observed direction: QGAN-LLM < Classical GAN-LLM; hypothesis expects: QGAN-LLM < Classical GAN-LLM",
+        "single QGAN-LLM run = 0.0001362; Classical GAN-LLM mean = 0.000177 (sd 3.49e-05, n=5)",
+        "p = 0.346, alpha = 0.05"
+      ],
+      "blockers": [
+        "QGAN-LLM has only 1 run (two-sample test impossible)"
+      ],
+      "next_action": "python -m scripts.run_repeated_experiment --model \"QGAN-LLM\" --n-runs 2 --base-seed 43",
+      "p_value": 0.3458099292855314
+    },
+    "H5_threat_detection_tomography_correlation": {
+      "verdict": "INCONCLUSIVE",
+      "tier": "EXPLORATORY",
+      "rule": "R4_underpowered_not_significant",
+      "lean": "against",
+      "headline": "H5 (entanglement vs detection accuracy): INCONCLUSIVE (exploratory) -- r=-0.35, p=0.213, n=14.",
+      "why": [
+        "r = -0.355, 95% CI [-0.75, 0.22], p = 0.213, n = 14",
+        "hypothesis expects r > 0; observed r < 0",
+        "CI contains 0: the data are compatible with no relationship at all",
+        "~61 points would give 80% power if the true r equals the observed 0.35; 30 points if the true r is 0.5",
+        "equivalence (r): 90% CI of r [-0.70, 0.12] vs +/-0.3 -> not shown (p_TOST = 0.581)"
+      ],
+      "blockers": [
+        "thinnest sweep level has only 2 runs (< 3); per-level spread cannot be estimated"
+      ],
+      "next_action": "Collect >= 30 independent runs spanning entanglement levels (vary seed AND entanglement setting).",
+      "p_value": 0.21313232599678922,
+      "r": -0.3548631910442036,
+      "equivalence": {
+        "r": {
+          "equivalent": false,
+          "p_tost": 0.5807827689624161
+        }
+      }
+    },
+    "M2_DV2_mediation": {
+      "verdict": "INCONCLUSIVE",
+      "tier": "EXPLORATORY",
+      "rule": "R7_indirect_ci_includes_0",
+      "lean": null,
+      "headline": "M2 (entanglement mediates): INCONCLUSIVE (exploratory) -- indirect CI [-1.40, 0.19] includes 0.",
+      "why": [
+        "indirect effect = -0.202, bootstrap 95% CI [-1.403, 0.192] (5000 resamples)",
+        "proportion mediated = -126%",
+        "a-path = 0.566, b-path = -0.358, total c = 0.160, direct c' = 0.362",
+        "CI contains 0: no evidence that entanglement mediates the effect"
+      ],
+      "blockers": [
+        "only 14 independent runs (< 30) for a bootstrap mediation",
+        "thinnest sweep level has only 2 runs (< 3)"
+      ],
+      "next_action": "Run >= 5 seeds per level across all 6 levels (scripts/gen_entanglement_sweep.py)."
+    }
+  },
+  "pipeline_run_id": "P20261105T000909Z-8937440",
+  "generated_utc": "20261105T000909Z"
+}

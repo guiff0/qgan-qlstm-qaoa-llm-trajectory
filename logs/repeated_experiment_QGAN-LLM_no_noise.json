@@ -1,5 +1,7 @@
 {
-  "completed_seeds": [],
+  "completed_seeds": [
+    44
+  ],
   "failed_seeds": [
     43
   ]
