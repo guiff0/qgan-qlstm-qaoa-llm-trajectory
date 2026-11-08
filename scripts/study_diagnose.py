@@ -94,8 +94,8 @@ def diagnose_failure(log_path: str, rc: int, recorded: bool = False, minutes: fl
 
     if rc == 0 and not recorded:
         return done("no_row", "the run exited cleanly but no row for this condition and seed reached results/all_results.csv",
-                    "make sure results\\all_results.csv is not open or locked and the condition name matches the config, "
-                    "then re-launch (the study retries)")
+                    "make sure results\\all_results.csv is not open or locked, the condition name matches the config, and "
+                    "(with an experiment id) src/utils/logging_utils.py is the version that writes experiment_id; then re-launch")
     code = rc & 0xFFFFFFFF if rc < 0 or rc > 255 else rc
     for rule, pat, cause, fix in RULES:
         m = re.search(pat, text, re.I | re.M)

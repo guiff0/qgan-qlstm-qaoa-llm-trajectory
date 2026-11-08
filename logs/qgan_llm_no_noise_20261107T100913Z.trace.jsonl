@@ -1,0 +1,1 @@
+{"run_id": "qgan_llm_no_noise_20261107T100913Z", "timestamp_utc": "2026-11-08T03:54:10Z", "phase": "TRAIN", "step_id": 1, "execution_time_ms": 63895790.408, "memory_usage_mb": 492.4, "metrics": {"reused_checkpoint": false, "n_train_rows": 3715921}, "severity": "INFO", "message": "Trained QGAN-LLM (no noise)"}

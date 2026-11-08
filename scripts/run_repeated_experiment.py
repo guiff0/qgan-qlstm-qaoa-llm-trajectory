@@ -48,9 +48,22 @@ import time
 
 RESULTS_CSV = os.path.join("results", "all_results.csv")
 
+# Experiment scoping (src/utils/experiment.py). None = legacy behaviour: every row of the CSV counts and the
+# state files are shared. Set by main() (--experiment-id / env EXPERIMENT_ID) or by scripts/run_full_study.py.
+EXPERIMENT_ID: str | None = None
+
+
+def set_experiment_id(eid: str | None) -> None:
+    global EXPERIMENT_ID
+    EXPERIMENT_ID = eid or None
+    if eid:
+        os.environ["EXPERIMENT_ID"] = eid        # run_all subprocesses inherit it and stamp their rows
+
 
 # ---------------------------------------------------------------- state ----
 def _state_path(tag: str) -> str:
+    if EXPERIMENT_ID:                            # per-experiment state: a second study never inherits "done"
+        return os.path.join("logs", "experiments", EXPERIMENT_ID, f"repeated_experiment_{tag}.json")
     return os.path.join("logs", f"repeated_experiment_{tag}.json")
 
 
@@ -63,7 +76,7 @@ def _load_state(tag: str) -> dict:
 
 
 def _save_state(tag: str, state: dict) -> None:
-    os.makedirs("logs", exist_ok=True)
+    os.makedirs(os.path.dirname(_state_path(tag)), exist_ok=True)
     tmp = _state_path(tag) + ".tmp"
     with open(tmp, "w") as f:
         json.dump(state, f, indent=2)
@@ -84,8 +97,9 @@ def _config_of_run_id(run_id: str) -> str:
     return re.sub(r"_\d{8}T\d{6}Z$", "", str(run_id))
 
 
-def _csv_seeds(model: str, path: str = RESULTS_CSV) -> set[int]:
-    """Seeds that already have a row in the results CSV for this model CONFIG.
+def _csv_seeds(model: str, path: str = RESULTS_CSV, experiment_id: str | None = None) -> set[int]:
+    """Seeds that already have a row in the results CSV for this model CONFIG (and, when an experiment id is
+    set, for THAT experiment only; rows with no experiment_id belong to the experiment 'unassigned').
 
     Rows are matched on the run_id slug, NOT on model_type: every QGAN-LLM ablation (no noise,
     12-qubit, the entanglement-sweep levels, ...) is written with model_type == "QGAN-LLM", so
@@ -96,9 +110,12 @@ def _csv_seeds(model: str, path: str = RESULTS_CSV) -> set[int]:
     if not os.path.isfile(path):
         return seeds
     want = _model_slug(model)
+    eid = experiment_id if experiment_id is not None else EXPERIMENT_ID
     with open(path, newline="") as f:
         for row in csv.DictReader(f):
             if row.get("seed") in (None, ""):
+                continue
+            if eid is not None and ((row.get("experiment_id") or "").strip() or "unassigned") != eid:
                 continue
             if row.get("run_id"):
                 match = _config_of_run_id(row["run_id"]) == want
@@ -145,6 +162,9 @@ def main():
                     help="State-file tag for resumability (default: derived from --model; "
                          "with several models the model name is appended)")
     ap.add_argument("--config", default=None)
+    ap.add_argument("--experiment-id", default=None,
+                    help="Group these runs under one experiment (EXP-YYYYMMDD-MACHINE-xxxx). Resume/done counts and "
+                         "state then refer to this experiment only. Default: env EXPERIMENT_ID, else legacy.")
     ap.add_argument("--dry-run", action="store_true", help="Print what would run and exit")
     ap.add_argument("--status", action="store_true", help="Print completed/remaining seeds and exit")
     ap.add_argument("--max-consecutive-failures", type=int, default=3,
@@ -152,6 +172,7 @@ def main():
                          "systematic error. 0 disables.")
     args = ap.parse_args()
 
+    set_experiment_id(args.experiment_id or os.environ.get("EXPERIMENT_ID") or None)
     models = [m.strip() for m in args.model.split(",") if m.strip()]
     if not models or args.n_runs < 1:
         ap.error("need at least one --model and --n-runs >= 1")
@@ -177,7 +198,8 @@ def main():
 
     plan = [(s, m) for s in seeds for m in models if s not in done(m)]   # seed-major => balanced groups
 
-    print(f"[run_repeated_experiment] models={models} n_runs={args.n_runs} base_seed={args.base_seed}")
+    print(f"[run_repeated_experiment] models={models} n_runs={args.n_runs} base_seed={args.base_seed} "
+          f"experiment={EXPERIMENT_ID or 'legacy (no experiment id)'}")
     for m in models:
         d = done(m) & set(seeds)
         print(f"  {m!r}: {len(d)}/{len(seeds)} done, "

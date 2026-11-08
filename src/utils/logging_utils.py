@@ -36,8 +36,11 @@ def get_environment_fingerprint() -> dict:
     """Captures exactly what ran, so results can't be second-guessed later as
     'maybe it was a different version of X'."""
     from .run_identity import pipeline_run_id
+    from .experiment import current_experiment_id, machine_slug
     fingerprint = {
         "pipeline_run_id": pipeline_run_id(),
+        "experiment_id": current_experiment_id(),     # groups every run of one study (see src/utils/experiment.py)
+        "machine": machine_slug(),
         "python_version": sys.version,
         "platform": platform.platform(),
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
@@ -153,6 +156,7 @@ class RunLogger:
         env = self.record.get("environment", {})
         row = {"run_id": self.run_id, "model_type": model_type,
                "pipeline_run_id": env.get("pipeline_run_id"), "run_utc": env.get("timestamp_utc"),
+               "experiment_id": env.get("experiment_id"), "machine": env.get("machine"),
                "git_commit": env.get("git_commit"), **metrics}
 
         with file_lock(csv_path):

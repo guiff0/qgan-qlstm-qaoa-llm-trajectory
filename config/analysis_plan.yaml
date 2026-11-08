@@ -1,0 +1,65 @@
+# Analysis plan: for every hypothesis, the five things a reviewer asked to see written down BEFORE analysis.
+# (independent variable and levels / outcome and scale / independent unit and replication / planned contrast and
+#  assumptions / fallback when assumptions fail). Read by src/evaluation/analysis_plan.py; tests/test_analysis_plan.py
+# keeps it in step with src/evaluation/verdicts.py and scripts/run_hypothesis_tests.py.
+# It adds NO new decision rule: margins, alpha and the advantage rule are those frozen in PREREGISTRATION.md.
+version: 1
+unit_of_analysis: >
+  One training run (condition x seed). Re-scoring a checkpoint is not a new observation: results are de-duplicated to the
+  newest row per (condition, seed) within one experiment. Seeds change initialisation and the scored test subsample, not the
+  chronological split, so run-to-run variance excludes split variance.
+hypotheses:
+  H1_synthetic_data_fidelity:
+    question: Does the QGAN generator produce synthetic rows closer to the real distribution than the classical GAN?
+    independent_variable: {name: generator, levels: [QGAN-LLM (20 qubits), Classical GAN-LLM]}
+    outcome: {name: fid, scale: "Frechet distance, ratio scale, lower is better"}
+    unit: run
+    replication: {planned_per_condition: 10, minimum_for_confirmatory: 10, minimum_for_any_test: 3}
+    contrast: "Welch two-sample t on run-level FID (primary); paired-by-seed t, sign test and the 8-of-10 consistency rule (secondary); TOST equivalence with margin 0.1 x |classical mean|."
+    assumptions: ["runs are independent", "FID roughly symmetric across seeds (Wilcoxon reported as a check)", "ANCOVA on VIX only if a usable covariate exists"]
+    fallback: "fewer than 3 runs in a condition: descriptive means and SDs only (verdict UNTESTABLE or EXPLORATORY); one run: Crawford-Howell single-case test, exploratory; no usable VIX covariate: plain comparison with a note."
+  H2_adversarial_resilience:
+    question: Does more entanglement lower the adversarial attack success rate?
+    independent_variable: {name: designed entangling level, levels: [0 none-d4, 2 linear-d2, 4 ring-d4, 6 full-d4], also: measured entanglement entropy}
+    outcome: {name: asr, scale: "percentage of 50 attacked windows per run, 0-100"}
+    unit: run (level x seed)
+    replication: {planned_per_condition: 10, minimum_for_confirmatory: 3, minimum_for_any_test: 4}
+    contrast: "Pearson r between entanglement and ASR over runs, 95% CI (primary); Spearman dose-response by level; TOST that |r| < 0.3."
+    assumptions: ["manipulation check: the designed level raises measured entropy (Spearman rho > 0, p < 0.05)", "circuit depth also changes parameter count, so the level is 'entangling structure', not entanglement alone"]
+    fallback: "manipulation check fails or fewer than 10 runs: exploratory tier, no confirmatory verdict."
+  H3_poisoning_resistance:
+    question: Does depolarising noise in the generator reduce degradation under data poisoning?
+    independent_variable: {name: noise_strength, levels: [0.0 (QGAN-LLM no noise), 0.01 (QGAN-LLM)]}
+    outcome: {name: poisoning_rmse_degradation_pct, scale: "percentage points of RMSE change under poisoning"}
+    unit: run
+    replication: {planned_per_condition: 10, minimum_for_confirmatory: 10, minimum_for_any_test: 3}
+    contrast: "Welch two-sample t, expected no_noise > noisy; TOST margin 5 points."
+    assumptions: ["the poisoning protocol moves the outcome: the largest absolute degradation in any run is at least 20% of the margin (1 point)"]
+    fallback: "decidability gate fails: verdict NOT_DECIDABLE (an 'equivalence' on an outcome that never moves is vacuous); remedy is a stronger poisoning protocol with a positive control, not more seeds."
+  H4_quantum_advantage:
+    question: Does the quantum generator on the forecast path beat classical generators on RMSE (persistence skill) and ASR?
+    independent_variable: {name: generator, levels: [QGAN-LLM vs Classical GAN-LLM (matched, primary), QGAN-LLM vs Classical GAN-LLM (large, bracket)]}
+    outcome: {name: "rmse (one-step change), rmse / persistence rmse, asr", scale: "ratio scale; RMSE/persistence < 1 beats 'no change'"}
+    unit: run
+    replication: {planned_per_condition: 10, minimum_for_confirmatory: 10, minimum_for_any_test: 3}
+    contrast: "Welch on run-level RMSE and ASR; paired by seed; row-level paired Diebold-Mariano per seed on identical rows with the pre-registered rule (p < 0.05 in the quantum arm's favour in >= 8 of 10 seeds AND RMSE/persistence < 1) from scripts/run_temporal_validation.py; TOST margins 2% of persistence RMSE and 5 ASR points."
+    assumptions: ["same seed => same scored rows in both arms", "capacity matched within 5% (scripts/check_balance.py)"]
+    fallback: "one quantum run: Crawford-Howell single case, exploratory; predictions not saved: row-level rule not evaluated and the run-level test is reported alone."
+  H5_threat_detection_tomography_correlation:
+    question: Does more entanglement improve LLM threat-detection accuracy?
+    independent_variable: {name: designed entangling level / measured entropy, levels: [0, 2, 4, 6]}
+    outcome: {name: llm_threat_accuracy, scale: "fraction correct over llm_threat_n windows, chance = 0.5"}
+    unit: run (level x seed)
+    replication: {planned_per_condition: 10, minimum_for_confirmatory: 3, minimum_for_any_test: 4}
+    contrast: "Pearson r (expected > 0) with 95% CI; TOST |r| < 0.3."
+    assumptions: ["the detector is above chance (pooled one-sided binomial test, alpha 0.05)", "manipulation check as in H2"]
+    fallback: "detector at chance: verdict NOT_DECIDABLE (accuracy differences are sampling noise); remedy is a detector that beats chance, verified on a positive control."
+  M2_DV2_mediation:
+    question: Does measured entanglement entropy mediate the effect of the designed level on ASR?
+    independent_variable: {name: designed entangling level (ordinal), levels: [0, 2, 4, 6], mediator: entanglement_entropy}
+    outcome: {name: asr, scale: "percentage, standardised in the model"}
+    unit: run (level x seed)
+    replication: {planned_per_condition: 10, minimum_for_confirmatory: 30, minimum_for_any_test: 10}
+    contrast: "Bootstrap (5000) indirect effect a x b with 95% percentile CI; 'proportion mediated' is not reported when the total effect is near zero."
+    assumptions: ["manipulation check passes", "at least 30 independent runs"]
+    fallback: "fewer than 30 runs or failed manipulation check: exploratory, INCONCLUSIVE when the CI contains 0."

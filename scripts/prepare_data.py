@@ -26,6 +26,7 @@ from src.data.preprocessing import (
 )
 from src.utils.config import load_config
 from src.utils.progress import progress_bar
+from src.data import variants as dv
 
 
 INDICATOR_COLS = [
@@ -144,6 +145,18 @@ def main():
     data_cfg = cfg["data"]
     target_pca_components = cfg["model"]["n_features"]
 
+    # Sensitivity variants (reviewer claim 6): one change each, written to their own folder. No flag = baseline.
+    import argparse
+    _ap = argparse.ArgumentParser(description="Prepare the processed arrays (optionally a preprocessing variant).")
+    _ap.add_argument("--variant", default="baseline", choices=dv.VARIANTS)
+    _ap.add_argument("--processed-dir", default=None,
+                     help="output folder (default: the config's, or data/processed_variants/<variant>)")
+    _args, _ = _ap.parse_known_args()
+    VARIANT, variant_info = dv.check_variant(_args.variant), {}
+    if VARIANT != "baseline" or _args.processed_dir:
+        data_cfg["processed_dir"] = _args.processed_dir or dv.default_processed_dir(VARIANT)
+    print(f" -> Preprocessing variant: {VARIANT}")
+
     print(f" -> Processed Output Directory: {data_cfg['processed_dir']}")
     print(f" -> Target PCA Features: {target_pca_components}")
     print(f" -> Initial RAM usage: {get_mem_mb():.2f} MB")
@@ -195,11 +208,18 @@ def main():
 
     print(f" -> Filtering primary indicator outliers (MAD threshold: {data_cfg['outlier_threshold_indicator']})...")
     indicator_cols_to_clean = [c for c in INDICATOR_COLS if c in merged.columns]
-    merged = clean_indicators(merged, indicator_cols_to_clean, n_mads_indicator=data_cfg["outlier_threshold_indicator"], copy=False)
+    if dv.skips_indicator_repair(VARIANT):
+        print(" -> [VARIANT no_interpolation] indicator outliers are NOT flagged or repaired")
+    else:
+        merged = clean_indicators(merged, indicator_cols_to_clean, n_mads_indicator=data_cfg["outlier_threshold_indicator"], copy=False)
     gc.collect()
+    merged, variant_info = dv.pre_features(merged, VARIANT, data_cfg)
+    if variant_info:
+        print(f" -> [VARIANT {VARIANT}] {variant_info}")
 
     print(" -> Expanding feature space to satisfy n_features=32 PCA requirement...")
     merged, feature_cols = expand_feature_space(merged)
+    merged, feature_cols = dv.post_features(merged, feature_cols, VARIANT)
 
     print(" -> Dropping NaN warmup window rows...")
     initial_rows = len(merged)
@@ -231,8 +251,8 @@ def main():
             f"Only {n_raw_features} raw features available."
         )
 
-    print(" -> Fitting StandardScaler on TRAINING split only...")
-    scaler = fit_scaler(splits["train"][feature_cols].to_numpy())
+    print(f" -> Fitting {'RobustScaler' if VARIANT == 'robust_scaler' else 'StandardScaler'} on TRAINING split only...")
+    scaler = dv.fit_variant_scaler(VARIANT, splits["train"][feature_cols].to_numpy())
 
     print(" -> Transforming training set using StandardScaler...")
     train_scaled = scaler.transform(splits["train"][feature_cols].to_numpy())
@@ -255,6 +275,8 @@ def main():
     joblib.dump(pca, os.path.join(data_cfg["processed_dir"], "pca.joblib"))
     with open(os.path.join(data_cfg["processed_dir"], "feature_cols.json"), "w", encoding="utf8") as _fh:
         _json.dump(list(feature_cols), _fh)
+    dv.write_manifest(data_cfg["processed_dir"], VARIANT, variant_info, feature_cols,
+                      {k: int(len(v)) for k, v in splits.items()})
 
     log_step(7, total_steps, "Array Export & Verification")
     t0 = time.time()

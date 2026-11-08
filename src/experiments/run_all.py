@@ -81,6 +81,7 @@ def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
                          if getattr(model, "resumed_from_checkpoint", False)
                          else f"Trained {model_name}"))
 
+    train_seconds = time.time() - t0                       # wall-clock of training (compute-budget evidence)
     attack_cfg = cfg["adversarial"]
     # last_input_prices: last observed close per test row, needed by the
     # attack success metric's directional-flip definition. This MUST be in the
@@ -99,6 +100,15 @@ def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
         attack_cfg=attack_cfg, last_input_prices=last_prices,
         llm_cfg=cfg.get("llm_pipeline"), processed_dir=cfg["data"]["processed_dir"],
     )
+    metrics["train_seconds"] = round(train_seconds, 1)
+    metrics["eval_seconds"] = round(time.time() - t0, 1)
+    # Per-row forecasts of the scored subsample, for temporal-stability and row-level paired tests
+    # (src/utils/prediction_dump.py). Never allowed to break a run.
+    try:
+        from src.utils.prediction_dump import dump_eval_predictions
+        dump_eval_predictions(model, model_name, seed, run_id, splits, cfg, metrics, run_logger)
+    except Exception as exc:  # noqa: BLE001
+        run_logger.info(f"prediction dump skipped: {exc!r}")
     # Naive benchmark every forecaster must beat: next close = current close.
     # Logged on the same test split so RMSE is comparable (see Ch. 4).
     _y = np.asarray(splits["y_test"], dtype=float).flatten()

@@ -19,6 +19,8 @@ WHY THIS EXISTS
                   INCONCLUSIVE  not significant and the test is too small/weak
                                 to call it a null (a "lean" is still reported)
                   UNTESTABLE    the design cannot produce an answer (see blockers)
+                  NOT_DECIDABLE the outcome cannot move under the current protocol (floor effect, detector at
+                                chance), so even an "equivalent" result would be vacuous (rule R9)
       TIER      how far the verdict can be trusted
                   CONFIRMATORY  enough independent observations, no known confound
                   EXPLORATORY   a p-value exists but n is small, rows are not
@@ -323,13 +325,50 @@ def _attach_equivalence(d: dict, res) -> None:
         d["why"].append(line)
 
 
+def _paired_blocks(res) -> list:
+    found = []
+    if isinstance(res, dict):
+        if isinstance(res.get("paired_by_seed"), dict) and res["paired_by_seed"].get("status") == "ok":
+            found.append(res["paired_by_seed"])
+        for k in ("rmse", "asr"):
+            if isinstance(res.get(k), dict):
+                found += _paired_blocks(res[k])
+    return found
+
+
+def _attach_paired(d: dict, res) -> None:
+    """Seed-wise (paired) evidence next to the unpaired verdict; it never changes the verdict."""
+    for pb in _paired_blocks(res):
+        rule = pb["consistency_rule"]
+        d.setdefault("paired_by_seed", {})[pb["outcome"]] = {
+            "n_pairs": pb["n_pairs"], "mean_diff": pb["mean_diff"], "p_value": pb["p_value"],
+            "consistency_rule_met": rule["met"]}
+        d["why"].append(f"paired by seed ({pb['outcome']}): n = {pb['n_pairs']}, mean diff = {pb['mean_diff']:.4g}, "
+                        f"95% CI [{pb['ci_low']:.4g}, {pb['ci_high']:.4g}], p = {pb['p_value']:.3f}; "
+                        f"{rule['reading']}: {'rule met' if rule['met'] else 'rule NOT met'}")
+
+
+def _not_decidable(short: str, dec: dict, underlying: dict) -> dict:
+    return _out("NOT_DECIDABLE", "NONE", "R9_not_decidable_by_design",
+                f"{short}: NOT_DECIDABLE -- {dec['reason']}",
+                [dec["reason"], f"(the test itself, kept for the record: {underlying['verdict']}, "
+                                f"p = {_fmt_p(underlying.get('p_value'))}; it is not evidence either way)"],
+                ["the outcome cannot answer this hypothesis under the current protocol"], dec.get("remedy", ""),
+                None, underlying={"verdict": underlying["verdict"], "p_value": underlying.get("p_value")})
+
+
 def compute_verdicts(out: dict) -> dict:
     """Pure function: results dict (as written by run_hypothesis_tests) -> verdicts dict."""
     v = {}
     for key, short in NAMES.items():
         try:
             v[key] = _FN[short](out.get(key, {}))
+            dec = out.get(key, {}).get("decidability") if isinstance(out.get(key), dict) else None
+            if isinstance(dec, dict) and dec.get("decidable") is False:
+                v[key] = _not_decidable(short, dec, v[key])      # a vacuous test is not reported as a result
+                continue
             _attach_equivalence(v[key], out.get(key, {}))
+            _attach_paired(v[key], out.get(key, {}))
         except Exception as exc:  # never let the verdict layer break the run
             v[key] = _out("UNTESTABLE", "NONE", "U4_verdict_error", f"{short}: verdict failed ({exc})",
                           [repr(exc)], [], "")

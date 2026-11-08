@@ -42,8 +42,13 @@ from src.evaluation.entanglement_design import MIN_RUNS_PER_LEVEL, sweep_subset
 from src.evaluation.mediation import mediation_analysis
 from src.utils.run_identity import config_of_run_id
 from src.utils.require_results import require_results
+from src.utils import experiment as exp
+from src.evaluation.paired_tests import paired_by_seed
+from src.evaluation import analysis_plan as aplan
+from src.evaluation.decidability import detector_gate, poisoning_gate
 
 QGAN, CGAN = "QGAN-LLM", "Classical GAN-LLM"
+PAIRED_ENABLED = True       # main() turns this off when several experiments are pooled (seeds would be ambiguous)
 
 
 # ---- Equivalence (TOST) margins: the smallest difference that would matter. FIX THESE BEFORE the confirmatory
@@ -192,6 +197,9 @@ def test_h1_synthetic_data_fidelity(df: pd.DataFrame) -> dict:
                                     "results/all_results.csv -- ran a plain comparison instead of "
                                     "the ANCOVA Ch.3 specifies")
     result["equivalence"] = _equivalence(q_rows["fid"].to_numpy(), c_rows["fid"].to_numpy(), "fid")
+    if PAIRED_ENABLED and len(q_rows) and len(c_rows):
+        result["paired_by_seed"] = paired_by_seed(
+            q_rows, c_rows, "fid", margin=_margin_value("fid", float(c_rows["fid"].mean()))[0])
     n_q, n_c = _n_configs(q_rows), _n_configs(c_rows)
     result["configs_used"] = {QGAN: _PRIMARY_SLUG[QGAN] if q_primary else "all rows (no primary-config rows found)",
                               CGAN: _PRIMARY_SLUG[CGAN] if c_primary else "all rows (no primary-config rows found)"}
@@ -297,6 +305,10 @@ def test_h3_poisoning_resistance(df: pd.DataFrame) -> dict:
             result["configs_used"] = {"no_noise": _NO_NOISE_SLUG, "noisy": _PRIMARY_SLUG[QGAN]}
             result["interpretation"] = ("positive t (no_noise mean > noisy mean) supports Ha3: "
                                         "noise injection -> lower poisoning degradation")
+            result["decidability"] = poisoning_gate(
+                list(nn_rows[col].dropna()) + list(noisy_rows[col].dropna()), EQUIV_MARGINS["poisoning"][1])
+            if PAIRED_ENABLED:
+                result["paired_by_seed"] = paired_by_seed(nn_rows, noisy_rows, col)
             return result
     no_noise = q.loc[q["noise_strength"] == 0, col].dropna().to_numpy()
     noisy = q.loc[q["noise_strength"] > 0, col].dropna().to_numpy()
@@ -307,6 +319,7 @@ def test_h3_poisoning_resistance(df: pd.DataFrame) -> dict:
                                   "configs; they differ from no_noise in more than the noise level only")
     result["interpretation"] = ("positive t (no_noise mean > noisy mean) supports Ha3: "
                                  "noise injection -> lower poisoning degradation")
+    result["decidability"] = poisoning_gate(list(no_noise) + list(noisy), EQUIV_MARGINS["poisoning"][1])
     return result
 
 
@@ -360,6 +373,9 @@ def test_h4_quantum_advantage(df: pd.DataFrame, classical_slug: str | None = Non
             pers = (float(pd.concat([q_rows, c_rows])["persistence_rmse"].mean())
                     if "persistence_rmse" in q_rows.columns else None)
             result["rmse"]["equivalence"] = _equivalence(a_rmse, b_rmse, "rmse", pers)
+            if PAIRED_ENABLED:
+                result["rmse"]["paired_by_seed"] = paired_by_seed(
+                    q_rows, c_rows, "rmse", margin=_margin_value("rmse", float(np.mean(b_rmse)), pers)[0])
     else:
         result["rmse"] = {"error": "no 'rmse' column"}
     if "asr" in df.columns:
@@ -372,6 +388,9 @@ def test_h4_quantum_advantage(df: pd.DataFrame, classical_slug: str | None = Non
         else:
             result["asr"] = _compare_two(a_asr, b_asr, QGAN, CGAN, REPEAT_CMD.format(model=QGAN, n=2))
             result["asr"]["equivalence"] = _equivalence(a_asr, b_asr, "asr")
+            if PAIRED_ENABLED:
+                result["asr"]["paired_by_seed"] = paired_by_seed(
+                    q_rows, c_rows, "asr", margin=_margin_value("asr", float(np.mean(b_asr)))[0])
     else:
         result["asr"] = {"error": "no 'asr' column"}
     if forecast_design == "generator_on_forecast_path":
@@ -410,6 +429,8 @@ def test_h5_tomography_correlation(df: pd.DataFrame) -> dict:
         sub = df.dropna(subset=["entanglement_entropy", col])
         if len(sub) >= 4 or col == "accuracy":
             result = _entropy_correlation(sub, col)
+            if col == "llm_threat_accuracy" and "llm_threat_n" in sub.columns:
+                result["decidability"] = detector_gate(sub[col].to_numpy(), sub["llm_threat_n"].to_numpy())
             result["detector"] = detector
             result["note"] = (f"accuracy column used: {col}. "
                               + ("" if col == "llm_threat_accuracy" else
@@ -576,6 +597,11 @@ def main():
                     help="override an equivalence margin value, e.g. fid=0.15 asr=3 rmse=0.01 r0=0.25 "
                          "(keeps the margin's kind; see EQUIV_MARGINS). Fix margins BEFORE the confirmatory runs.")
     ap.add_argument("--no-dedupe", action="store_true", help="same as --dedupe none")
+    ap.add_argument("--experiment-id", default=None,
+                    help="analyse ONE experiment (EXP-...); several comma-separated ids need --pool-experiments. "
+                         "Without it the results file must contain exactly one experiment.")
+    ap.add_argument("--pool-experiments", action="store_true",
+                    help="allow several experiments in one analysis (paired-by-seed tests are then not reported)")
     args = ap.parse_args()
     for item in args.equiv_margin:
         k, _, v = item.partition("=")
@@ -585,6 +611,16 @@ def main():
 
     require_results(args.results_csv, "run_hypothesis_tests")   # exits with "run src.experiments.run_all first" if empty
     df = pd.read_csv(args.results_csv)
+    n_file = len(df)
+    experiments_in_file = exp.experiments_in(df)
+    try:
+        df, used_ids = exp.select_experiments(
+            df, [x.strip() for x in (args.experiment_id or "").split(",")], pool=args.pool_experiments)
+    except exp.ExperimentError as err:
+        raise SystemExit(f"[experiment] {err}")
+    overlap = exp.seed_overlap(df) if len(used_ids) > 1 else {}
+    global PAIRED_ENABLED
+    PAIRED_ENABLED = len(used_ids) <= 1
     n_raw = len(df)
     mode = "none" if args.no_dedupe else args.dedupe
     if mode == "config_seed":
@@ -596,6 +632,13 @@ def main():
         df.loc[legacy, ["asr", "asr_clean"]] = float("nan")  # scored against a non-price column
 
     out = {
+        "analysis_plan_sha": aplan.plan_sha() if os.path.isfile(aplan.PLAN_PATH) else None,
+        "experiment_id": used_ids[0] if len(used_ids) == 1 else None,
+        "experiments_used": used_ids,
+        "experiments_in_file": experiments_in_file,
+        "pooled_experiments": len(used_ids) > 1,
+        "seed_overlap_between_experiments": overlap,
+        "n_rows_in_file": n_file,
         "n_rows_raw": n_raw,
         "n_rows": len(df),
         "dedupe": mode,
@@ -612,6 +655,7 @@ def main():
         "M2_DV2_mediation": _guard(test_m2_dv2_mediation, df),
     }
     out["summary"] = build_summary(out)          # execution status only: could the test RUN?
+    out["planned_vs_ran"] = aplan.planned_vs_ran(out)   # planned analysis, what ran, which fallback fired
     out["verdicts"] = compute_verdicts(out)       # what the test SAYS, how far to trust it, and why
 
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)

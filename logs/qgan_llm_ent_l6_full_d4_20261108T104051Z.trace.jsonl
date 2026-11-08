@@ -1,0 +1,1 @@
+{"run_id": "qgan_llm_ent_l6_full_d4_20261108T104051Z", "timestamp_utc": "2026-11-08T10:58:41Z", "phase": "TRAIN", "step_id": 1, "execution_time_ms": 1067983.253, "memory_usage_mb": 1260.98, "metrics": {"reused_checkpoint": false, "n_train_rows": 3715921}, "severity": "INFO", "message": "Trained QGAN-LLM (ent-L6 full-d4)"}

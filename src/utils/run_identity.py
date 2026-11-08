@@ -40,8 +40,14 @@ def latest_per_config_seed(df):
     out["config"] = out["run_id"].map(config_of_run_id)
     out["_ts"] = out["run_id"].astype(str).str.extract(r"(\d{8}T\d{6}Z)$")[0]
     out["_seed"] = out["seed"].fillna(-1) if "seed" in out.columns else -1
-    out = out.sort_values("_ts").drop_duplicates(subset=["config", "_seed"], keep="last")
-    return out.drop(columns=["_ts", "_seed"]).reset_index(drop=True)
+    # The same (config, seed) in two different experiments are two independent runs, not a re-evaluation:
+    # de-duplicate within an experiment only (rows with no experiment_id all belong to 'unassigned').
+    if "experiment_id" in out.columns:
+        out["_exp"] = out["experiment_id"].fillna("").astype(str).str.strip().replace("", "unassigned")
+    else:
+        out["_exp"] = "unassigned"
+    out = out.sort_values("_ts").drop_duplicates(subset=["config", "_seed", "_exp"], keep="last")
+    return out.drop(columns=["_ts", "_seed", "_exp"]).reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------

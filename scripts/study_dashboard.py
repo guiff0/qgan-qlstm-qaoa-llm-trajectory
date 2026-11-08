@@ -77,7 +77,8 @@ def parse_log(path: str) -> dict:
 
 
 class StudyDashboard:
-    def __init__(self, models, seeds, remaining_fn, log_path_fn, interval: float = 120.0):
+    def __init__(self, models, seeds, remaining_fn, log_path_fn, interval: float = 120.0, experiment_id=None):
+        self.experiment_id = experiment_id
         self.models, self.seeds = list(models), list(seeds)
         self.remaining_fn, self.log_path_fn = remaining_fn, log_path_fn
         self.interval, self.t0 = interval, time.time()
@@ -94,7 +95,8 @@ class StudyDashboard:
         done_now = self.n_start - len(todo)
         elapsed = time.time() - self.t0
         eta = f"ETA {fmt_dur(elapsed / done_now * len(todo))}" if done_now > 0 and todo else "ETA n/a (no run finished yet)"
-        lines = [f"[study] {len(self.models)} conditions x {len(self.seeds)} seeds = {total} runs; {len(todo)} remaining",
+        lines = ([f"[experiment] {self.experiment_id}"] if self.experiment_id else []) + [
+                 f"[study] {len(self.models)} conditions x {len(self.seeds)} seeds = {total} runs; {len(todo)} remaining",
                  f"overall {bar(done, total)}  elapsed {fmt_dur(elapsed)}  {eta}"]
         if per_condition:
             left = {}

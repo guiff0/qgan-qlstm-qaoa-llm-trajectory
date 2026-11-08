@@ -2,6 +2,7 @@
 
   python -m scripts.freeze_preregistration            # write results/preregistration_<UTC>.json (never overwrites)
   python -m scripts.freeze_preregistration --check    # compare the working tree with the newest frozen record
+  python -m scripts.freeze_preregistration --record-deviation "reason"   # log a post-freeze change of a tracked file
 
 The record holds the equivalence margins, the decision rules (PREREGISTRATION.md, hashed), the config, the hashes
 of the files that define the experiment, the seeds, and the git commit when available. `--check` exits 1 and names
@@ -61,26 +62,74 @@ def _latest() -> str | None:
     return files[-1] if files else None
 
 
+def _deviations() -> list:
+    out = []
+    for f in sorted(glob.glob(os.path.join(ROOT, "results", "deviations_*.json"))):
+        try:
+            out.append(json.load(open(f)))
+        except (OSError, ValueError):
+            pass
+    return out
+
+
 def check() -> int:
     path = _latest()
     if not path:
         print("no frozen record found: run without --check first")
         return 2
     frozen, now = json.load(open(path)), build_record()
-    changed = [f"{p}: file changed" for p, h in frozen["file_sha256"].items() if now["file_sha256"].get(p) != h]
+    recorded = {(p, v["sha256_now"]): d["reason"] for d in _deviations() if d.get("frozen_record") == os.path.basename(path)
+                for p, v in d.get("changed_files", {}).items()}
+    changed, noted = [], []
+    for p, h in frozen["file_sha256"].items():
+        if now["file_sha256"].get(p) != h:
+            why = recorded.get((p, now["file_sha256"].get(p)))
+            (noted if why else changed).append(f"{p}: file changed" + (f"  [recorded deviation: {why}]" if why else ""))
     if frozen["equivalence"] != now["equivalence"]:
-        changed.append("equivalence margins / alpha changed")
+        changed.append("equivalence margins / alpha changed (decision rules: never a quiet deviation)")
     if frozen["seeds"] != now["seeds"]:
         changed.append("seed list changed")
     print(f"frozen record: {os.path.basename(path)} (commit {frozen.get('git_commit')})")
-    print("\n".join(changed) if changed else "nothing changed since the freeze")
+    if noted:
+        print("changes recorded as deviations:\n  " + "\n  ".join(noted))
+    print("UNRECORDED changes:\n  " + "\n  ".join(changed) if changed else
+          ("no unrecorded changes since the freeze" if noted else "nothing changed since the freeze"))
     return 1 if changed else 0
+
+
+def record_deviation(reason: str) -> int:
+    """Log the current state of every tracked file that differs from the freeze, with a reason. The margins, alpha and
+    seeds must be unchanged: those are decision rules and cannot be recorded away."""
+    path = _latest()
+    if not path:
+        print("no frozen record found: nothing to deviate from")
+        return 2
+    frozen, now = json.load(open(path)), build_record()
+    files = {p: {"sha256_frozen": h, "sha256_now": now["file_sha256"].get(p)}
+             for p, h in frozen["file_sha256"].items() if now["file_sha256"].get(p) != h}
+    rules_changed = frozen["equivalence"] != now["equivalence"] or frozen["seeds"] != now["seeds"]
+    rec = {"recorded_utc": now["frozen_utc"], "reason": reason, "frozen_record": os.path.basename(path),
+           "git_commit": now["git_commit"], "changed_files": files, "decision_rules_changed": rules_changed}
+    out = os.path.join(ROOT, "results", f"deviations_{now['frozen_utc']}.json")
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    with open(out, "x") as fh:
+        json.dump(rec, fh, indent=2)
+    print(f"recorded {len(files)} changed file(s) -> {out}")
+    if rules_changed:
+        print("WARNING: margins / alpha / seeds differ from the freeze. That is a change of decision rules, not a "
+              "tooling deviation; it must be reported as such.")
+        return 1
+    return 0
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--record-deviation", metavar="REASON", default=None,
+                    help="log tracked files that changed since the freeze, with this reason")
     args = ap.parse_args()
+    if args.record_deviation:
+        return record_deviation(args.record_deviation)
     if args.check:
         return check()
     rec = build_record()
