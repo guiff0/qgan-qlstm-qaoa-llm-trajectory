@@ -32,6 +32,7 @@ import pennylane as qml
 import torch
 import torch.nn as nn
 
+from .entangler import apply_entangler
 from .pqc_runner import PQCRunner
 
 
@@ -80,20 +81,7 @@ def build_qlstm_qnode(n_qubits: int, n_layers: int, entanglement: str,
                 qml.RY(weights[..., idx + 1], wires=q)
                 qml.RZ(weights[..., idx + 2], wires=q)
 
-            if entanglement == "ring":
-                for q in range(n_qubits):
-                    qml.CNOT(wires=[q, (q + 1) % n_qubits])
-            elif entanglement == "full":
-                for i in range(n_qubits):
-                    for j in range(i + 1, n_qubits):
-                        qml.CNOT(wires=[i, j])
-            elif entanglement == "linear":
-                for q in range(n_qubits - 1):
-                    qml.CNOT(wires=[q, q + 1])
-            elif entanglement == "none":
-                pass  # product-state control: no entangling gates (zero-entanglement sweep level)
-            else:
-                raise ValueError(f"Unknown entanglement topology: {entanglement}")
+            apply_entangler(entanglement, n_qubits, layer, n_layers)
 
         return [qml.expval(qml.PauliZ(i)) for i in range(n_qubits)]
 
@@ -123,16 +111,7 @@ def apply_circuit_gates_only(inputs_np, weights_np, n_qubits: int, n_layers: int
                 qml.RY(weights[idx + 1], wires=q)
                 qml.RZ(weights[idx + 2], wires=q)
 
-            if entanglement == "ring":
-                for q in range(n_qubits):
-                    qml.CNOT(wires=[q, (q + 1) % n_qubits])
-            elif entanglement == "full":
-                for i in range(n_qubits):
-                    for j in range(i + 1, n_qubits):
-                        qml.CNOT(wires=[i, j])
-            elif entanglement == "linear":
-                for q in range(n_qubits - 1):
-                    qml.CNOT(wires=[q, q + 1])
+            apply_entangler(entanglement, n_qubits, layer, n_layers)
 
     return lambda weights: _apply(weights if weights is not None else weights_np)
 

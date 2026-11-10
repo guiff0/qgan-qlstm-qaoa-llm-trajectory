@@ -1,5 +1,11 @@
 r"""
-Launch the WHOLE confirmatory study once; it stops only when every run is done.
+Launch the study once; it stops only when every run is done.
+
+DEFAULT = REDUCED 25-run plan (5 conditions x 5 seeds: QGAN-LLM, Classical GAN-LLM (matched), QGAN-LLM (no noise),
+ent-L0, ent-L6). It is NOT the pre-registered design (lower power): report it as reduced/exploratory. Pass --full for the
+pre-registered 8 conditions x 10 seeds = 80 runs. The hypothesis tests are not run automatically on the reduced plan
+(pass --hypothesis-tests). Relaunching resumes the experiment with the same plan; a plan that differs from the ACTIVE
+experiment automatically starts (or resumes) its own experiment instead of refusing.
 
     python -m scripts.run_full_study                       # 8 conditions x 10 seeds, then the hypothesis tests
     python -m scripts.run_full_study --status              # what is done / remaining, nothing run
@@ -29,6 +35,10 @@ WHAT "ONLY STOPS WHEN DONE" MEANS
   * On Windows it asks the OS not to sleep while running (the display may still turn off).
   * When all runs are complete it runs scripts.run_hypothesis_tests and writes logs/full_study_status.json.
 
+FIRST (unless --no-prepare) it runs `scripts.run_study --only calibrate --apply-calibration`, so the H3 poisoning strength is
+calibrated and written to the config before anything else, then checks the pre-registration freeze (pass
+--record-deviation "<reason>" to record an intended Amendment; otherwise unrecorded changes are listed as a WARNING).
+
 Before starting it (a) regenerates the entanglement-sweep config block (idempotent), and (b) refuses to run if
 forecast_path is not 'generator' in both GAN sections, because H4 would then be untestable
 (override with --allow-head-only).
@@ -38,6 +48,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from datetime import datetime, timezone
 import subprocess
 import sys
 import time
@@ -52,9 +63,14 @@ from src.utils import experiment as exp  # noqa: E402
 
 PRIMARY = ["QGAN-LLM", "Classical GAN-LLM", "Classical GAN-LLM (matched)", "QGAN-LLM (no noise)"]
 DEFAULT_LEVELS = (0, 2, 4, 6)
+# DEFAULT PLAN = the reduced 25-run study: 5 conditions x 5 seeds. `--full` restores the pre-registered 8 x 10 = 80 runs.
+REDUCED_CONDITIONS = ["QGAN-LLM", "Classical GAN-LLM (matched)", "QGAN-LLM (no noise)",
+                      "QGAN-LLM (ent-L0 none-d4)", "QGAN-LLM (ent-L6 full-d4)"]
+REDUCED_N_RUNS, FULL_N_RUNS = 5, 10
 STATUS_FILE = os.path.join("logs", "full_study_status.json")
 DASH: StudyDashboard | None = None      # set in main(); None (e.g. in unit tests) = plain one-line output
 EXPERIMENT: str | None = None           # experiment id of this launch (None = legacy, no id)
+COMPAT_STAMP = False                    # True when the run path does not stamp experiment_id: the launcher stamps each row
 
 
 def _study_dir() -> str:
@@ -72,14 +88,16 @@ def _log_path(model: str, seed: int) -> str:
 
 def resolve_experiment(models, seeds, base_seed: int, config: str | None, *, experiment_id=None, new=False,
                        label: str = "", legacy: bool = False, create: bool = True, csv_path: str | None = None,
-                       root: str = exp.EXPERIMENT_ROOT, parent: str | None = None) -> str | None:
+                       root: str = exp.EXPERIMENT_ROOT, parent: str | None = None, auto_adopt: bool = True) -> str | None:
     """Decide which experiment this launch belongs to. Never guesses when a mistake would mix two studies.
 
       --legacy              no id (old behaviour; rows are 'unassigned')
       --experiment-id X     join/resume X (created with this plan if new; a different plan under the same id is refused)
       --new-experiment      a fresh id (machine name + date + random suffix)
       neither               resume the ACTIVE experiment when its plan matches; start a new one on a clean results
-                            folder; REFUSE when results already hold rows that belong to no experiment."""
+                            folder; when results already hold unlabelled rows, create a DEFAULT experiment and adopt the
+                            rows that belong to this plan (same conditions and seeds), so finished work is not repeated.
+                            Rows outside the plan stay 'unassigned'. --no-auto-adopt refuses instead."""
     if legacy:
         return None
     csv_path = csv_path or rre.RESULTS_CSV
@@ -110,14 +128,26 @@ def resolve_experiment(models, seeds, base_seed: int, config: str | None, *, exp
                     print(f"[experiment] note: {csv_path} holds rows ({listing}) and no experiment is active; "
                           f"showing the legacy view. See `python -m scripts.experiments list`.")
                     return None
-                raise SystemExit(
-                    f"[experiment] {csv_path} already holds rows ({listing}) but no experiment is active, so this "
-                    f"launch cannot tell whether it continues them. Choose one:\n"
-                    f"  continue earlier unlabelled runs : python -m scripts.experiments adopt --since <UTC date> --apply\n"
-                    f"                                      then re-launch (it resumes the adopted experiment)\n"
-                    f"  start a separate study           : add --new-experiment\n"
-                    f"  old behaviour, no id             : add --legacy")
-            eid = exp.new_experiment_id()
+                if not auto_adopt:
+                    raise SystemExit(
+                        f"[experiment] {csv_path} already holds rows ({listing}) but no experiment is active, so this "
+                        f"launch cannot tell whether it continues them. Choose one:\n"
+                        f"  continue earlier unlabelled runs : python -m scripts.experiments adopt --since <UTC date> --apply\n"
+                        f"                                      then re-launch (it resumes the adopted experiment)\n"
+                        f"  start a separate study           : add --new-experiment\n"
+                        f"  old behaviour, no id             : add --legacy")
+                from scripts.experiments import adopt
+                eid = exp.new_experiment_id()
+                rep = adopt(eid, "", conditions=models, seeds=seeds, base_seed=base_seed,
+                            label=label or "default experiment (adopted earlier unlabelled rows of this plan)",
+                            csv_path=csv_path, root=root, apply=True, config_path=config)
+                print(f"[experiment] no experiment was active and {csv_path} holds unlabelled rows ({listing}). "
+                      f"Created the DEFAULT experiment {eid} and adopted {rep['rows_to_stamp']} row(s) that match this plan "
+                      f"({', '.join(f'{k}: {v}' for k, v in sorted(rep['per_condition'].items())) or 'none'}); "
+                      f"{rep['unlabelled_rows_left_alone']} other unlabelled row(s) stay 'unassigned'. "
+                      f"The CSV was archived first ({rep.get('csv_archive', 'n/a')}).", flush=True)
+            else:
+                eid = exp.new_experiment_id()
     if not create:
         return eid
     exp.create_experiment(eid, conditions=models, seeds=seeds, base_seed=base_seed, label=label,
@@ -176,8 +206,7 @@ def _mark_state(model: str, seed: int, ok: bool, lock) -> None:
 
 def _run_one(model: str, seed: int, config, env: dict, lock) -> bool:
     """One (condition, seed) run in its own process; output to logs/study/. True only if its row was recorded."""
-    log_dir = os.path.join("logs", "study")
-    os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(_study_dir(), exist_ok=True)         # logs/study/<experiment id>/ (created on first use)
     log = _log_path(model, seed)
     cmd = [sys.executable, "-m", "src.experiments.run_all", "--only", model, "--seed", str(seed)]
     if config:
@@ -187,10 +216,16 @@ def _run_one(model: str, seed: int, config, env: dict, lock) -> bool:
     else:
         print(f"[worker] start  {model!r} seed {seed}  (log: {log})", flush=True)
     t0 = time.time()
+    t0_utc = datetime.now(timezone.utc).isoformat()
     with open(log, "a", encoding="utf-8", errors="replace") as f:
         f.write(f"\n===== attempt started {time.strftime('%Y-%m-%d %H:%M:%S')} =====\n")
         f.flush()
         rc = subprocess.run(cmd, stdout=f, stderr=subprocess.STDOUT, env=env).returncode
+    if COMPAT_STAMP and EXPERIMENT and rc == 0:          # run path without stamping: label the row it just wrote
+        try:
+            exp.stamp_new_rows(rre.RESULTS_CSV, EXPERIMENT, rre._model_slug(model), seed, t0_utc, machine=exp.machine_slug())
+        except Exception as exc:  # noqa: BLE001
+            print(f"[experiment] could not stamp the row of {model!r} seed {seed}: {exc!r}", flush=True)
     recorded = seed in rre._csv_seeds(model)
     ok = rc == 0 and recorded
     _mark_state(model, seed, ok, lock)
@@ -359,9 +394,60 @@ def run_study(models, n_runs, base_seed, config, max_stalled: int, wait_s: float
         sleep(pause)
 
 
+def default_plan_experiment(models, seeds) -> tuple[str | None, bool]:
+    """(experiment id to resume, start_new) when the user named no experiment. Resumes the ACTIVE one if its plan matches,
+    else the newest experiment whose plan matches, else asks for a new one when the active plan differs."""
+    try:
+        active = exp.get_active()
+        mans = exp.list_experiments()
+    except Exception:  # noqa: BLE001
+        return None, False
+    same = [m for m in mans if sorted(m["conditions"]) == sorted(models) and sorted(m["seeds"]) == sorted(seeds)]
+    if active and any(m["experiment_id"] == active for m in same):
+        return active, False
+    if same:
+        return same[-1]["experiment_id"], False
+    return None, bool(active)
+
+
+def prepare_study(args) -> None:
+    """Calibrate H3 (scripts.run_study --only calibrate --apply-calibration), then check the pre-registration freeze.
+    Calibration failing stops the launch; an unrecorded freeze drift only WARNS here (the strict gate is
+    `scripts.run_study`, stage freeze) unless --strict-freeze is given. Idempotent: no-op when already calibrated."""
+    from scripts import run_study as rs
+    print("\n[prepare] 1/2 calibrate (python -m scripts.run_study --only calibrate --apply-calibration)", flush=True)
+    argv = ["--only", "calibrate", "--force", "--config", args.config]
+    argv += ["--allow-uncalibrated"] if args.allow_uncalibrated else ["--apply-calibration"]
+    rc = rs.main(argv)
+    if rc != 0:
+        raise SystemExit(f"[prepare] calibration stopped the launch (rc={rc}); see the message above.")
+    print("\n[prepare] 2/2 pre-registration freeze check", flush=True)
+    rc = subprocess.run([sys.executable, "-m", "scripts.freeze_preregistration", "--check"]).returncode
+    if rc == 0:
+        print("[prepare] freeze: clean", flush=True)
+        return
+    if args.record_deviation:
+        rc = rs.main(["--only", "freeze", "--force", "--config", args.config, "--record-deviation", args.record_deviation])
+        if rc != 0:
+            raise SystemExit(f"[prepare] recording the deviation failed (rc={rc}).")
+        print("[prepare] freeze: deviation recorded", flush=True)
+        return
+    msg = ("[prepare] WARNING: tracked files differ from the pre-registration freeze (listed above). If this is the intended "
+           "Amendment, record it once: .\\scripts\\run_full_study.ps1 --record-deviation \"<reason>\" ... "
+           "(margins, alpha and seeds cannot be recorded away).")
+    if args.strict_freeze:
+        raise SystemExit(msg.replace("WARNING", "STOP"))
+    print(msg, flush=True)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--n-runs", type=int, default=10, help="seeds per condition (default 10, as pre-registered)")
+    ap.add_argument("--n-runs", type=int, default=None,
+                    help="seeds per condition (default 5 = reduced plan; 10 with --full, as pre-registered)")
+    ap.add_argument("--full", action="store_true",
+                    help="the pre-registered plan: 8 conditions x 10 seeds = 80 runs (default is the reduced 25-run plan)")
+    ap.add_argument("--hypothesis-tests", action="store_true",
+                    help="run the hypothesis tests when all runs finish (default: only with --full)")
     ap.add_argument("--base-seed", type=int, default=43)
     ap.add_argument("--levels", default=",".join(map(str, DEFAULT_LEVELS)),
                     help="entanglement-sweep levels to run, e.g. 0,2,4,6 or 'all' (default 0,2,4,6)")
@@ -383,31 +469,64 @@ def main() -> None:
                     help="start a NEW experiment (use on a second machine, or for a second 80-run study)")
     ap.add_argument("--label", default="", help="free text stored in the experiment manifest")
     ap.add_argument("--legacy", action="store_true", help="no experiment id (old behaviour)")
+    ap.add_argument("--no-auto-adopt", action="store_true",
+                    help="with unlabelled rows and no active experiment, refuse instead of creating a default experiment")
     ap.add_argument("--conditions", default=None,
-                    help="comma-separated condition names that REPLACE the default 8 (used by the sensitivity study)")
+                    help="comma-separated condition names that REPLACE the default plan (used by the sensitivity study)")
     ap.add_argument("--parent-experiment", default=None,
                     help="experiment this one is a sensitivity/follow-up of (stored in the manifest)")
     ap.add_argument("--skip-balance-check", action="store_true",
                     help="skip the quantum-vs-classical balance audit before launching")
+    ap.add_argument("--allow-uncalibrated", action="store_true",
+                    help="run H3 with the provisional poisoning.shift_sd (rows are flagged poisoning_calibrated=False)")
+    ap.add_argument("--no-prepare", action="store_true",
+                    help="skip the calibrate + freeze-check step that otherwise runs first (scripts.run_study uses this: it already ran them)")
+    ap.add_argument("--record-deviation", default=None, metavar="REASON",
+                    help="record the pre-registration Amendment once, in the prepare step")
+    ap.add_argument("--strict-freeze", action="store_true",
+                    help="stop (instead of warning) when tracked files differ from the pre-registration freeze")
+    ap.add_argument("--apply-calibration", action="store_true",
+                    help="accepted for convenience; the prepare step always applies the calibration it computes")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--status", action="store_true")
     args = ap.parse_args()
-    global EXPERIMENT
+    global EXPERIMENT, COMPAT_STAMP
 
-    models = build_conditions(parse_levels(args.levels))
+    if not (args.status or args.dry_run or args.no_prepare):
+        prepare_study(args)       # calibration FIRST: it edits the config, which the experiment manifest hashes
+    if args.n_runs is None:
+        args.n_runs = FULL_N_RUNS if args.full else REDUCED_N_RUNS
     if args.conditions:
         models = [m.strip() for m in args.conditions.split(",") if m.strip()]
+    elif args.full:
+        models = build_conditions(parse_levels(args.levels))
+    else:
+        models = list(REDUCED_CONDITIONS)
+    reduced = not args.full and not args.conditions
+    if reduced:
+        print(f"[plan] REDUCED plan: {len(models)} conditions x {args.n_runs} seeds = {len(models) * args.n_runs} runs "
+              f"(not the pre-registered 80; use --full for that)", flush=True)
+        if not args.label:
+            args.label = f"Reduced {len(models) * args.n_runs}-run plan ({len(models)} conditions x {args.n_runs} seeds)"
     seeds = [args.base_seed + i for i in range(args.n_runs)]
     read_only = args.status or args.dry_run
     if args.experiment_id and not exp.is_valid_id(args.experiment_id):
         raise SystemExit(f"--experiment-id {args.experiment_id!r} is not of the form EXP-YYYYMMDD-MACHINE-xxxx")
     if not args.legacy and not read_only and not exp.supports_stamping():
-        raise SystemExit("[experiment] src/utils/logging_utils.py does not write experiment_id yet, so runs would be "
-                         "recorded without it and counted as missing. Apply the code update first "
-                         "(see APPLY.md), or use --legacy.")
+        COMPAT_STAMP = True
+        print("[experiment] src/utils/logging_utils.py does not write experiment_id yet (phase B of APPLY.md is not "
+              "installed). Not a problem: the launcher stamps each finished run's results row with the experiment id "
+              "itself. Predictions and compute times are only recorded once phase B is in.", flush=True)
+    if not (args.experiment_id or args.new_experiment or args.legacy):
+        found, start_new = default_plan_experiment(models, seeds)
+        if found:
+            args.experiment_id = found
+        elif start_new:
+            args.new_experiment = True
     EXPERIMENT = resolve_experiment(models, seeds, args.base_seed, args.config, experiment_id=args.experiment_id,
                                     new=args.new_experiment, label=args.label, legacy=args.legacy,
-                                    create=not read_only, parent=args.parent_experiment)
+                                    create=not read_only, parent=args.parent_experiment,
+                                    auto_adopt=not args.no_auto_adopt)
     rre.set_experiment_id(EXPERIMENT)
     print(f"[experiment] {EXPERIMENT or 'legacy (no experiment id)'}  machine={exp.machine_slug()}")
     todo = remaining(models, seeds)
@@ -422,6 +541,12 @@ def main() -> None:
                 print(f"   would run: {m!r} seed={s}")
         return
 
+    from scripts.run_study import needs_calibration          # stdlib-only helper: H3 strength must be calibrated first
+    with open(args.config, encoding="utf8", newline="") as _fh:
+        if needs_calibration(_fh.read()) and not args.allow_uncalibrated:
+            raise SystemExit("[study] refusing to start: poisoning.protocol is v2 but poisoning.calibrated is false. Run "
+                             "`python -m scripts.run_study --apply-calibration` (or scripts.calibrate_poisoning and paste the value), "
+                             "or pass --allow-uncalibrated to run with the provisional strength.")
     if not args.allow_head_only:
         bad = check_forecast_path(args.config)
         if bad:
@@ -445,7 +570,7 @@ def main() -> None:
     if args.workers < 1:
         raise SystemExit("--workers must be >= 1")
     pass_fn = None
-    if args.workers > 1 or not args.no_dashboard:       # one worker still goes through the dashboard path
+    if args.workers > 1 or not args.no_dashboard or COMPAT_STAMP:   # one worker still goes through this path
         w = args.workers
         pass_fn = lambda ms, n, b, c: _run_pass_parallel(ms, n, b, c, w)   # noqa: E731
     if not args.no_dashboard:
@@ -459,11 +584,18 @@ def main() -> None:
     if rc != 0:
         sys.exit(rc)
     print("\n[study] ALL RUNS COMPLETE.", flush=True)
-    if not args.no_hypothesis_tests:
+    if reduced and not args.hypothesis_tests:
+        print("[study] reduced plan: hypothesis tests not run automatically; add --hypothesis-tests (or run them yourself).", flush=True)
+    if not args.no_hypothesis_tests and (args.full or args.conditions or args.hypothesis_tests):
         cmd = [sys.executable, "-m", "scripts.run_hypothesis_tests"]
         if EXPERIMENT:
             cmd += ["--experiment-id", EXPERIMENT]
-        sys.exit(subprocess.run(cmd).returncode)
+        rc = subprocess.run(cmd).returncode
+        if rc == 3:       # scripts.run_hypothesis_tests GATE_RC: deliberate stop at the confirmatory gate, not a failure
+            print("\n[study] STOPPED AT THE CONFIRMATORY GATE (by design). Do the gate by hand (steps printed above), "
+                  "then: python -m scripts.run_hypothesis_tests --run-confirmatory", flush=True)
+            sys.exit(0)
+        sys.exit(rc)
 
 
 if __name__ == "__main__":

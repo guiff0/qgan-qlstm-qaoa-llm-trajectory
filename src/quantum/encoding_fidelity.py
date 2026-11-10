@@ -20,6 +20,7 @@ import numpy as np
 import pennylane as qml
 
 from .encoding import amplitude_encode
+from .entangler import apply_entangler
 from ..evaluation.mediation import mediation_analysis  # noqa: F401 (re-export convenience for callers)
 
 
@@ -35,21 +36,8 @@ def _run_circuit_statevector(inputs_np: np.ndarray, weights_np: np.ndarray, n_qu
                               n_layers: int, entanglement: str, dev_name: str = "default.qubit") -> np.ndarray:
     dev = qml.device(dev_name, wires=n_qubits)
 
-    def _apply_entangling():
-        if entanglement == "ring":
-            for q in range(n_qubits):
-                qml.CNOT(wires=[q, (q + 1) % n_qubits])
-        elif entanglement == "full":
-            for i in range(n_qubits):
-                for j in range(i + 1, n_qubits):
-                    qml.CNOT(wires=[i, j])
-        elif entanglement == "linear":
-            for q in range(n_qubits - 1):
-                qml.CNOT(wires=[q, q + 1])
-        elif entanglement == "none":
-            pass  # product-state control: no entangling gates (zero-entanglement sweep level)
-        else:
-            raise ValueError(f"Unknown entanglement topology: {entanglement}")
+    def _apply_entangling(layer):
+        apply_entangler(entanglement, n_qubits, layer, n_layers)
 
     @qml.qnode(dev, interface=None)
     def _circuit(weights):
@@ -64,7 +52,7 @@ def _run_circuit_statevector(inputs_np: np.ndarray, weights_np: np.ndarray, n_qu
                 qml.RX(weights[idx], wires=q)
                 qml.RY(weights[idx + 1], wires=q)
                 qml.RZ(weights[idx + 2], wires=q)
-            _apply_entangling()
+            _apply_entangling(layer)
         return qml.state()
 
     return np.asarray(_circuit(weights_np))

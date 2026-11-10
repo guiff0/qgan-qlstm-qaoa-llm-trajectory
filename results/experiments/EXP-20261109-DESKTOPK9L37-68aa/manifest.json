@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa",
+  "label": "default experiment (adopted earlier unlabelled rows of this plan)",
+  "parent_experiment": null,
+  "created_utc": "20261109T094605Z",
+  "machine": {
+    "name": "DESKTOP-K9L37TE",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "python": "3.11.9"
+  },
+  "git": {
+    "commit": "7ff07e06f9317d110dba3aa80f0145f462c60e8c",
+    "dirty": true
+  },
+  "conditions": [
+    "QGAN-LLM",
+    "Classical GAN-LLM",
+    "Classical GAN-LLM (matched)",
+    "QGAN-LLM (no noise)",
+    "QGAN-LLM (ent-L0 none-d4)",
+    "QGAN-LLM (ent-L2 linear-d2)",
+    "QGAN-LLM (ent-L4 ring-d4)",
+    "QGAN-LLM (ent-L6 full-d4)"
+  ],
+  "seeds": [
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52
+  ],
+  "base_seed": 43,
+  "n_runs": 10,
+  "planned_runs": 80,
+  "config_path": "config/default_config.yaml",
+  "config_sha256": "8036857a5b70a7c76f69f574057caa6247bbe9bea22583f518495dc618f9bd59",
+  "plan_hash": "43490e92012926c1",
+  "code_sha256": {
+    "config/default_config.yaml": "8036857a5b70a7c76f69f574057caa6247bbe9bea22583f518495dc618f9bd59",
+    "PREREGISTRATION.md": "e9925bac6f4a4770aea3f3846bf52854c7ce09523c356d4a6578cf9d89601b9d",
+    "scripts/run_hypothesis_tests.py": "3ea57a41068c352c7fb1cbd523589924ba27d4b58278e0d5bfa3a61d089c8927",
+    "src/utils/generator_path.py": "28d25dac5efdc1bd4ecf1cfc44772158d347e4a4342b14cfb6e162e9ada97f78",
+    "src/utils/capacity_match.py": "a613d8feefdcebb4aa009dd6a87f3bee23ebb61c45b3fb5b2d4f1a3f087b51f6",
+    "src/baselines/qgan_llm.py": "9b52be7acac27cc17a75be8191c691ff1d56369460b5390ac03f99a4db6629bc",
+    "src/baselines/classical_gan_llm.py": "53886f1c0543dbd5ced97b223bf1f3c46c255550c3ec53531a3bccd7e31d9567",
+    "src/experiments/run_all.py": "b53348266032a0ae9fb219f1321c14b32fa6da60bd9688e751c464d34031da52",
+    "src/utils/logging_utils.py": "eeac080e888adbe56e4c4b292deae03deb384a003b504e84610420dcf7bda3d3"
+  },
+  "preregistration_record": {
+    "file": "preregistration_20261109T093144Z.json",
+    "sha256": "e5d553e4cd373bdc626a09864a4f3f79c8255e2af4af71fbd743ced3a934b244"
+  }
+}

@@ -24,6 +24,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+import sys
 import os
 
 import numpy as np
@@ -37,6 +39,8 @@ from src.evaluation.mediation_pipelines import run_m2_dv2_mediation
 from src.metrics.resilience import cqrs, qar
 from src.utils.run_identity import config_of_run_id, latest_per_config, latest_per_config_seed
 from src.evaluation.advantage_diagnostics import find_degenerate_groups
+from src.evaluation.study_status import format_budget, hypothesis_budget, study_status
+from scripts import snapshot_results as snap
 from src.evaluation.verdicts import compute_verdicts, format_table
 from src.evaluation.entanglement_design import MIN_RUNS_PER_LEVEL, sweep_subset
 from src.evaluation.mediation import mediation_analysis
@@ -46,6 +50,7 @@ from src.utils import experiment as exp
 from src.evaluation.paired_tests import paired_by_seed
 from src.evaluation import analysis_plan as aplan
 from src.evaluation.decidability import detector_gate, poisoning_gate
+from src.evaluation.equivalence_power import runs_needed_for_equivalence
 
 QGAN, CGAN = "QGAN-LLM", "Classical GAN-LLM"
 PAIRED_ENABLED = True       # main() turns this off when several experiments are pooled (seeds would be ambiguous)
@@ -222,6 +227,11 @@ def _sweep_design_info(sw: pd.DataFrame, ycol: str) -> dict:
     # sweep did not manipulate entanglement and a null here says nothing about H2/H5.
     rho_e, p_e = stats.spearmanr(sw["sweep_level"], sw["entanglement_entropy"])
     info["manipulation_check_level_vs_entropy"] = {"spearman_rho": float(rho_e), "p_value": float(p_e)}
+    # The designed level is an ORDINAL IV only if measured entropy rises with it. Report the per-level means so a
+    # non-monotone ladder (e.g. full-d4 below ring-d4) is visible instead of being averaged into one rho.
+    _means = sw.groupby("sweep_level")["entanglement_entropy"].mean()
+    info["entropy_by_level"] = {int(k): float(v) for k, v in _means.items()}
+    info["entropy_ladder_monotone"] = bool((_means.diff().dropna() > 0).all())
     # Dose-response against the DESIGNED level (does not depend on the measured entropy).
     rho_y, p_y = stats.spearmanr(sw["sweep_level"], sw[ycol])
     info["dose_response_level_vs_outcome"] = {"outcome": ycol, "spearman_rho": float(rho_y), "p_value": float(p_y)}
@@ -254,6 +264,9 @@ def _entropy_correlation(df: pd.DataFrame, ycol: str) -> dict:
         if "r" in result:
             result.update(_sweep_design_info(sw, ycol))
             result["equivalence_r"] = _r_equivalence(result)
+            # planning aid only (not a decision rule): runs the sweep would need if r stayed where it is
+            result["equivalence_r"]["runs_needed_if_r_unchanged"] = runs_needed_for_equivalence(
+                result["r"], result["equivalence_r"].get("r0", 0.3))
         return result
     sub = df.dropna(subset=list(cols))
     result = _safe(pearson_correlation_with_ci, sub["entanglement_entropy"].to_numpy(),
@@ -305,21 +318,27 @@ def test_h3_poisoning_resistance(df: pd.DataFrame) -> dict:
             result["configs_used"] = {"no_noise": _NO_NOISE_SLUG, "noisy": _PRIMARY_SLUG[QGAN]}
             result["interpretation"] = ("positive t (no_noise mean > noisy mean) supports Ha3: "
                                         "noise injection -> lower poisoning degradation")
+            both = pd.concat([nn_rows, noisy_rows])
+            pc = both["poisoning_pc_degradation_pct"].dropna().to_numpy() if "poisoning_pc_degradation_pct" in both.columns else None
             result["decidability"] = poisoning_gate(
-                list(nn_rows[col].dropna()) + list(noisy_rows[col].dropna()), EQUIV_MARGINS["poisoning"][1])
+                list(nn_rows[col].dropna()) + list(noisy_rows[col].dropna()), EQUIV_MARGINS["poisoning"][1],
+                positive_control=pc if pc is not None and len(pc) else None)
+            if pc is not None and len(pc):
+                result["positive_control"] = {"median_degradation_pct": float(pd.Series(pc).median()), "n_runs": int(len(pc)),
+                                              "protocol": str(both.get("poisoning_protocol", pd.Series(["legacy"])).iloc[0])}
             if PAIRED_ENABLED:
                 result["paired_by_seed"] = paired_by_seed(nn_rows, noisy_rows, col)
             return result
-    no_noise = q.loc[q["noise_strength"] == 0, col].dropna().to_numpy()
-    noisy = q.loc[q["noise_strength"] > 0, col].dropna().to_numpy()
-    result = _compare_two(no_noise, noisy, "no_noise", "noisy", fix)
-    result["design"] = "pooled_configs"
-    result["confound_warning"] = ("FALLBACK: the primary QGAN-LLM config and/or the 'QGAN-LLM (no noise)' config is "
-                                  "missing, so 'noisy' pools 20-qubit ring + 12-qubit + linear-topology + sweep "
-                                  "configs; they differ from no_noise in more than the noise level only")
-    result["interpretation"] = ("positive t (no_noise mean > noisy mean) supports Ha3: "
-                                 "noise injection -> lower poisoning degradation")
-    result["decidability"] = poisoning_gate(list(no_noise) + list(noisy), EQUIV_MARGINS["poisoning"][1])
+    # No matched pair in this design: NO pooled / cross-design fallback (reviewer issue 4). A no-noise run from another
+    # design (e.g. a head_only pilot) is not a repeat of the generator-on-path condition, and pooling 12-qubit, linear
+    # or sweep configs into 'noisy' confounds the noise effect. The hypothesis is untestable until the matched run exists.
+    n_nn = int(len(q[(q["run_id"].map(config_of_run_id) == _NO_NOISE_SLUG) & (q["noise_strength"] == 0)])) if "run_id" in q.columns else 0
+    n_ny = int(len(q[(q["run_id"].map(config_of_run_id) == _PRIMARY_SLUG[QGAN]) & (q["noise_strength"] > 0)])) if "run_id" in q.columns else 0
+    result = _insufficient({"no_noise": n_nn, "noisy": n_ny}, 1,
+                           "Run the matched 'QGAN-LLM (no noise)' condition in the same design (same seeds, forecast_path generator).")
+    result["design"] = "matched_pair_missing"
+    result["untestable_reason"] = ("the matched no-noise condition has no completed run in the analysed design; "
+                                   "pooled and cross-design comparisons are deliberately not made")
     return result
 
 
@@ -422,15 +441,23 @@ def test_h5_tomography_correlation(df: pd.DataFrame) -> dict:
     classical detector's 'accuracy' and says so in the result."""
     if "entanglement_entropy" not in df.columns:
         return {"error": "need an entanglement_entropy column"}
-    for col, detector in (("llm_threat_accuracy", "LLM threat probability (threat_scoring.py)"),
+    for col, detector in (("llm_threat_accuracy_cal", "LLM threat probability, threshold calibrated on disjoint windows (threat_calibration.py)"),
+                          ("llm_threat_accuracy", "LLM threat probability (threat_scoring.py)"),
                           ("accuracy", "interim classical RandomForest (threat_detection.py)")):
         if col not in df.columns:
             continue
         sub = df.dropna(subset=["entanglement_entropy", col])
         if len(sub) >= 4 or col == "accuracy":
             result = _entropy_correlation(sub, col)
-            if col == "llm_threat_accuracy" and "llm_threat_n" in sub.columns:
-                result["decidability"] = detector_gate(sub[col].to_numpy(), sub["llm_threat_n"].to_numpy())
+            n_col = "llm_threat_cal_n" if col == "llm_threat_accuracy_cal" else "llm_threat_n"
+            if col.startswith("llm_threat_accuracy") and n_col in sub.columns:
+                pc_flags = (sub["llm_threat_pc_passed"].dropna().tolist()
+                            if "llm_threat_pc_passed" in sub.columns else None)
+                result["decidability"] = detector_gate(sub[col].to_numpy(), sub[n_col].to_numpy(),
+                                                       pc_passed=pc_flags or None)
+                for extra in ("llm_threat_auroc", "ref_last_jump_auroc", "llm_threat_pc_accuracy"):
+                    if extra in sub.columns and sub[extra].notna().any():
+                        result[f"diag_{extra}_median"] = float(sub[extra].median())
             result["detector"] = detector
             result["note"] = (f"accuracy column used: {col}. "
                               + ("" if col == "llm_threat_accuracy" else
@@ -578,6 +605,146 @@ def _status_of(result: dict) -> str:
     return "ok" if ("p_value" in result or "r" in result or "indirect_effect" in result) else "unknown"
 
 
+def test_naive_baseline(df: pd.DataFrame) -> dict:
+    """Every configuration against the NAIVE baseline (persistence: next close = current close; ratio 1.0).
+    A model whose RMSE/persistence is not below 1 has no forecasting skill, and a quantum-vs-classical gap between two such
+    models is not a forecasting advantage. Per config (not pooled): runs are seeds."""
+    from scipy import stats
+    out = {}
+    for col, label in (("rmse_over_persistence", "head / generator-on-path forecast"), ("llm_rmse_over_persistence", "LLM forecast")):
+        if col not in df.columns or "run_id" not in df.columns:
+            continue
+        d = df.dropna(subset=[col]).copy()
+        d["_cfg"] = d["run_id"].map(config_of_run_id)
+        rows = {}
+        for cfg, g in d.groupby("_cfg"):
+            v = g[col].to_numpy(float)
+            row = {"n_runs": int(len(v)), "ratio_mean": float(v.mean()), "share_below_1": float((v < 1).mean())}
+            if len(v) >= 3 and v.std(ddof=1) > 0:
+                t = stats.ttest_1samp(v, 1.0)
+                m, se = v.mean(), v.std(ddof=1) / len(v) ** 0.5
+                tc = stats.t.ppf(0.975, len(v) - 1)
+                row.update({"ci95": [float(m - tc * se), float(m + tc * se)], "p_vs_1": float(t.pvalue),
+                            "beats_naive": bool(m + tc * se < 1.0)})
+            else:
+                row["beats_naive"] = None
+                row["note"] = "fewer than 3 runs (or no variance): descriptive only"
+            rows[cfg] = row
+        out[col] = {"label": label, "configs": rows,
+                    "reading": "ratio < 1 beats persistence; beats_naive needs the whole 95% CI below 1"}
+    return out or {"error": "no rmse_over_persistence column"}
+
+
+def test_q1_three_arm(paths) -> dict:
+    """Three-arm fair paired comparison (inputs only / classical random features / quantum circuit features) read from
+    scripts/run_feature_map_experiment.py output, with the naive baseline and the balance audit attached."""
+    from src.baselines.feature_map_forecaster import DEFAULT_RIDGE_GRID
+    from src.evaluation import three_arm
+    res = {}
+    for p in paths:
+        if not os.path.isfile(p):
+            res[p] = {"status": "not_run", "how": "python -m scripts.run_feature_map_experiment --seeds 0 1 2 3 4 5 6 7 8 9 --n-qubits 8   (and again with --n-qubits 12)"}
+            continue
+        with open(p, encoding="utf8") as fh:
+            d = json.load(fh)
+        r = three_arm.verdict(d["per_run"], d["dm_quantum_vs"])
+        r["audit"] = three_arm.audit(d["per_run"], d["args"], DEFAULT_RIDGE_GRID)
+        r["source"] = p
+        res[f"{d['args']['n_qubits']}_qubits ({os.path.basename(p)})"] = r
+    return res
+
+
+def authoritative_design(df: pd.DataFrame, include_pilot: bool = False) -> tuple[pd.DataFrame, dict]:
+    """ONE analysed sample (reviewer issues 3 and 4): only rows run with the generator ON the forecast path
+    (forecast_path == 'generator'). Pilot rows (head_only, or no forecast_path recorded) are a different experimental
+    design -- the forecast could not depend on the generator -- so they are never mixed into a hypothesis test.
+    --include-pilot restores the old behaviour. A file with no forecast_path column at all is a legacy file: kept whole."""
+    info = {"design": "generator_on_forecast_path", "include_pilot": bool(include_pilot), "excluded_pilot_rows": {}}
+    if include_pilot:
+        info["design"] = "all rows (pilot included)"
+        return df, info
+    if "forecast_path" not in df.columns:
+        info["design"] = "legacy file without forecast_path: all rows kept"
+        return df, info
+    keep = df["forecast_path"] == "generator"
+    if "run_id" in df.columns and (~keep).any():
+        info["excluded_pilot_rows"] = (df.loc[~keep, "run_id"].map(config_of_run_id).value_counts().to_dict())
+    return df[keep], info
+
+
+def sample_table(df: pd.DataFrame) -> dict:
+    """The single authoritative n per condition. Every table and every test below uses this same dataframe."""
+    return (df["run_id"].map(config_of_run_id).value_counts().sort_index().to_dict()
+            if "run_id" in df.columns and len(df) else {})
+
+
+def count_audit(out: dict) -> dict:
+    """Cross-check the n each test reports against the one sample table; any mismatch is listed, never silent."""
+    tbl, issues = out.get("n_runs_per_config", {}), []
+
+    def check(where, name, used, slug):
+        if used is not None and slug in tbl and int(used) != int(tbl[slug]):
+            issues.append(f"{where}: {name} n={used} but the sample table has {slug}={tbl[slug]}")
+    h1 = out.get("H1_synthetic_data_fidelity", {}) or {}
+    for g, slug in ((QGAN, "qgan_llm"), (CGAN, "classical_gan_llm")):
+        check("H1", g, (h1.get("n_per_group_used") or {}).get(g), slug)
+    for key, slug in (("H4_quantum_advantage", "classical_gan_llm"), ("H4_matched_capacity", "classical_gan_llm_matched")):
+        nr = (out.get(key, {}) or {}).get("n_runs") or {}
+        check(key, QGAN, nr.get(QGAN), "qgan_llm")
+        check(key, CGAN, nr.get(CGAN), slug)
+    h3 = (out.get("H3_poisoning_resistance", {}) or {}).get("n_per_group_used") or {}
+    check("H3", "no_noise", h3.get("no_noise"), "qgan_llm_no_noise")
+    check("H3", "noisy", h3.get("noisy"), "qgan_llm")
+    return {"consistent": not issues, "issues": issues}
+
+
+GATE_RC = 3          # exit code of the deliberate stop at the confirmatory gate (not a failure)
+CONFIRM_LOG = os.path.join(snap.SNAP_DIR, "confirmatory_runs.json")
+
+
+def _confirm_log() -> list:
+    try:
+        with open(CONFIRM_LOG, encoding="utf8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return []
+
+
+def gate_stop_message(entry: dict, status: dict) -> str:
+    return "\n".join([
+        "", "=" * 78,
+        f"STOP AT THE CONFIRMATORY GATE: {status['label']}",
+        "The pre-registered design is complete, so the next analysis is the confirmatory one. Nothing was tested.",
+        f"A snapshot of the data was taken for you:  {entry['snapshot']}",
+        f"   sha256 {entry['sha256']}   ({entry['rows']} rows)" + ("   [already existed]" if entry.get("reused") else ""),
+        "Do the gate by hand, then run the tests ONCE:",
+        "  1. python -m scripts.freeze_preregistration --check        (expect: no unrecorded changes)",
+        "  2. python -m scripts.snapshot_results --verify             (the csv must still match the snapshot; do not edit it)",
+        "  3. python -m scripts.run_hypothesis_tests --run-confirmatory [--experiment-id ...]",
+        "     (via the driver:  python -m scripts.run_study --only hypothesis --force --run-confirmatory)",
+        "Do not edit code or data after seeing the output. A second run needs --rerun-reason and is disclosed in the output.",
+        "=" * 78])
+
+
+def gate_checks(args, csv_path: str) -> tuple[dict | None, str]:
+    """--run-confirmatory is only honoured when the code is frozen AND the data matches a snapshot. Returns (gate dict, '')
+    or (None, reason)."""
+    rc = subprocess.run([sys.executable, "-m", "scripts.freeze_preregistration", "--check"],
+                        capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    if rc.returncode != 0:
+        return None, "freeze check failed (python -m scripts.freeze_preregistration --check):\n" + (rc.stdout or rc.stderr)
+    ok, entry = snap.verify(csv_path)
+    if not ok:
+        return None, ("the csv does not match any recorded snapshot (it changed after the snapshot, or none exists): "
+                      "python -m scripts.snapshot_results, then disclose that the data changed")
+    prior = [r for r in _confirm_log() if r.get("csv_sha256") == entry["sha256"]]
+    if prior and not args.rerun_reason:
+        return None, (f"a confirmatory run on this exact data already exists ({prior[-1]['utc']}); a second run must be "
+                      "disclosed: pass --rerun-reason \"why\"")
+    return {"freeze_check": "clean", "csv_sha256": entry["sha256"], "snapshot": entry["snapshot"],
+            "rerun": bool(prior), "rerun_number": len(prior) + 1, "rerun_reason": args.rerun_reason or None}, ""
+
+
 def build_summary(out: dict) -> dict:
     keys = ["H1_synthetic_data_fidelity", "H2_adversarial_resilience", "H3_poisoning_resistance",
             "H4_quantum_advantage", "H4_matched_capacity", "H5_threat_detection_tomography_correlation",
@@ -597,6 +764,15 @@ def main():
                     help="override an equivalence margin value, e.g. fid=0.15 asr=3 rmse=0.01 r0=0.25 "
                          "(keeps the margin's kind; see EQUIV_MARGINS). Fix margins BEFORE the confirmatory runs.")
     ap.add_argument("--no-dedupe", action="store_true", help="same as --dedupe none")
+    ap.add_argument("--run-confirmatory", action="store_true",
+                    help="opt in to the confirmatory analysis. Without it the run STOPS when the pre-registered design is "
+                         "complete (after snapshotting the csv). Needs a clean freeze check and a csv that matches its snapshot")
+    ap.add_argument("--rerun-reason", default=None, metavar="WHY",
+                    help="required for a second confirmatory run on the same data; stored in the output (disclosure)")
+    ap.add_argument("--include-pilot", action="store_true",
+                    help="also analyse pilot rows (forecast_path != generator); default: generator-on-path rows only")
+    ap.add_argument("--feature-map-json", nargs="*", default=["results/feature_map_advantage.json"],
+                    help="three-arm feature-map result file(s) from run_feature_map_experiment (one per qubit count)")
     ap.add_argument("--experiment-id", default=None,
                     help="analyse ONE experiment (EXP-...); several comma-separated ids need --pool-experiments. "
                          "Without it the results file must contain exactly one experiment.")
@@ -627,11 +803,38 @@ def main():
         df = latest_per_config_seed(df)
     elif mode == "config":
         df = latest_per_config(df)
+    n_before_design = len(df)
+    df, design_info = authoritative_design(df, args.include_pilot)
     if "asr_baseline" in df.columns:
         legacy = df["asr_baseline"].isna()
         df.loc[legacy, ["asr", "asr_clean"]] = float("nan")  # scored against a non-price column
 
+    tbl0 = sample_table(df)
+    status0 = study_status(tbl0)
+    budget0 = hypothesis_budget(tbl0)
+    print("\n" + format_budget(budget0, status0), flush=True)
+    gate = None
+    if status0["complete"]:
+        if not args.run_confirmatory:
+            try:
+                entry = snap.snapshot(args.results_csv, note="automatic snapshot at the confirmatory gate")
+            except (OSError, RuntimeError) as err:
+                raise SystemExit(f"[gate] could not snapshot {args.results_csv}: {err}")
+            print(gate_stop_message(entry, status0), flush=True)
+            sys.exit(GATE_RC)
+        gate, why = gate_checks(args, args.results_csv)
+        if gate is None:
+            print(f"\n[gate] REFUSED: {why}", flush=True)
+            sys.exit(GATE_RC)
+        print(f"\n[gate] open: freeze clean, csv sha256 {gate['csv_sha256'][:16]}... matches {gate['snapshot']}"
+              + (f"; RERUN #{gate['rerun_number']} ({gate['rerun_reason']})" if gate["rerun"] else ""), flush=True)
+    else:
+        print("\n[interim] the pre-registered design is incomplete: everything below is exploratory, whatever its p-values."
+              + ("  (--run-confirmatory has no effect until the design is complete)" if args.run_confirmatory else ""), flush=True)
+
     out = {
+        "run_budget": budget0,
+        "confirmatory_gate": gate,
         "analysis_plan_sha": aplan.plan_sha() if os.path.isfile(aplan.PLAN_PATH) else None,
         "experiment_id": used_ids[0] if len(used_ids) == 1 else None,
         "experiments_used": used_ids,
@@ -641,6 +844,8 @@ def main():
         "n_rows_in_file": n_file,
         "n_rows_raw": n_raw,
         "n_rows": len(df),
+        "analysed_design": design_info,
+        "n_rows_excluded_other_design": n_before_design - len(df),
         "dedupe": mode,
         "equivalence_margins": {k: {"kind": v[0], "value": v[1]} for k, v in EQUIV_MARGINS.items()},
         "n_runs_per_model": df.groupby("model_type").size().to_dict() if "model_type" in df.columns else {},
@@ -653,7 +858,12 @@ def main():
         "H4_matched_capacity": _guard(test_h4_matched_capacity, df),
         "H5_threat_detection_tomography_correlation": _guard(test_h5_tomography_correlation, df),
         "M2_DV2_mediation": _guard(test_m2_dv2_mediation, df),
+        "naive_baseline": _guard(test_naive_baseline, df),
+        "Q1_three_arm_feature_map": _guard(lambda _df: test_q1_three_arm(args.feature_map_json), df),
     }
+    out["sample_table"] = sample_table(df)
+    out["study_status"] = study_status(out["sample_table"])      # interim vs the pre-registered 80 runs
+    out["count_audit"] = count_audit(out)
     out["summary"] = build_summary(out)          # execution status only: could the test RUN?
     out["planned_vs_ran"] = aplan.planned_vs_ran(out)   # planned analysis, what ran, which fallback fired
     out["verdicts"] = compute_verdicts(out)       # what the test SAYS, how far to trust it, and why
@@ -666,10 +876,36 @@ def main():
     out = _sanitize(out)
     saved = save_json_timestamped(args.out, out, stamp=stamp)   # <stem>__<stamp>.json + latest copy
     out["saved_as"] = saved["versioned"]
+    if gate is not None:
+        os.makedirs(snap.SNAP_DIR, exist_ok=True)
+        with open(CONFIRM_LOG, "w", encoding="utf8") as fh:
+            json.dump(_confirm_log() + [{"utc": stamp, "csv_sha256": gate["csv_sha256"], "snapshot": gate["snapshot"],
+                                         "output": saved["versioned"], "rerun": gate["rerun"],
+                                         "rerun_reason": gate["rerun_reason"]}], fh, indent=2)
     print(json.dumps(out, indent=2, default=str))
     print("\nHYPOTHESIS TEST STATUS (execution):")
     for k, v in out["summary"].items():
         print(f"  {k:<46} {v}")
+    print("\nNAIVE BASELINE (persistence = 1.0; < 1 beats 'no change'):")
+    for col, blk in (out.get("naive_baseline") or {}).items():
+        if isinstance(blk, dict) and "configs" in blk:
+            for cfg, r in blk["configs"].items():
+                print(f"  {col[:12]:<12} {cfg:<44} n={r['n_runs']:<3} ratio={r['ratio_mean']:.3f}  beats_naive={r.get('beats_naive')}")
+    print("\nTHREE-ARM FEATURE-MAP COMPARISON (naive baseline, inputs only, classical random features, quantum):")
+    for k, r in (out.get("Q1_three_arm_feature_map") or {}).items():
+        if isinstance(r, dict) and "verdict" in r:
+            print(f"  {k}: {r['verdict']}   balance audit {'PASSED' if r['audit']['all_passed'] else 'FAILED'}")
+            for a, s in r["versus_naive"].items():
+                print(f"     {a:<13} skill {s['skill_mean']:+.5f} CI [{s['skill_ci95'][0]:+.5f}, {s['skill_ci95'][1]:+.5f}]  beats naive: {s['beats_naive']}")
+            for n in r["notes"]:
+                print("     NOTE:", n)
+        else:
+            print(f"  {k}: {r}")
+    ss = out["study_status"]
+    print(f"\nSTUDY STATUS: {ss['label']}   (analysed design: {out['analysed_design']['design']}; "
+          f"{out['n_rows_excluded_other_design']} row(s) of other designs excluded)")
+    print("  n per condition:", out["sample_table"])
+    print("  count audit:", "consistent" if out["count_audit"]["consistent"] else "MISMATCH -> " + "; ".join(out["count_audit"]["issues"]))
     print("\nHYPOTHESIS VERDICTS (deterministic rules in src/evaluation/verdicts.py):")
     print(format_table(out["verdicts"]))
 

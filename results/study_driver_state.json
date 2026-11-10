@@ -1,0 +1,31 @@
+{
+  "calibrate": {
+    "status": "ok",
+    "rc": 0,
+    "utc": "20261109T225100Z",
+    "seconds": 0.0,
+    "commands": [],
+    "note": "not needed (already calibrated, or the legacy protocol is configured)",
+    "experiment_id": null
+  },
+  "freeze": {
+    "status": "failed",
+    "rc": 2,
+    "utc": "20261109T094655Z",
+    "seconds": 3.0,
+    "commands": [],
+    "note": "tracked files differ from the pre-registration freeze. If that is the intended Amendment, rerun with --record-deviation \"<reason>\" (margins, alpha and seeds cannot be recorded away).",
+    "experiment_id": null
+  },
+  "hypothesis": {
+    "status": "failed",
+    "rc": 1,
+    "utc": "20261110T092351Z",
+    "seconds": 4.1,
+    "commands": [
+      "D:\\dev\\app\\qgan-qlstm-qaoa-llm-trajectory\\venv\\Scripts\\python.exe -m scripts.run_hypothesis_tests --feature-map-json results\\feature_map_advantage_q8.json results\\feature_map_advantage_q12.json --experiment-id EXP-20261109-DESKTOPK9L37-5b6f"
+    ],
+    "note": "",
+    "experiment_id": "EXP-20261109-DESKTOPK9L37-5b6f"
+  }
+}

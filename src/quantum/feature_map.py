@@ -179,9 +179,19 @@ class ClassicalRandomFeatureMap:
                  seed: int = 0):
         self.n_inputs, self.n_out = n_inputs, n_outputs
         rng = np.random.default_rng(seed)
-        self.W1 = rng.normal(0.0, 1.0, size=(n_inputs, n_outputs))
+        dense = n_inputs * n_outputs + n_outputs
+        if int(n_random_params) < dense:
+            # BUDGET FIX: a dense W1 + b1 has n(n+1) random parameters (156 at 12 qubits), more than the circuit's
+            # n_layers*n*3 (108 at 3 layers), so the "matched" control had 44 % more random parameters than the
+            # circuit. Below the dense size W1 is a rank-r product U @ V so the count never exceeds the budget.
+            r = max(1, (int(n_random_params) - n_outputs) // (n_inputs + n_outputs))
+            self.W1 = rng.normal(0.0, 1.0, size=(n_inputs, r)) @ rng.normal(0.0, 1.0, size=(r, n_outputs)) / np.sqrt(r)
+            self._w1_params = r * (n_inputs + n_outputs)
+        else:
+            self.W1 = rng.normal(0.0, 1.0, size=(n_inputs, n_outputs))
+            self._w1_params = self.W1.size
         self.b1 = rng.uniform(0.0, 2.0 * np.pi, size=n_outputs)
-        used = self.W1.size + self.b1.size
+        used = self._w1_params + self.b1.size
         surplus = max(0, int(n_random_params) - used)
         # second random layer (n_outputs x k) consumes the remaining budget
         k = min(n_outputs, surplus // max(n_outputs, 1))

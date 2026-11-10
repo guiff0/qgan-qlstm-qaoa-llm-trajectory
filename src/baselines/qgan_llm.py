@@ -86,6 +86,18 @@ from ..utils.stage_log import apply_timing as _apply_timing, stage as _stage
 _apply_timing(globals(), {'compute_attack_success_rate': 'attacks (FGSM/PGD/CW)', 'compute_clean_asr': 'clean-baseline ASR', 'synthetic_data_fidelity_report': 'fidelity metrics (FID/MMD/Wasserstein)', 'evaluate_poisoning_resistance': 'poisoning + model-inversion tests', 'evaluate_threat_detection': 'threat detection', 'run_resilience_suite': 'quantum resilience suite (total)', 'entanglement_metrics': 'entanglement tomography', 'measure_inference_latency': 'latency measurement'})
 
 
+DATA_ENTROPY_SEED = 7919   # fixed and independent of the run seed: every run and every condition sees the same inputs
+DATA_ENTROPY_N_INPUTS = 8
+
+
+def data_reference_inputs(n_qubits: int, n_inputs: int = DATA_ENTROPY_N_INPUTS,
+                          seed: int = DATA_ENTROPY_SEED) -> np.ndarray:
+    """Fixed set of data-like inputs (x ~ N(0,1), the scale the generator sees) for the data-input entropy
+    measurement. Drawn from its own seeded generator so it never touches global RNG state and never varies
+    with the run seed."""
+    return np.random.default_rng(seed).standard_normal((n_inputs, n_qubits))
+
+
 class QGANLLM(BaseForecastingModel):
     def __init__(self, config: Dict = None, seed: int = 42):
         default_config = {
@@ -205,7 +217,14 @@ class QGANLLM(BaseForecastingModel):
         X_train, y_train, X_val, y_val = _tr.X, _tr.target, _va.X, _va.target
         log = run_logger.info if run_logger else (lambda *_a, **_k: None)
 
-        n_epochs = self.config["epochs"]
+        # POSITIVE-CONTROL MODE (config `untrained: true`, set only on a dedicated ablation): zero GAN epochs, so the generator keeps
+        # its random initial weights; the head is then fitted on [X, G(X)] exactly as for a trained run. Same architecture, data,
+        # head, attack and evaluation as the trained arm: the ONLY difference is that the generator was never trained. It exists to
+        # prove the ASR instrument can see a generator difference at all (scripts/calibrate_entanglement_dose.py gate G2).
+        untrained = bool(self.config.get("untrained", False))
+        if untrained and not self._gen_path:
+            raise ValueError("untrained positive control needs forecast_path: generator (the head is fitted on [X, G(X)] after training)")
+        n_epochs = 0 if untrained else self.config["epochs"]
         batch_size = self.config["batch_size"]
         max_batches = self.config.get("max_batches_per_epoch")
         fp = config_fingerprint(self.config, self.seed, "qgan_llm")
@@ -329,6 +348,7 @@ class QGANLLM(BaseForecastingModel):
                 f"train rows: train MSE={head_mse:.3e}")
             save_checkpoint(self.checkpoint_path, _ckpt_payload(n_epochs, True))
         self.qgan_results["entanglement_history"] = entanglement_history
+        self.qgan_results["untrained_control"] = untrained
         self.is_trained = True
 
     def _measure_entanglement(self) -> dict:
@@ -346,6 +366,24 @@ class QGANLLM(BaseForecastingModel):
             circuit_fn, weights, self.config["n_qubits"],
             dev_name=self.config["quantum_device"],
         )
+
+    def _measure_entanglement_data(self) -> dict:
+        """Entropy/purity averaged over a FIXED set of data inputs (see data_reference_inputs), with the trained
+        weights. `_measure_entanglement` evaluates at the all-zeros input only; at small weight scale an RZZ dose
+        is invisible there (RZZ is diagonal), so this is the mediator to use for any RZZ dose study. The old
+        column is left unchanged."""
+        n_q = self.config["n_qubits"]
+        weights = self.generator.theta.detach().numpy()
+        ent, pur = [], []
+        for x in data_reference_inputs(n_q):
+            circuit_fn = apply_circuit_gates_only(x, weights, n_q, self.config["n_layers"],
+                                                  self.config["entanglement"])
+            rep = entanglement_metrics(circuit_fn, weights, n_q, dev_name=self.config["quantum_device"])
+            ent.append(float(rep["entanglement_entropy"]))
+            pur.append(float(rep["purity"]))
+        return {"entanglement_entropy_data": float(np.mean(ent)), "purity_data": float(np.mean(pur)),
+                "entanglement_entropy_data_sd": float(np.std(ent, ddof=1)) if len(ent) > 1 else 0.0,
+                "n_data_inputs": len(ent)}
 
     def _save_entanglement_map(self) -> None:
         """Pairwise qubit mutual-information map (Figure 32) -> results/entanglement_maps/<model>_seed<N>.json.
@@ -510,6 +548,13 @@ class QGANLLM(BaseForecastingModel):
         final_entanglement = self._measure_entanglement()
         self.results["entanglement_entropy"] = final_entanglement["entanglement_entropy"]
         self.results["purity"] = final_entanglement["purity"]
+        try:
+            _data_ent = self._measure_entanglement_data()
+            self.results["entanglement_entropy_data"] = _data_ent["entanglement_entropy_data"]
+            self.results["purity_data"] = _data_ent["purity_data"]
+            self.results["entanglement_entropy_data_sd"] = _data_ent["entanglement_entropy_data_sd"]
+        except Exception as exc:  # noqa: BLE001  (a diagnostic column must never break an evaluation)
+            print(f"[entanglement-data] skipped: {type(exc).__name__}: {exc}")
         self._save_entanglement_map()
 
         # Synthetic-data fidelity + mode-collapse diagnostics (Ch.4 Table 38,

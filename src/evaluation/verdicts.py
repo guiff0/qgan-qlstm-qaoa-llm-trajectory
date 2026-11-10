@@ -47,6 +47,7 @@ ALPHA = 0.05
 MIN_N_PER_GROUP = 3          # two-sample tests: independent runs per condition
 MIN_N_CORRELATION = 10       # correlations: points (configs/runs)
 MIN_N_MEDIATION = 30         # bootstrap mediation: independent runs
+MIN_N_H5 = 30                # Ch.3: H5 stays exploratory unless >= 30 independent runs
 MIN_RUNS_PER_LEVEL = 3       # controlled entanglement sweep: runs in the thinnest level
 EXPECTED = {"H1": -1, "H2": -1, "H3": +1, "H4": -1, "H5": +1}
 
@@ -174,7 +175,7 @@ def verdict_h3(res):
                       "H3 (noise lowers poisoning degradation)")
 
 
-def _corr(res, hyp, expected, label, extra_blockers=()):
+def _corr(res, hyp, expected, label, extra_blockers=(), min_n=MIN_N_CORRELATION):
     if "error" in res and "r" not in res:
         return _out("UNTESTABLE", "NONE", "U2_test_error", f"{hyp}: {res['error']}", [res["error"]], [], "")
     if res.get("status") == "insufficient_data":
@@ -185,8 +186,8 @@ def _corr(res, hyp, expected, label, extra_blockers=()):
     lo, hi = res["ci_low"], res["ci_high"]
     blockers = list(extra_blockers)
     independent = res.get("unit") == "run"          # controlled entanglement sweep: one point per (level, seed) run
-    if n < MIN_N_CORRELATION:
-        blockers.append(f"only n={n} points (< {MIN_N_CORRELATION})"
+    if n < min_n:
+        blockers.append(f"only n={n} points (< {min_n})"
                         + ("" if independent else "; each point is one model config, not an independent run"))
     if independent and (res.get("min_runs_per_level") or 0) < MIN_RUNS_PER_LEVEL:
         blockers.append(f"thinnest sweep level has only {res.get('min_runs_per_level')} runs (< {MIN_RUNS_PER_LEVEL}); "
@@ -207,12 +208,12 @@ def _corr(res, hyp, expected, label, extra_blockers=()):
     if verdict == "INCONCLUSIVE":
         why.append(f"~{nn_obs} points would give 80% power if the true r equals the observed {abs(r):.2f}; "
                    f"{nn_half} points if the true r is 0.5")
-    if abs(r) > 0.99 and n < MIN_N_CORRELATION:
+    if abs(r) > 0.99 and n < min_n:
         why.append("|r| > 0.99 on so few points usually reflects configs differing in many ways at once, "
                    "not a clean dose-response")
     return _out(verdict, tier, rule, f"{label}: {verdict} ({tier.lower()}) -- r={r:.2f}, p={_fmt_p(p)}, n={n}.",
                 why, blockers,
-                f"Collect >= {max(MIN_N_CORRELATION, nn_half or 0)} independent runs spanning entanglement levels "
+                f"Collect >= {max(min_n, nn_half or 0)} independent runs spanning entanglement levels "
                 f"(vary seed AND entanglement setting)." if blockers else "", lean, p_value=p, r=r)
 
 
@@ -223,7 +224,7 @@ def verdict_h2(res):
 def verdict_h5(res):
     det = res.get("detector", "")
     extra = ["detector is the interim classical RandomForest, not the LLM detector"] if "classical" in det else ()
-    return _corr(res, "H5", EXPECTED["H5"], "H5 (entanglement vs detection accuracy)", extra)
+    return _corr(res, "H5", EXPECTED["H5"], "H5 (entanglement vs detection accuracy)", extra, min_n=MIN_N_H5)
 
 
 def verdict_h4(res):
@@ -357,9 +358,50 @@ def _not_decidable(short: str, dec: dict, underlying: dict) -> dict:
                 None, underlying={"verdict": underlying["verdict"], "p_value": underlying.get("p_value")})
 
 
+_DOWNGRADE = {"SUPPORTED": ("SUGGESTIVE_FOR", "R1i_sig_expected_direction_interim"),
+              "CONTRADICTED": ("SUGGESTIVE_AGAINST", "R2i_sig_opposite_direction_interim"),
+              "NOT_SUPPORTED": ("INCONCLUSIVE", "R4i_not_significant_interim")}
+
+
+def apply_interim_gate(d: dict, status: dict) -> None:
+    """While the pre-registered design is incomplete NO verdict may be CONFIRMATORY (reviewer issue 7): the stopping
+    rule is the full design, so a partial sample is an interim / exploratory analysis. Mutates one verdict dict."""
+    if not status or status.get("complete") or d["tier"] != "CONFIRMATORY":
+        return
+    d["tier"] = "EXPLORATORY"
+    d["blockers"].append(f"interim analysis: {status['label']}; confirmatory status needs every pre-registered "
+                         f"condition at {status['seeds_per_condition']} seeds")
+    if d["verdict"] in _DOWNGRADE:
+        d["verdict"], d["rule"] = _DOWNGRADE[d["verdict"]]
+        d["headline"] = d["headline"].replace("(confirmatory)", "(exploratory, interim)")
+    d["interim"] = True
+
+
+def chapter_label(d: dict) -> str:
+    """ONE controlling wording per hypothesis, to be reused verbatim in the RQ section, the summary table,
+    the Evaluation of Findings, the Abstract and Chapter 5 (reviewer issue 5)."""
+    v, lean, tier = d["verdict"], d.get("lean"), d["tier"]
+    suffix = "" if tier == "CONFIRMATORY" else " (exploratory)"
+    if v in ("SUPPORTED",):
+        return "Supported"
+    if v in ("CONTRADICTED", "SUGGESTIVE_AGAINST"):
+        return "Inconclusive (exploratory); observed direction contrary to the hypothesis" if tier != "CONFIRMATORY" else "Not supported (significant, opposite direction)"
+    if v == "SUGGESTIVE_FOR":
+        return "Inconclusive (exploratory); observed direction as hypothesised"
+    if v == "NOT_SUPPORTED":
+        return "Not supported"
+    if v == "INCONCLUSIVE":
+        tail = {"against": "; observed direction contrary to the hypothesis", "for": "; observed direction as hypothesised"}.get(lean, "")
+        return "Inconclusive" + suffix + tail
+    if v == "NOT_DECIDABLE":
+        return "Untestable (the outcome cannot move under the current protocol)"
+    return "Untestable"
+
+
 def compute_verdicts(out: dict) -> dict:
     """Pure function: results dict (as written by run_hypothesis_tests) -> verdicts dict."""
     v = {}
+    status = out.get("study_status")
     for key, short in NAMES.items():
         try:
             v[key] = _FN[short](out.get(key, {}))
@@ -369,6 +411,7 @@ def compute_verdicts(out: dict) -> dict:
                 continue
             _attach_equivalence(v[key], out.get(key, {}))
             _attach_paired(v[key], out.get(key, {}))
+            apply_interim_gate(v[key], status)
         except Exception as exc:  # never let the verdict layer break the run
             v[key] = _out("UNTESTABLE", "NONE", "U4_verdict_error", f"{short}: verdict failed ({exc})",
                           [repr(exc)], [], "")
@@ -379,15 +422,17 @@ def compute_verdicts(out: dict) -> dict:
         if v[k]["verdict"] in ("SUPPORTED", "CONTRADICTED") and adj >= ALPHA:
             v[k].update(verdict="INCONCLUSIVE", rule="R8_fails_holm_correction")
             v[k]["why"].append(f"Holm-adjusted p = {adj:.3f} >= {ALPHA}")
+    for d in v.values():
+        d["chapter_label"] = chapter_label(d)
     return v
 
 
 def format_table(verdicts: dict, detail: bool = True) -> str:
-    rows = [("HYPOTHESIS", "VERDICT", "EVIDENCE", "RULE")]
+    rows = [("HYPOTHESIS", "VERDICT", "EVIDENCE", "RULE", "CHAPTER LABEL")]
     for k, d in verdicts.items():
         rows.append((k, d["verdict"] + (f" (leans {d['lean']})" if d["verdict"] == "INCONCLUSIVE" and d.get("lean") else ""),
-                     d["tier"], d["rule"]))
-    w = [max(len(r[i]) for r in rows) for i in range(4)]
+                     d["tier"], d["rule"], d.get("chapter_label", "")))
+    w = [max(len(r[i]) for r in rows) for i in range(5)]
     lines = ["  ".join(c.ljust(w[i]) for i, c in enumerate(r)) for r in rows]
     lines.insert(1, "  ".join("-" * x for x in w))
     if detail:

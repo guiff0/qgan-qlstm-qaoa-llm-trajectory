@@ -427,6 +427,23 @@ adversarial:
   # Number of distinct attack methods combined into the "overall" attack
   # success rate (matches len(attacks) above).
 
+poisoning:
+  # H3 poisoning protocol, ONE section for every condition (src/evaluation/poisoning_protocol.py). Omit this section
+  # (or set protocol: legacy) to get the old reflect-5%-of-targets attack, which moved RMSE by < 0.2 % in all 70 logged
+  # runs and so could not test H3. Amendment 2 (PREREGISTRATION_AMENDMENT_2.md) explains the change.
+  protocol: "v2_triggered_shift"
+  fraction: 0.2            # share of training rows whose target is shifted
+  shift_sd: 0.5            # shift = shift_sd x sd(y) x sign(projection on a fixed random direction).
+                           # PROVISIONAL (from a simulation, not from your data). Run
+                           #   python -m scripts.calibrate_poisoning
+                           # on the pilot seeds, paste the value it prints here, and set calibrated: true BEFORE the rerun.
+  calibrated: true
+  ridge: 1.0               # closed-form ridge head (deterministic)
+  pc_floor_pct: 5.0        # positive control (same attack, real-only head) must degrade at least this much (= H3 margin)
+  pc_target_pct: 10.0      # what the calibration aims for on the positive control
+  pc_max_rows: 100000
+  pilot_seeds: [100, 101, 102, 103, 104]   # calibration seeds; must not overlap the confirmatory seeds (43...)
+
 statistics:
   alpha: 0.05
   # Significance threshold used for the dissertation's hypothesis tests.
@@ -475,6 +492,15 @@ llm_pipeline:
   window_size: 10          # real closes per prompt
   horizon_minutes: 1
   max_llm_calls: 20
+  # --- H5 instrument (Amendment 2; src/llm/threat_calibration.py). The zero-shot detector sat at chance (accuracy 0.501
+  # over 9,168 windows; it said "threat" for ~76 % of clean AND attacked windows), so H5 was not decidable. ---
+  threat_calibration: true     # threshold picked on calibration windows; accuracy reported on DISJOINT eval windows
+  threat_cal_fraction: 0.3
+  threat_few_shot: 4           # labelled clean/attacked pairs in the system prompt; those windows are never scored
+  threat_positive_control: true  # same detector on a GROSS perturbation; H5 is not decidable if it misses that
+  threat_pc_k: 20.0            # gross perturbation = k x the 1-minute SD (the study's attack uses price_attack_k = 2)
+  threat_pc_windows: 30
+  threat_pc_min_accuracy: 0.75
 
 sec_compliance:
   # Technical-control screen (src/evaluation/sec_compliance.py). Study-internal

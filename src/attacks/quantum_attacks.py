@@ -23,6 +23,7 @@ from __future__ import annotations
 import numpy as np
 import pennylane as qml
 
+from ..quantum.entangler import apply_entangler
 from ..quantum.tomography import (
     statevector_from_circuit,
     reduced_density_matrix,
@@ -31,25 +32,10 @@ from ..quantum.tomography import (
 )
 
 
-def _apply_entangling(n_qubits: int, entanglement: str) -> None:
-    """Identical topology logic to circuits.py -- kept here as its own
-    function (rather than imported) because entanglement_disruption_attack
-    below needs to insert gates immediately after this call, which
-    circuits.py's existing functions don't expose a hook for."""
-    if entanglement == "ring":
-        for q in range(n_qubits):
-            qml.CNOT(wires=[q, (q + 1) % n_qubits])
-    elif entanglement == "full":
-        for i in range(n_qubits):
-            for j in range(i + 1, n_qubits):
-                qml.CNOT(wires=[i, j])
-    elif entanglement == "linear":
-        for q in range(n_qubits - 1):
-            qml.CNOT(wires=[q, q + 1])
-    elif entanglement == "none":
-        pass  # product-state control: no entangling gates (zero-entanglement sweep level)
-    else:
-        raise ValueError(f"Unknown entanglement topology: {entanglement}")
+def _apply_entangling(n_qubits: int, entanglement: str, layer: int, n_layers: int) -> None:
+    """Same entangling block as circuits.py (one shared definition: quantum/entangler.py). Kept as a
+    function here because entanglement_disruption_attack below inserts gates immediately after this call."""
+    apply_entangler(entanglement, n_qubits, layer, n_layers)
 
 
 def _clean_gate_sequence(inputs_np: np.ndarray, n_qubits: int, n_layers: int, entanglement: str):
@@ -72,7 +58,7 @@ def _clean_gate_sequence(inputs_np: np.ndarray, n_qubits: int, n_layers: int, en
                 qml.RX(weights[idx], wires=q)
                 qml.RY(weights[idx + 1], wires=q)
                 qml.RZ(weights[idx + 2], wires=q)
-            _apply_entangling(n_qubits, entanglement)
+            _apply_entangling(n_qubits, entanglement, layer, n_layers)
 
     return _apply
 
@@ -152,7 +138,7 @@ def entanglement_disruption_attack(inputs_np: np.ndarray, weights_np: np.ndarray
                 qml.RX(weights[idx], wires=q)
                 qml.RY(weights[idx + 1], wires=q)
                 qml.RZ(weights[idx + 2], wires=q)
-            _apply_entangling(n_qubits, entanglement)
+            _apply_entangling(n_qubits, entanglement, layer, n_layers)
             # THE ATTACK -- disrupt correlations this layer's entangling
             # gates just created, before the next layer builds on them.
             for q in range(n_qubits):

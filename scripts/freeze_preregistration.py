@@ -28,7 +28,13 @@ TRACKED = [
     "src/baselines/feature_map_forecaster.py", "src/quantum/feature_map.py",
     "src/utils/generator_path.py", "src/utils/capacity_match.py",
     "src/baselines/qgan_llm.py", "src/baselines/classical_gan_llm.py",
+    # the decision logic and the written plan: a change here changes what a verdict means (added after round-5 review)
+    "src/evaluation/verdicts.py", "src/evaluation/paired_tests.py", "src/evaluation/study_status.py",
+    "config/analysis_plan.yaml", "PREREGISTRATION_V2.md", "PREREGISTRATION_ADDENDUM.md", "PREREGISTRATION_AMENDMENT_2.md",
+    "scripts/snapshot_results.py",
 ]
+# results/all_results.csv is NOT tracked here: it changes while the study runs. Its sha256 is fixed by
+# scripts/snapshot_results.py at the confirmatory gate instead.
 SEEDS = list(range(10))          # confirmatory seeds for both studies (10 gives power for ~1.3 sigma paired differences)
 FEATURE_MAP_RUNS = [{"n_qubits": 8, "n_layers": 3}, {"n_qubits": 12, "n_layers": 3}]
 
@@ -85,6 +91,11 @@ def check() -> int:
         if now["file_sha256"].get(p) != h:
             why = recorded.get((p, now["file_sha256"].get(p)))
             (noted if why else changed).append(f"{p}: file changed" + (f"  [recorded deviation: {why}]" if why else ""))
+    for p in TRACKED:        # a file added to TRACKED after the freeze is not covered by it: say so, never skip silently
+        if p not in frozen["file_sha256"]:
+            why = recorded.get((p, now["file_sha256"].get(p)))
+            (noted if why else changed).append(f"{p}: not in the frozen record (tracked later; take a new freeze record "
+                                               "or record a deviation)" + (f"  [recorded deviation: {why}]" if why else ""))
     if frozen["equivalence"] != now["equivalence"]:
         changed.append("equivalence margins / alpha changed (decision rules: never a quiet deviation)")
     if frozen["seeds"] != now["seeds"]:
@@ -107,6 +118,9 @@ def record_deviation(reason: str) -> int:
     frozen, now = json.load(open(path)), build_record()
     files = {p: {"sha256_frozen": h, "sha256_now": now["file_sha256"].get(p)}
              for p, h in frozen["file_sha256"].items() if now["file_sha256"].get(p) != h}
+    for p in TRACKED:
+        if p not in frozen["file_sha256"] and now["file_sha256"].get(p) is not None:
+            files[p] = {"sha256_frozen": None, "sha256_now": now["file_sha256"].get(p)}
     rules_changed = frozen["equivalence"] != now["equivalence"] or frozen["seeds"] != now["seeds"]
     rec = {"recorded_utc": now["frozen_utc"], "reason": reason, "frozen_record": os.path.basename(path),
            "git_commit": now["git_commit"], "changed_files": files, "decision_rules_changed": rules_changed}

@@ -72,10 +72,23 @@ from ..utils.stage_log import apply_timing as _apply_timing, stage
 _apply_timing(globals(), {'membership_inference_success': 'membership inference attack', 'invert_continuous_targets': 'label-poisoning construction'})
 
 
+def _protocol_cfg(protocol_cfg):
+    """The study-wide `poisoning:` config section (one place, so every condition is scored identically), or None
+    for the legacy protocol. An explicit dict argument wins over the file."""
+    if protocol_cfg is not None:
+        return protocol_cfg or None
+    try:
+        from ..utils.config import load_config
+        sec = load_config().get("poisoning")
+    except Exception:  # config unreadable -> legacy, never crash an evaluation over this
+        return None
+    return sec if isinstance(sec, dict) and str(sec.get("protocol", "")).startswith("v2") else None
+
+
 def evaluate_poisoning_resistance(model, X_test: np.ndarray, y_test: np.ndarray,
                                    clean_rmse: float, seed: int = 0,
                                    fraction: float = 0.05, epochs: int = 20,
-                                   max_synthetic: int = None) -> dict:
+                                   max_synthetic: int = None, protocol_cfg: dict = None) -> dict:
     """
     model: needs .config (dict, read for "synthetic_ratio") and, optionally,
     .generate_synthetic_data(n) -- if the model has neither (e.g. a plain
@@ -97,9 +110,12 @@ def evaluate_poisoning_resistance(model, X_test: np.ndarray, y_test: np.ndarray,
     perm = rng.permutation(n)
     train_idx, eval_idx = perm[:half], perm[half:]
     del perm
+    pcfg = _protocol_cfg(protocol_cfg)
     y_train_diag = y_test[train_idx]
     X_eval_diag, y_eval_diag = X_test[eval_idx], y_test[eval_idx]
     X_mixed = X_test[train_idx]            # fancy indexing already copies; mutated in place below
+    # v2 positive control needs the REAL features of the same rows, before the synthetic rows overwrite them.
+    X_real_pc = X_mixed[: int((pcfg or {}).get("pc_max_rows", 100_000))].copy() if pcfg else None
     del X_test, train_idx, eval_idx
 
     synthetic_ratio = float(getattr(model, "config", {}).get("synthetic_ratio", 0.0) or 0.0)
@@ -120,6 +136,16 @@ def evaluate_poisoning_resistance(model, X_test: np.ndarray, y_test: np.ndarray,
         X_mixed[:n_synth] = synthetic
         del synthetic
     y_mixed = y_train_diag.copy()
+
+    if pcfg:
+        # Protocol v2 (src/evaluation/poisoning_protocol.py): attack that can move the outcome, deterministic ridge
+        # head, and a real-data-only positive control. Strength is the frozen config value, identical for every run.
+        from .poisoning_protocol import run_protocol
+        result = run_protocol(X_mixed, y_mixed, X_eval_diag, y_eval_diag, X_real_train=X_real_pc, seed=seed, cfg=pcfg)
+        result["poisoning_synthetic_ratio_used"] = synthetic_ratio
+        del X_mixed, X_real_pc
+        gc.collect()
+        return _finish_with_model_inversion(model, result, X_eval_diag, seed)
 
     poison = invert_continuous_targets(y_mixed, fraction=fraction, seed=seed)
     y_poisoned = poison["y_poisoned"]
@@ -155,6 +181,10 @@ def evaluate_poisoning_resistance(model, X_test: np.ndarray, y_test: np.ndarray,
         "poisoning_n_poisoned": poison["n_poisoned"],
     }
 
+    return _finish_with_model_inversion(model, result, X_eval_diag, seed)
+
+
+def _finish_with_model_inversion(model, result: dict, X_eval_diag: np.ndarray, seed: int) -> dict:
     if hasattr(model, "generate_synthetic_data"):
         try:
             synth_for_mi = np.asarray(model.generate_synthetic_data(min(len(X_eval_diag), int(os.environ.get("GAN_EVAL_SAMPLES") or 5000))))  # MI uses <=5000 rows anyway

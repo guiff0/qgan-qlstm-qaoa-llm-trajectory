@@ -1,0 +1,577 @@
+{
+  "analysis_plan_sha": "ca2a2d3997482622",
+  "experiment_id": "unassigned",
+  "experiments_used": [
+    "unassigned"
+  ],
+  "experiments_in_file": {
+    "unassigned": 23,
+    "EXP-20261109-DESKTOPK9L37-68aa": 66
+  },
+  "pooled_experiments": false,
+  "seed_overlap_between_experiments": {},
+  "n_rows_in_file": 89,
+  "n_rows_raw": 23,
+  "n_rows": 12,
+  "dedupe": "config_seed",
+  "equivalence_margins": {
+    "fid": {
+      "kind": "rel_ref",
+      "value": 0.1
+    },
+    "rmse": {
+      "kind": "rel_persistence",
+      "value": 0.02
+    },
+    "asr": {
+      "kind": "abs",
+      "value": 5.0
+    },
+    "poisoning": {
+      "kind": "abs",
+      "value": 5.0
+    },
+    "r0": {
+      "kind": "abs",
+      "value": 0.3
+    }
+  },
+  "n_runs_per_model": {
+    "Classical GAN-LLM": 1,
+    "Classical LSTM": 1,
+    "Classical-Features-LLM": 1,
+    "LLM Forecaster": 1,
+    "QAOA-Enhanced LLM": 1,
+    "QAOA-LLM": 1,
+    "QGAN-LLM": 4,
+    "QLSTM Forecaster": 1,
+    "QLSTM-LLM": 1
+  },
+  "n_runs_per_config": {
+    "qaoa_enhanced_llm": 1,
+    "qlstm_forecaster": 1,
+    "classical_lstm": 1,
+    "qgan_llm": 1,
+    "classical_gan_llm": 1,
+    "llm_forecaster": 1,
+    "qlstm_llm": 1,
+    "qaoa_llm": 1,
+    "classical_features_llm": 1,
+    "qgan_llm_12_qubit": 1,
+    "qgan_llm_linear_topology": 1,
+    "qgan_llm_no_noise": 1
+  },
+  "H1_synthetic_data_fidelity": {
+    "status": "insufficient_data",
+    "message": "insufficient data: need >= 2 observations per group, have {'QGAN-LLM': 1, 'Classical GAN-LLM': 1} -- repeated runs needed",
+    "short_groups": {
+      "QGAN-LLM": 1,
+      "Classical GAN-LLM": 1
+    },
+    "how_to_fix": "python -m scripts.run_repeated_experiment --model \"Classical GAN-LLM\" --n-runs 2 --base-seed 43",
+    "note_covariate": "no usable 'vix' covariate (or < 2 runs per side) in results/all_results.csv -- ran a plain comparison instead of the ANCOVA Ch.3 specifies",
+    "equivalence": null,
+    "paired_by_seed": {
+      "status": "insufficient_data",
+      "outcome": "fid",
+      "n_pairs": 1,
+      "seeds": [
+        42
+      ],
+      "unpaired_seeds": {
+        "a_only": [],
+        "b_only": []
+      },
+      "message": "need >= 3 shared seeds, have 1"
+    },
+    "configs_used": {
+      "QGAN-LLM": "qgan_llm",
+      "Classical GAN-LLM": "classical_gan_llm"
+    },
+    "n_per_group_used": {
+      "QGAN-LLM": 1,
+      "Classical GAN-LLM": 1
+    },
+    "pooled_qgan_configs": false,
+    "pooled_classical_configs": false
+  },
+  "H2_adversarial_resilience": {
+    "r": -0.9973297598255654,
+    "df": 3,
+    "p_value": 0.00016557139923433113,
+    "r_squared": 0.9946666498337199,
+    "ci_low": -0.9998327702784334,
+    "ci_high": -0.9581469983372751,
+    "status": "ok",
+    "design": "pooled_configs",
+    "unit": "config",
+    "equivalence_r": {
+      "equivalent": false,
+      "r": -0.9973297598255654,
+      "n": 5,
+      "r0": 0.3,
+      "p_lower": 0.9999888974757163,
+      "p_upper": 1.5527124383787975e-07,
+      "p_tost": 0.9999888974757163,
+      "ci_level": 0.9,
+      "ci_low": -0.9997388865884662,
+      "ci_high": -0.9729933424111856,
+      "alpha": 0.05,
+      "reading": "no-relevant-correlation NOT shown (CI too wide or r too large)"
+    }
+  },
+  "H3_poisoning_resistance": {
+    "status": "insufficient_data",
+    "message": "insufficient data: need >= 2 observations per group, have {'no_noise': 1, 'noisy': 1} -- repeated runs needed",
+    "short_groups": {
+      "no_noise": 1,
+      "noisy": 1
+    },
+    "how_to_fix": "python -m scripts.run_repeated_experiment --model \"QGAN-LLM (no noise)\" --n-runs 2 --base-seed 43",
+    "design": "matched_config_noise_only",
+    "equivalence": null,
+    "n_per_group_used": {
+      "no_noise": 1,
+      "noisy": 1
+    },
+    "configs_used": {
+      "no_noise": "qgan_llm_no_noise",
+      "noisy": "qgan_llm"
+    },
+    "interpretation": "positive t (no_noise mean > noisy mean) supports Ha3: noise injection -> lower poisoning degradation",
+    "decidability": {
+      "gate": "poisoning_dynamic_range",
+      "decidable": false,
+      "largest_abs_degradation": 0.0003606299395136,
+      "required_at_least": 1.0,
+      "margin": 5.0,
+      "n_values": 2,
+      "reason": "the poisoning attack changed RMSE by at most 0.000361 points in any of 2 runs, below 1 (= 20% of the +/-5 equivalence margin); 'equivalence' between conditions is then true of any model and is not evidence about noise",
+      "remedy": "raise the poisoned fraction / strength until the un-noised control degrades measurably (a positive control), then re-run H3; until then report H3 as not decidable"
+    },
+    "paired_by_seed": {
+      "status": "insufficient_data",
+      "outcome": "poisoning_rmse_degradation_pct",
+      "n_pairs": 1,
+      "seeds": [
+        42
+      ],
+      "unpaired_seeds": {
+        "a_only": [],
+        "b_only": []
+      },
+      "message": "need >= 3 shared seeds, have 1"
+    }
+  },
+  "H4_quantum_advantage": {
+    "forecast_design": "head_only_or_mixed",
+    "classical_comparator": "classical_gan_llm",
+    "n_runs": {
+      "QGAN-LLM": 1,
+      "Classical GAN-LLM": 1
+    },
+    "rmse": {
+      "status": "degenerate_by_design",
+      "reason": "all 2 observations are identical (value=0.00013621); the quantity does not depend on the model under test, so no test statistic exists",
+      "why": "In QGAN-LLM and Classical GAN-LLM the forecast head is a linear layer fitted in closed form on REAL rows only; the generator is never on the forecast path. More seeds cannot create a difference. A quantum-vs-classical RMSE/ASR comparison needs the generator (or its output) to feed the forecast -- see the Ch.4 diagnosis.",
+      "mean_a": 0.0001362099554855,
+      "mean_b": 0.0001362099554855
+    },
+    "asr": {
+      "status": "degenerate_by_design",
+      "reason": "all 2 observations are identical (value=43.161); the quantity does not depend on the model under test, so no test statistic exists",
+      "why": "In QGAN-LLM and Classical GAN-LLM the forecast head is a linear layer fitted in closed form on REAL rows only; the generator is never on the forecast path. More seeds cannot create a difference. A quantum-vs-classical RMSE/ASR comparison needs the generator (or its output) to feed the forecast -- see the Ch.4 diagnosis."
+    },
+    "caveat": "RMSE here now reflects the fixed one-step-ahead target (see src/evaluation/one_step_ahead.py) rather than the old same-row-leaked values -- numbers from before that fix are not comparable to numbers generated after it"
+  },
+  "H4_matched_capacity": {
+    "status": "no_matched_rows",
+    "note": "no rows with run_id slug 'classical_gan_llm_matched'; run the 'Classical GAN-LLM (matched)' condition"
+  },
+  "H5_threat_detection_tomography_correlation": {
+    "r": 0.7136986618195099,
+    "df": 2,
+    "p_value": 0.2863013381804902,
+    "r_squared": 0.5093657798829592,
+    "ci_low": -0.7876769982698618,
+    "ci_high": 0.9933918709340289,
+    "status": "ok",
+    "design": "pooled_configs",
+    "unit": "config",
+    "equivalence_r": {
+      "equivalent": false,
+      "r": 0.7136986618195099,
+      "n": 4,
+      "r0": 0.3,
+      "p_lower": 0.11425579560286536,
+      "p_upper": 0.7207808015413849,
+      "p_tost": 0.7207808015413849,
+      "ci_level": 0.9,
+      "ci_low": -0.6352512158211914,
+      "ci_high": 0.987625666709252,
+      "alpha": 0.05,
+      "reading": "no-relevant-correlation NOT shown (CI too wide or r too large)"
+    },
+    "decidability": {
+      "gate": "detector_above_chance",
+      "decidable": false,
+      "pooled_accuracy": 0.5006134969325153,
+      "pooled_n": 815,
+      "p_above_chance": 0.49999999999999956,
+      "between_run_sd": 0.0030880840399090644,
+      "sampling_noise_sd": 0.03500700210070024,
+      "reason": "the detector's pooled accuracy is 0.501 over 815 windows (4 runs), not above chance (p = 0.500); differences in accuracy between runs (sd 0.003) are what sampling noise alone gives (sd 0.035), so a correlation with entanglement has no signal to find",
+      "remedy": "use a detector that beats chance (e.g. few-shot prompts or a calibrated threshold), verify it on a positive control, then re-run H5"
+    },
+    "detector": "LLM threat probability (threat_scoring.py)",
+    "note": "accuracy column used: llm_threat_accuracy. "
+  },
+  "M2_DV2_mediation": {
+    "path_a": -0.12499999999999988,
+    "path_b": -0.5714285714285727,
+    "path_c": -2.201292032950401e-16,
+    "path_c_prime": -0.07142857142857195,
+    "indirect_effect": 0.07142857142857152,
+    "ci_low": -2.5188018541005727e-16,
+    "ci_high": 0.33333333333333304,
+    "proportion_mediated": null,
+    "significant": false,
+    "n_bootstrap": 5000,
+    "n_observations": 12,
+    "mediation_type": "none",
+    "pathway": "M2 -> DV2 (decomposes H2)",
+    "mediator_name": "Qubit Entanglement Level",
+    "dv_name": "Attack Success Rate Category",
+    "design": "pooled_configs",
+    "unit": "config",
+    "caveat": "rows here are one per model CONFIG (ablation), not one per independent experimental run -- see mediation_pipelines.py's UNIT-OF-ANALYSIS CAVEAT; treat as exploratory, not confirmatory"
+  },
+  "naive_baseline": {
+    "rmse_over_persistence": {
+      "label": "head / generator-on-path forecast",
+      "configs": {
+        "classical_features_llm": {
+          "n_runs": 1,
+          "ratio_mean": 1.006100211806596,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "classical_gan_llm": {
+          "n_runs": 1,
+          "ratio_mean": 1.0029277566478323,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "classical_lstm": {
+          "n_runs": 1,
+          "ratio_mean": 38.06896578093659,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "llm_forecaster": {
+          "n_runs": 1,
+          "ratio_mean": 1.153996984451844,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "qaoa_enhanced_llm": {
+          "n_runs": 1,
+          "ratio_mean": 687.1125073117914,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "qaoa_llm": {
+          "n_runs": 1,
+          "ratio_mean": 1.11709258594969,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "qgan_llm": {
+          "n_runs": 1,
+          "ratio_mean": 1.0029277566478323,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "qgan_llm_12_qubit": {
+          "n_runs": 1,
+          "ratio_mean": 1.0029277566478323,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "qgan_llm_linear_topology": {
+          "n_runs": 1,
+          "ratio_mean": 1.0029277566478323,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "qgan_llm_no_noise": {
+          "n_runs": 1,
+          "ratio_mean": 1.0029277566478323,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "qlstm_forecaster": {
+          "n_runs": 1,
+          "ratio_mean": 0.8866636973822782,
+          "share_below_1": 1.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "qlstm_llm": {
+          "n_runs": 1,
+          "ratio_mean": 1.0701140712355963,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        }
+      },
+      "reading": "ratio < 1 beats persistence; beats_naive needs the whole 95% CI below 1"
+    },
+    "llm_rmse_over_persistence": {
+      "label": "LLM forecast",
+      "configs": {
+        "classical_features_llm": {
+          "n_runs": 1,
+          "ratio_mean": 1.0619190663114957,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "classical_gan_llm": {
+          "n_runs": 1,
+          "ratio_mean": 1.2225639231070236,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "llm_forecaster": {
+          "n_runs": 1,
+          "ratio_mean": 1.218021212871938,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "qaoa_llm": {
+          "n_runs": 1,
+          "ratio_mean": 1.1790693431274477,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "qgan_llm": {
+          "n_runs": 1,
+          "ratio_mean": 1.2234614747825563,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "qgan_llm_12_qubit": {
+          "n_runs": 1,
+          "ratio_mean": 1.249724208472811,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "qgan_llm_linear_topology": {
+          "n_runs": 1,
+          "ratio_mean": 1.2259379927149996,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "qgan_llm_no_noise": {
+          "n_runs": 1,
+          "ratio_mean": 1.2326198744681227,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        },
+        "qlstm_llm": {
+          "n_runs": 1,
+          "ratio_mean": 1.1294844410506342,
+          "share_below_1": 0.0,
+          "beats_naive": null,
+          "note": "fewer than 3 runs (or no variance): descriptive only"
+        }
+      },
+      "reading": "ratio < 1 beats persistence; beats_naive needs the whole 95% CI below 1"
+    }
+  },
+  "Q1_three_arm_feature_map": {
+    "results/feature_map_advantage.json": {
+      "status": "not_run",
+      "how": "python -m scripts.run_feature_map_experiment --seeds 0 1 2 3 4 5 6 7 8 9 --n-qubits 8   (and again with --n-qubits 12)"
+    }
+  },
+  "summary": {
+    "H1_synthetic_data_fidelity": "insufficient_data",
+    "H2_adversarial_resilience": "ok",
+    "H3_poisoning_resistance": "insufficient_data",
+    "H4_quantum_advantage": "degenerate_by_design",
+    "H4_matched_capacity": "no_matched_rows",
+    "H5_threat_detection_tomography_correlation": "ok",
+    "M2_DV2_mediation": "ok"
+  },
+  "planned_vs_ran": {
+    "H1_synthetic_data_fidelity": {
+      "planned": "Welch on run-level FID (+ ANCOVA when a VIX covariate exists)",
+      "ran": "insufficient_data",
+      "fallback_triggered": true,
+      "why": "no usable 'vix' covariate (or < 2 runs per side) in results/all_results.csv -- ran a plain comparison instead of the ANCOVA Ch.3 specifies"
+    },
+    "H2_adversarial_resilience": {
+      "planned": "run-level correlation / bootstrap mediation on the controlled sweep",
+      "ran": "pooled_configs",
+      "fallback_triggered": true,
+      "why": "no controlled sweep in the data: configs pooled (exploratory)"
+    },
+    "H5_threat_detection_tomography_correlation": {
+      "planned": "run-level correlation / bootstrap mediation on the controlled sweep",
+      "ran": "pooled_configs",
+      "fallback_triggered": true,
+      "why": "no controlled sweep in the data: configs pooled (exploratory); decidability gate failed: detector_above_chance"
+    },
+    "M2_DV2_mediation": {
+      "planned": "run-level correlation / bootstrap mediation on the controlled sweep",
+      "ran": "pooled_configs",
+      "fallback_triggered": true,
+      "why": "no controlled sweep in the data: configs pooled (exploratory)"
+    },
+    "H3_poisoning_resistance": {
+      "planned": "Welch no_noise vs noisy on matched configs + TOST",
+      "ran": "matched_config_noise_only",
+      "fallback_triggered": true,
+      "why": "decidability gate failed: poisoning_dynamic_range"
+    },
+    "H4_quantum_advantage": {
+      "planned": "Welch on run-level RMSE/ASR, paired by seed, row-level DM rule",
+      "ran": "Welch two-sample t",
+      "fallback_triggered": false,
+      "why": ""
+    }
+  },
+  "verdicts": {
+    "H1_synthetic_data_fidelity": {
+      "verdict": "UNTESTABLE",
+      "tier": "NONE",
+      "rule": "U1_insufficient_data",
+      "lean": null,
+      "headline": "H1: not enough runs to test.",
+      "why": [
+        "insufficient data: need >= 2 observations per group, have {'QGAN-LLM': 1, 'Classical GAN-LLM': 1} -- repeated runs needed"
+      ],
+      "blockers": [
+        "too few runs in at least one condition"
+      ],
+      "next_action": "python -m scripts.run_repeated_experiment --model \"Classical GAN-LLM\" --n-runs 2 --base-seed 43"
+    },
+    "H2_adversarial_resilience": {
+      "verdict": "SUGGESTIVE_FOR",
+      "tier": "EXPLORATORY",
+      "rule": "R1x_sig_expected_direction_exploratory",
+      "lean": "for",
+      "headline": "H2 (entanglement vs ASR): SUGGESTIVE_FOR (exploratory) -- r=-1.00, p=<0.001, n=5.",
+      "why": [
+        "r = -0.997, 95% CI [-1.00, -0.96], p < 0.001, n = 5",
+        "hypothesis expects r < 0; observed r < 0",
+        "|r| > 0.99 on so few points usually reflects configs differing in many ways at once, not a clean dose-response",
+        "equivalence (r): 90% CI of r [-1.00, -0.97] vs +/-0.3 -> not shown (p_TOST = 1.000)"
+      ],
+      "blockers": [
+        "only n=5 points (< 10); each point is one model config, not an independent run"
+      ],
+      "next_action": "Collect >= 30 independent runs spanning entanglement levels (vary seed AND entanglement setting).",
+      "p_value": 0.00016557139923433113,
+      "r": -0.9973297598255654,
+      "equivalence": {
+        "r": {
+          "equivalent": false,
+          "p_tost": 0.9999888974757163
+        }
+      }
+    },
+    "H3_poisoning_resistance": {
+      "verdict": "NOT_DECIDABLE",
+      "tier": "NONE",
+      "rule": "R9_not_decidable_by_design",
+      "lean": null,
+      "headline": "H3: NOT_DECIDABLE -- the poisoning attack changed RMSE by at most 0.000361 points in any of 2 runs, below 1 (= 20% of the +/-5 equivalence margin); 'equivalence' between conditions is then true of any model and is not evidence about noise",
+      "why": [
+        "the poisoning attack changed RMSE by at most 0.000361 points in any of 2 runs, below 1 (= 20% of the +/-5 equivalence margin); 'equivalence' between conditions is then true of any model and is not evidence about noise",
+        "(the test itself, kept for the record: UNTESTABLE, p = n/a; it is not evidence either way)"
+      ],
+      "blockers": [
+        "the outcome cannot answer this hypothesis under the current protocol"
+      ],
+      "next_action": "raise the poisoned fraction / strength until the un-noised control degrades measurably (a positive control), then re-run H3; until then report H3 as not decidable",
+      "underlying": {
+        "verdict": "UNTESTABLE",
+        "p_value": null
+      }
+    },
+    "H4_quantum_advantage": {
+      "verdict": "UNTESTABLE",
+      "tier": "NONE",
+      "rule": "U3_degenerate_by_design",
+      "lean": null,
+      "headline": "H4 (quantum advantage): UNTESTABLE -- RMSE and ASR are identical for QGAN and classical GAN.",
+      "why": [
+        "all 2 observations are identical (value=0.00013621); the quantity does not depend on the model under test, so no test statistic exists",
+        "all 2 observations are identical (value=43.161); the quantity does not depend on the model under test, so no test statistic exists",
+        "forecast head is a closed-form linear fit on REAL rows; the generator never reaches the forecast"
+      ],
+      "blockers": [
+        "generator is not on the forecast path -- more seeds cannot change this"
+      ],
+      "next_action": "These rows were produced with forecast_path=head_only. Set forecast_path: generator in both GAN config sections (the default in config/default_config.yaml), retrain, and re-run; or restate H4 as a claim about generation quality (H1) only."
+    },
+    "H5_threat_detection_tomography_correlation": {
+      "verdict": "NOT_DECIDABLE",
+      "tier": "NONE",
+      "rule": "R9_not_decidable_by_design",
+      "lean": null,
+      "headline": "H5: NOT_DECIDABLE -- the detector's pooled accuracy is 0.501 over 815 windows (4 runs), not above chance (p = 0.500); differences in accuracy between runs (sd 0.003) are what sampling noise alone gives (sd 0.035), so a correlation with entanglement has no signal to find",
+      "why": [
+        "the detector's pooled accuracy is 0.501 over 815 windows (4 runs), not above chance (p = 0.500); differences in accuracy between runs (sd 0.003) are what sampling noise alone gives (sd 0.035), so a correlation with entanglement has no signal to find",
+        "(the test itself, kept for the record: INCONCLUSIVE, p = 0.286; it is not evidence either way)"
+      ],
+      "blockers": [
+        "the outcome cannot answer this hypothesis under the current protocol"
+      ],
+      "next_action": "use a detector that beats chance (e.g. few-shot prompts or a calibrated threshold), verify it on a positive control, then re-run H5",
+      "underlying": {
+        "verdict": "INCONCLUSIVE",
+        "p_value": 0.2863013381804902
+      }
+    },
+    "M2_DV2_mediation": {
+      "verdict": "INCONCLUSIVE",
+      "tier": "EXPLORATORY",
+      "rule": "R7_indirect_ci_includes_0",
+      "lean": null,
+      "headline": "M2 (entanglement mediates): INCONCLUSIVE (exploratory) -- indirect CI [-0.00, 0.33] includes 0.",
+      "why": [
+        "indirect effect = 0.071, bootstrap 95% CI [-0.000, 0.333] (5000 resamples)",
+        "proportion mediated = nan%",
+        "a-path = -0.125, b-path = -0.571, total c = -0.000, direct c' = -0.071",
+        "CI contains 0: no evidence that entanglement mediates the effect"
+      ],
+      "blockers": [
+        "12 rows are model CONFIGS, not independent runs (unit-of-analysis caveat)"
+      ],
+      "next_action": "Need repeated independent runs per config before mediation can be confirmatory. Generate the controlled sweep with scripts/gen_entanglement_sweep.py."
+    }
+  },
+  "pipeline_run_id": "P20261110T091150Z-7ff07e0",
+  "generated_utc": "20261110T091150Z"
+}

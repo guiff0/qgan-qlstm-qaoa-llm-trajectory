@@ -62,12 +62,13 @@ def test_h3_compares_primary_against_no_noise_only():
     assert r["t_statistic"] > 0 and r["p_value"] < 0.01
 
 
-def test_h3_falls_back_with_confound_warning_when_a_config_is_missing():
+def test_h3_is_untestable_not_pooled_when_the_matched_config_is_missing():
     rng = np.random.default_rng(3)
     rows = (_rows("qgan_llm_no_noise", "QGAN-LLM", 3, deg=22, noise=0.0, rng=rng)
             + _rows("qgan_llm_12_qubit", "QGAN-LLM", 3, deg=5, rng=rng))      # no primary 'qgan_llm' rows
     r = hyp.test_h3_poisoning_resistance(pd.DataFrame(rows))
-    assert r["design"] == "pooled_configs" and "confound_warning" in r
+    # reviewer round 5: no pooled / cross-design fallback; the verdict is UNTESTABLE
+    assert r["status"] == "insufficient_data" and r["design"] == "matched_pair_missing"
 
 
 def test_qlstm_persistence_is_scored_on_the_model_rows():

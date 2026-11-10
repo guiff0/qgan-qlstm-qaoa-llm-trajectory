@@ -81,3 +81,42 @@ def invert_continuous_targets(y: np.ndarray, fraction: float = 0.05, seed: int =
         "fraction_requested": fraction,
         "n_poisoned": k,
     }
+
+def inject_triggered_shift(X: np.ndarray, y: np.ndarray, fraction: float = 0.2, shift_sd: float = 3.0,
+                           seed: int = 0, direction: np.ndarray | None = None) -> dict:
+    """
+    Feature-triggered target shift (a backdoor-style poisoning attack) for a continuous forecast target.
+
+    WHY THIS EXISTS. `invert_continuous_targets` reflects a random subset of targets about their mean. For a
+    target whose distribution is symmetric about its mean (a one-step price CHANGE is) and a head that has little
+    signal to lose, that reflection leaves the training distribution unchanged, so a 5 % reflection moves the head's
+    RMSE by ~1e-5 %. The attack was a near no-op, so H3 compared two conditions on an outcome that could not move.
+
+    This attack adds a *systematic* dependence the head can learn: for a random `fraction` of rows the target is
+    shifted by shift_sd x sd(y) x sign(z), where z = (standardised X) @ u and u is a fixed random unit direction.
+    A linear head fitted on the poisoned rows learns a spurious slope along u and carries it to clean data, so its
+    clean-data RMSE rises. The damage is larger when the poisoned rows' features have LOW variance along u (the slope
+    is cov/var), which is the mechanism by which generator noise could matter -- that is H3's actual question.
+
+    Returns y_poisoned, the poisoned indices, and the direction u (so a caller can log it).
+    """
+    if not (0.0 < fraction < 1.0):
+        raise ValueError(f"fraction must be in (0, 1); got {fraction}")
+    X = np.asarray(X, dtype=float)
+    y = np.asarray(y, dtype=float)
+    n = len(y)
+    rng = np.random.default_rng(seed)
+    if direction is None:
+        direction = rng.normal(size=X.shape[1])
+    direction = np.asarray(direction, dtype=float)
+    direction = direction / (np.linalg.norm(direction) or 1.0)
+    mu, sd = X.mean(axis=0), X.std(axis=0)
+    sd = np.where(sd > 0, sd, 1.0)
+    z = ((X - mu) / sd) @ direction
+    k = int(n * fraction)
+    idx = rng.choice(n, size=k, replace=False)
+    y_p = y.copy()
+    y_p[idx] += shift_sd * float(np.std(y)) * np.sign(z[idx] - np.median(z))
+    return {"y_poisoned": y_p, "poisoned_indices": idx, "fraction_requested": fraction,
+            "n_poisoned": k, "shift_sd": float(shift_sd), "direction": direction}
+

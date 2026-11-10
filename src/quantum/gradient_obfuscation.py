@@ -30,6 +30,8 @@ import numpy as np
 import pennylane as qml
 import pennylane.numpy as pnp
 
+from .entangler import apply_entangler
+
 
 def build_finite_shot_qnode(n_qubits: int, n_layers: int, entanglement: str,
                              shots: int, dev_name: str = "default.qubit"):
@@ -55,20 +57,7 @@ def build_finite_shot_qnode(n_qubits: int, n_layers: int, entanglement: str,
                 qml.RX(weights[idx], wires=q)
                 qml.RY(weights[idx + 1], wires=q)
                 qml.RZ(weights[idx + 2], wires=q)
-            if entanglement == "ring":
-                for q in range(n_qubits):
-                    qml.CNOT(wires=[q, (q + 1) % n_qubits])
-            elif entanglement == "full":
-                for i2 in range(n_qubits):
-                    for j2 in range(i2 + 1, n_qubits):
-                        qml.CNOT(wires=[i2, j2])
-            elif entanglement == "linear":
-                for q in range(n_qubits - 1):
-                    qml.CNOT(wires=[q, q + 1])
-            elif entanglement == "none":
-                pass  # product-state control: no entangling gates (zero-entanglement sweep level)
-            else:
-                raise ValueError(f"Unknown entanglement topology: {entanglement}")
+            apply_entangler(entanglement, n_qubits, layer, n_layers)
 
         return qml.expval(qml.PauliZ(0))
 

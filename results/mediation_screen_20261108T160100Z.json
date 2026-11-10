@@ -1,0 +1,304 @@
+{
+  "label": "EXPLORATORY: hypothesis-generating only; never a confirmatory verdict, never a substitute for M2",
+  "k_candidates_tested": 14,
+  "expected_false_hits_at_alpha": 0.7,
+  "discovery_seeds": [
+    43,
+    44,
+    45,
+    46,
+    47
+  ],
+  "replication_seeds": [
+    48,
+    49,
+    50,
+    51,
+    52
+  ],
+  "candidates": [
+    {
+      "candidate": "entanglement_entropy",
+      "status": "tested",
+      "discovery_indirect": -0.12860604923716454,
+      "discovery_ci": [
+        -0.4163918950573383,
+        0.07066480325575072
+      ],
+      "discovery_p": 0.176,
+      "replication_indirect": -0.016865518162823157,
+      "replication_ci": [
+        -0.26403136081476125,
+        0.14158353689095507
+      ],
+      "n_discovery": 20,
+      "n_replication": 19,
+      "discovery_p_holm": 1.0,
+      "survives_discovery": false,
+      "replicates": false
+    },
+    {
+      "candidate": "purity",
+      "status": "tested",
+      "discovery_indirect": -0.11942053578461122,
+      "discovery_ci": [
+        -0.37975627305871684,
+        0.07051817261592926
+      ],
+      "discovery_p": 0.177,
+      "replication_indirect": -0.01848265383699251,
+      "replication_ci": [
+        -0.25899034430019113,
+        0.13081231471128085
+      ],
+      "n_discovery": 20,
+      "n_replication": 19,
+      "discovery_p_holm": 1.0,
+      "survives_discovery": false,
+      "replicates": false
+    },
+    {
+      "candidate": "qsfr",
+      "status": "tested",
+      "discovery_indirect": -0.09072821577704424,
+      "discovery_ci": [
+        -0.4190489498197171,
+        0.08407063523545341
+      ],
+      "discovery_p": 0.331,
+      "replication_indirect": -0.022949984341423386,
+      "replication_ci": [
+        -0.26866775158233636,
+        0.21595567091909257
+      ],
+      "n_discovery": 20,
+      "n_replication": 19,
+      "discovery_p_holm": 1.0,
+      "survives_discovery": false,
+      "replicates": false
+    },
+    {
+      "candidate": "eer",
+      "status": "tested",
+      "discovery_indirect": 0.6250609837716182,
+      "discovery_ci": [
+        0.0024682758405760756,
+        1.090451987151106
+      ],
+      "discovery_p": 0.048,
+      "replication_indirect": -0.14063348870168643,
+      "replication_ci": [
+        -0.764519801617456,
+        0.2932181765455319
+      ],
+      "n_discovery": 20,
+      "n_replication": 19,
+      "discovery_p_holm": 0.672,
+      "survives_discovery": false,
+      "replicates": false
+    },
+    {
+      "candidate": "nlcs",
+      "status": "tested",
+      "discovery_indirect": -0.3156261938666608,
+      "discovery_ci": [
+        -0.7416464659106942,
+        0.18931418202610806
+      ],
+      "discovery_p": 0.185,
+      "replication_indirect": 0.11073676266740738,
+      "replication_ci": [
+        -0.13420105494933954,
+        0.5923126588470454
+      ],
+      "n_discovery": 20,
+      "n_replication": 19,
+      "discovery_p_holm": 1.0,
+      "survives_discovery": false,
+      "replicates": false
+    },
+    {
+      "candidate": "ctr",
+      "status": "tested",
+      "discovery_indirect": 0.04136619290266293,
+      "discovery_ci": [
+        -0.16443260543826846,
+        0.33337712046452983
+      ],
+      "discovery_p": 0.679,
+      "replication_indirect": 0.14022240844869807,
+      "replication_ci": [
+        -0.21171931017642415,
+        0.4205495209504545
+      ],
+      "n_discovery": 20,
+      "n_replication": 19,
+      "discovery_p_holm": 1.0,
+      "survives_discovery": false,
+      "replicates": false
+    },
+    {
+      "candidate": "m1_efi",
+      "status": "tested",
+      "discovery_indirect": 0.05291238938860889,
+      "discovery_ci": [
+        -0.2274033359535813,
+        0.267765371941978
+      ],
+      "discovery_p": 0.629,
+      "replication_indirect": 0.031128446366150555,
+      "replication_ci": [
+        -0.2390101959551507,
+        0.17988156403338565
+      ],
+      "n_discovery": 20,
+      "n_replication": 19,
+      "discovery_p_holm": 1.0,
+      "survives_discovery": false,
+      "replicates": false
+    },
+    {
+      "candidate": "rmse",
+      "status": "tested",
+      "discovery_indirect": 0.06946506432404632,
+      "discovery_ci": [
+        -0.11653564173631115,
+        0.3880268470357116
+      ],
+      "discovery_p": 0.483,
+      "replication_indirect": 0.2315401180844557,
+      "replication_ci": [
+        -0.1165617560991897,
+        0.7007470214273313
+      ],
+      "n_discovery": 20,
+      "n_replication": 19,
+      "discovery_p_holm": 1.0,
+      "survives_discovery": false,
+      "replicates": false
+    },
+    {
+      "candidate": "fid",
+      "status": "tested",
+      "discovery_indirect": -0.003394694611177641,
+      "discovery_ci": [
+        -0.10658269511317428,
+        0.2069771058412248
+      ],
+      "discovery_p": 0.885,
+      "replication_indirect": 0.01587809629773043,
+      "replication_ci": [
+        -0.12869053222091967,
+        0.2672445173219316
+      ],
+      "n_discovery": 20,
+      "n_replication": 19,
+      "discovery_p_holm": 1.0,
+      "survives_discovery": false,
+      "replicates": false
+    },
+    {
+      "candidate": "mmd",
+      "status": "tested",
+      "discovery_indirect": -0.018527612936714358,
+      "discovery_ci": [
+        -0.2084630853848703,
+        0.17325318702695966
+      ],
+      "discovery_p": 0.798,
+      "replication_indirect": 0.022410257305840425,
+      "replication_ci": [
+        -0.11184498791652657,
+        0.3224390244041921
+      ],
+      "n_discovery": 20,
+      "n_replication": 19,
+      "discovery_p_holm": 1.0,
+      "survives_discovery": false,
+      "replicates": false
+    },
+    {
+      "candidate": "wasserstein",
+      "status": "tested",
+      "discovery_indirect": 0.0010877153132366469,
+      "discovery_ci": [
+        -0.13009380179921065,
+        0.2005608655082358
+      ],
+      "discovery_p": 0.899,
+      "replication_indirect": -0.001707338133678089,
+      "replication_ci": [
+        -0.20912438019533394,
+        0.16660673602302048
+      ],
+      "n_discovery": 20,
+      "n_replication": 19,
+      "discovery_p_holm": 1.0,
+      "survives_discovery": false,
+      "replicates": false
+    },
+    {
+      "candidate": "mode_coverage",
+      "status": "tested",
+      "discovery_indirect": -0.01606926188731279,
+      "discovery_ci": [
+        -0.182829571910584,
+        0.143435897107066
+      ],
+      "discovery_p": 0.847,
+      "replication_indirect": -0.0018753963531783647,
+      "replication_ci": [
+        -0.17588291502525055,
+        0.11667950075335631
+      ],
+      "n_discovery": 20,
+      "n_replication": 19,
+      "discovery_p_holm": 1.0,
+      "survives_discovery": false,
+      "replicates": false
+    },
+    {
+      "candidate": "latency_mean_ms",
+      "status": "tested",
+      "discovery_indirect": 0.3728818376805612,
+      "discovery_ci": [
+        -0.34803465131535566,
+        1.0992348773334166
+      ],
+      "discovery_p": 0.296,
+      "replication_indirect": -0.34000038302389624,
+      "replication_ci": [
+        -1.065557598170333,
+        0.29535010948082496
+      ],
+      "n_discovery": 20,
+      "n_replication": 19,
+      "discovery_p_holm": 1.0,
+      "survives_discovery": false,
+      "replicates": false
+    },
+    {
+      "candidate": "poisoning_rmse_degradation_pct",
+      "status": "tested",
+      "discovery_indirect": 0.00749892121936805,
+      "discovery_ci": [
+        -0.19528531379491829,
+        0.11174070594672227
+      ],
+      "discovery_p": 0.857,
+      "replication_indirect": -0.19275392133680103,
+      "replication_ci": [
+        -0.4599891714010239,
+        0.15511725704134255
+      ],
+      "n_discovery": 20,
+      "n_replication": 19,
+      "discovery_p_holm": 1.0,
+      "survives_discovery": false,
+      "replicates": false
+    }
+  ],
+  "survivors": [],
+  "next_step": "A survivor is a hypothesis for a NEW pre-registered run with fresh seeds (new experiment id). No survivor means nothing here supports a different mediator.",
+  "n_runs": 39
+}

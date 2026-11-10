@@ -1,0 +1,17 @@
+{
+  "recorded_utc": "20261109T225027Z",
+  "reason": "Amendment 2: H3 positive control, H5 calibrated detector",
+  "frozen_record": "preregistration_20261109T093144Z.json",
+  "git_commit": "7ff07e06f9317d110dba3aa80f0145f462c60e8c",
+  "changed_files": {
+    "config/default_config.yaml": {
+      "sha256_frozen": "8036857a5b70a7c76f69f574057caa6247bbe9bea22583f518495dc618f9bd59",
+      "sha256_now": "66187aeb9490c05e7c6896a43caa17e49e5c2380e045a53e1e51c6577f92a5d1"
+    },
+    "src/baselines/qgan_llm.py": {
+      "sha256_frozen": "84c1f9ec112ac60c97d0e08653d1b70b192bc5dfa77bca99095c1254ef180a8b",
+      "sha256_now": "c1a69730f850044c2bc8213776b53935fc41abd85264f1f2a0c02acce446b789"
+    }
+  },
+  "decision_rules_changed": false
+}

@@ -1,0 +1,100 @@
+{
+  "state": "running",
+  "updated_utc": "2026-11-09T09:48:03Z",
+  "models": [
+    "QGAN-LLM",
+    "Classical GAN-LLM",
+    "Classical GAN-LLM (matched)",
+    "QGAN-LLM (no noise)",
+    "QGAN-LLM (ent-L0 none-d4)",
+    "QGAN-LLM (ent-L2 linear-d2)",
+    "QGAN-LLM (ent-L4 ring-d4)",
+    "QGAN-LLM (ent-L6 full-d4)"
+  ],
+  "seeds": [
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52
+  ],
+  "total": 80,
+  "completed": 63,
+  "remaining": [
+    {
+      "model": "Classical GAN-LLM (matched)",
+      "seed": 43
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 43
+    },
+    {
+      "model": "Classical GAN-LLM",
+      "seed": 44
+    },
+    {
+      "model": "Classical GAN-LLM (matched)",
+      "seed": 44
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 46
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 47
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 47
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 48
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 48
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 49
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 49
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 50
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 50
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 51
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 51
+    },
+    {
+      "model": "QGAN-LLM",
+      "seed": 52
+    },
+    {
+      "model": "QGAN-LLM (no noise)",
+      "seed": 52
+    }
+  ],
+  "pass": 1,
+  "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+}

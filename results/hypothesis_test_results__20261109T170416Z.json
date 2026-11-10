@@ -1,0 +1,1173 @@
+{
+  "analysis_plan_sha": "ca2a2d3997482622",
+  "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa",
+  "experiments_used": [
+    "EXP-20261109-DESKTOPK9L37-68aa"
+  ],
+  "experiments_in_file": {
+    "unassigned": 23,
+    "EXP-20261109-DESKTOPK9L37-68aa": 66
+  },
+  "pooled_experiments": false,
+  "seed_overlap_between_experiments": {},
+  "n_rows_in_file": 89,
+  "n_rows_raw": 66,
+  "n_rows": 66,
+  "dedupe": "config_seed",
+  "equivalence_margins": {
+    "fid": {
+      "kind": "rel_ref",
+      "value": 0.1
+    },
+    "rmse": {
+      "kind": "rel_persistence",
+      "value": 0.02
+    },
+    "asr": {
+      "kind": "abs",
+      "value": 5.0
+    },
+    "poisoning": {
+      "kind": "abs",
+      "value": 5.0
+    },
+    "r0": {
+      "kind": "abs",
+      "value": 0.3
+    }
+  },
+  "n_runs_per_model": {
+    "Classical GAN-LLM": 20,
+    "QGAN-LLM": 46
+  },
+  "n_runs_per_config": {
+    "qgan_llm_ent_l0_none_d4": 10,
+    "classical_gan_llm": 10,
+    "qgan_llm_ent_l2_linear_d2": 10,
+    "qgan_llm_ent_l4_ring_d4": 10,
+    "qgan_llm_ent_l6_full_d4": 10,
+    "classical_gan_llm_matched": 10,
+    "qgan_llm": 3,
+    "qgan_llm_no_noise": 3
+  },
+  "H1_synthetic_data_fidelity": {
+    "t_statistic": 5.5170397763396455,
+    "df": 11,
+    "p_value": 0.0003150746978860383,
+    "cohens_d": 1.9511919245094578,
+    "mean_a": 138.96098575085804,
+    "mean_b": 116.68215868921693,
+    "sd_a": 1.0943244588244538,
+    "sd_b": 12.61259520609992,
+    "status": "ok",
+    "n_per_group": {
+      "QGAN-LLM": 3,
+      "Classical GAN-LLM": 10
+    },
+    "note_covariate": "no usable 'vix' covariate (or < 2 runs per side) in results/all_results.csv -- ran a plain comparison instead of the ANCOVA Ch.3 specifies",
+    "equivalence": {
+      "equivalent": false,
+      "diff": 22.27882706164111,
+      "margin": 11.668215868921694,
+      "se": 4.0381849623752935,
+      "df": 9.43062849968128,
+      "p_lower": 5.53903567235281e-06,
+      "p_upper": 0.9867718610861359,
+      "p_tost": 0.9867718610861359,
+      "ci_level": 0.9,
+      "ci_low": 14.914676989475552,
+      "ci_high": 29.642977133806667,
+      "alpha": 0.05,
+      "n_a": 3,
+      "n_b": 10,
+      "metric": "fid",
+      "margin_rule": "0.1 x |reference mean| (116.682)",
+      "reading": "equivalence NOT shown (not the same as 'different'; the data may simply be too noisy)"
+    },
+    "paired_by_seed": {
+      "status": "ok",
+      "outcome": "fid",
+      "n_pairs": 3,
+      "seeds": [
+        43,
+        44,
+        45
+      ],
+      "unpaired_seeds": {
+        "a_only": [],
+        "b_only": [
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52
+        ]
+      },
+      "mean_diff": 15.439719934952379,
+      "sd_diff": 17.28145691967508,
+      "t_statistic": 1.547460929149159,
+      "df": 2,
+      "p_value": 0.26182680406859643,
+      "ci_low": -27.489798913201177,
+      "ci_high": 58.369238783105935,
+      "cohens_dz": 0.8934269840046953,
+      "direction": "a > b",
+      "per_seed_diff": {
+        "43": 20.68127925154684,
+        "44": 29.493570563847484,
+        "45": -3.855690010537188
+      },
+      "sign_count": {
+        "a_lower": 1,
+        "a_higher": 2,
+        "ties": 0
+      },
+      "sign_test_p": 1.0,
+      "consistency_rule": {
+        "same_sign_seeds": 2,
+        "needed": 3,
+        "fraction": 0.8,
+        "met": false,
+        "reading": "the sign of the seed-wise difference is the same in 2 of 3 seeds (rule: at least 3)"
+      },
+      "equivalence": {
+        "margin": 11.668215868921694,
+        "p_tost": 0.629111618147741,
+        "equivalent": false,
+        "ci_level": 0.9,
+        "ci_low": -13.694301303017944,
+        "ci_high": 44.5737411729227,
+        "reading": "equivalence NOT shown (not the same as 'different')"
+      }
+    },
+    "configs_used": {
+      "QGAN-LLM": "qgan_llm",
+      "Classical GAN-LLM": "classical_gan_llm"
+    },
+    "n_per_group_used": {
+      "QGAN-LLM": 3,
+      "Classical GAN-LLM": 10
+    },
+    "pooled_qgan_configs": false,
+    "pooled_classical_configs": false
+  },
+  "H2_adversarial_resilience": {
+    "r": -0.08692822353120305,
+    "df": 38,
+    "p_value": 0.5937842717315334,
+    "r_squared": 0.007556516046290804,
+    "ci_low": -0.3879327590464871,
+    "ci_high": 0.23083180946970744,
+    "status": "ok",
+    "design": "controlled_sweep",
+    "unit": "run",
+    "n_levels": 4,
+    "runs_per_level": {
+      "0": 10,
+      "2": 10,
+      "4": 10,
+      "6": 10
+    },
+    "min_runs_per_level": 10,
+    "manipulation_check_level_vs_entropy": {
+      "spearman_rho": 0.4751239421837782,
+      "p_value": 0.00194790138023319
+    },
+    "entropy_by_level": {
+      "0": 2.5113785046600022e-09,
+      "2": 0.14865659961736147,
+      "4": 0.4090275231790065,
+      "6": 0.11166225401990937
+    },
+    "entropy_ladder_monotone": false,
+    "dose_response_level_vs_outcome": {
+      "outcome": "asr",
+      "spearman_rho": 0.0009698686935167601,
+      "p_value": 0.995261013422909
+    },
+    "equivalence_r": {
+      "equivalent": false,
+      "r": -0.08692822353120305,
+      "n": 40,
+      "r0": 0.3,
+      "p_lower": 0.0880865213004629,
+      "p_upper": 0.007914471512448869,
+      "p_tost": 0.0880865213004629,
+      "ci_level": 0.9,
+      "ci_low": -0.3430634053682675,
+      "ci_high": 0.18123959808295356,
+      "alpha": 0.05,
+      "reading": "no-relevant-correlation NOT shown (CI too wide or r too large)",
+      "runs_needed_if_r_unchanged": 58
+    }
+  },
+  "H3_poisoning_resistance": {
+    "t_statistic": -0.10453418035833095,
+    "df": 4,
+    "p_value": 0.922078359464431,
+    "cohens_d": -0.08535180085265946,
+    "mean_a": -6.943970876102387e-05,
+    "mean_b": -5.819439518399427e-05,
+    "sd_a": 0.00014737547363512536,
+    "sd_b": 0.00011400839868372693,
+    "status": "ok",
+    "n_per_group": {
+      "no_noise": 3,
+      "noisy": 3
+    },
+    "design": "matched_config_noise_only",
+    "equivalence": {
+      "equivalent": true,
+      "diff": -1.1245313577029595e-05,
+      "margin": 5.0,
+      "se": 0.0001075754699418121,
+      "df": 3.7625456605255203,
+      "p_lower": 0.0,
+      "p_upper": 6.40466147171979e-18,
+      "p_tost": 6.40466147171979e-18,
+      "ci_level": 0.9,
+      "ci_low": -0.00024480208034169447,
+      "ci_high": 0.0002223114531876353,
+      "alpha": 0.05,
+      "n_a": 3,
+      "n_b": 3,
+      "metric": "poisoning",
+      "margin_rule": "5 (absolute)",
+      "reading": "EQUIVALENT: the true difference lies within +/- margin"
+    },
+    "n_per_group_used": {
+      "no_noise": 3,
+      "noisy": 3
+    },
+    "configs_used": {
+      "no_noise": "qgan_llm_no_noise",
+      "noisy": "qgan_llm"
+    },
+    "interpretation": "positive t (no_noise mean > noisy mean) supports Ha3: noise injection -> lower poisoning degradation",
+    "decidability": {
+      "gate": "poisoning_dynamic_range",
+      "decidable": false,
+      "largest_abs_degradation": 0.0002390949074003,
+      "required_at_least": 1.0,
+      "margin": 5.0,
+      "n_values": 6,
+      "reason": "the poisoning attack changed RMSE by at most 0.000239 points in any of 6 runs, below 1 (= 20% of the +/-5 equivalence margin); 'equivalence' between conditions is then true of any model and is not evidence about noise",
+      "remedy": "raise the poisoned fraction / strength until the un-noised control degrades measurably (a positive control), then re-run H3; until then report H3 as not decidable"
+    },
+    "paired_by_seed": {
+      "status": "insufficient_data",
+      "outcome": "poisoning_rmse_degradation_pct",
+      "n_pairs": 2,
+      "seeds": [
+        44,
+        45
+      ],
+      "unpaired_seeds": {
+        "a_only": [
+          46
+        ],
+        "b_only": [
+          43
+        ]
+      },
+      "message": "need >= 3 shared seeds, have 2"
+    }
+  },
+  "H4_quantum_advantage": {
+    "forecast_design": "generator_on_forecast_path",
+    "classical_comparator": "classical_gan_llm",
+    "n_runs": {
+      "QGAN-LLM": 3,
+      "Classical GAN-LLM": 10
+    },
+    "rmse": {
+      "t_statistic": -1.9979940704895454,
+      "df": 11,
+      "p_value": 0.07207095890165793,
+      "cohens_d": -0.8019399589043732,
+      "mean_a": 0.00015529593586546668,
+      "mean_b": 0.00020822356967294003,
+      "sd_a": 2.333098740816749e-05,
+      "sd_b": 7.213151531200023e-05,
+      "status": "ok",
+      "n_per_group": {
+        "QGAN-LLM": 3,
+        "Classical GAN-LLM": 10
+      },
+      "equivalence": {
+        "equivalent": false,
+        "diff": -5.292763380747336e-05,
+        "margin": 2.7567287954932313e-06,
+        "se": 2.6490385827073607e-05,
+        "df": 10.581058078007862,
+        "p_lower": 0.9570615454864736,
+        "p_upper": 0.030183315365141745,
+        "p_tost": 0.9570615454864736,
+        "ci_level": 0.9,
+        "ci_low": -0.0001006742720689116,
+        "ci_high": -5.1809955460351304e-06,
+        "alpha": 0.05,
+        "n_a": 3,
+        "n_b": 10,
+        "metric": "rmse",
+        "margin_rule": "0.02 x persistence RMSE (0.000137836)",
+        "reading": "equivalence NOT shown (not the same as 'different'; the data may simply be too noisy)"
+      },
+      "paired_by_seed": {
+        "status": "ok",
+        "outcome": "rmse",
+        "n_pairs": 3,
+        "seeds": [
+          43,
+          44,
+          45
+        ],
+        "unpaired_seeds": {
+          "a_only": [],
+          "b_only": [
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52
+          ]
+        },
+        "mean_diff": -3.0786224746100006e-05,
+        "sd_diff": 2.194447569562878e-05,
+        "t_statistic": -2.4299193187878796,
+        "df": 2,
+        "p_value": 0.13572005614936714,
+        "ci_low": -8.529932438620001e-05,
+        "ci_high": 2.3726874894000003e-05,
+        "cohens_dz": -1.4029145728112544,
+        "direction": "a < b",
+        "per_seed_diff": {
+          "43": -3.9164750076100006e-05,
+          "44": -5.886813638200005e-06,
+          "45": -4.730711052400001e-05
+        },
+        "sign_count": {
+          "a_lower": 3,
+          "a_higher": 0,
+          "ties": 0
+        },
+        "sign_test_p": 0.25,
+        "consistency_rule": {
+          "same_sign_seeds": 3,
+          "needed": 3,
+          "fraction": 0.8,
+          "met": true,
+          "reading": "the sign of the seed-wise difference is the same in 3 of 3 seeds (rule: at least 3)"
+        },
+        "equivalence": {
+          "margin": 2.7567287954932313e-06,
+          "p_tost": 0.9212809092157717,
+          "equivalent": false,
+          "ci_level": 0.9,
+          "ci_low": -6.778141698852542e-05,
+          "ci_high": 6.208967496325411e-06,
+          "reading": "equivalence NOT shown (not the same as 'different')"
+        }
+      }
+    },
+    "asr": {
+      "t_statistic": 3.7121533790903114,
+      "df": 11,
+      "p_value": 0.005412545261789616,
+      "cohens_d": 1.632955479138987,
+      "mean_a": 45.99999884764353,
+      "mean_b": 21.400000043213367,
+      "sd_a": 7.211101873142466,
+      "sd_b": 16.304055353455414,
+      "status": "ok",
+      "n_per_group": {
+        "QGAN-LLM": 3,
+        "Classical GAN-LLM": 10
+      },
+      "equivalence": {
+        "equivalent": false,
+        "diff": 24.599998804430165,
+        "margin": 5.0,
+        "se": 6.626881028945674,
+        "df": 8.431489005004796,
+        "p_lower": 0.0009183577849193325,
+        "p_upper": 0.9914053133294061,
+        "p_tost": 0.9914053133294061,
+        "ci_level": 0.9,
+        "ci_low": 12.358255761209893,
+        "ci_high": 36.84174184765044,
+        "alpha": 0.05,
+        "n_a": 3,
+        "n_b": 10,
+        "metric": "asr",
+        "margin_rule": "5 (absolute)",
+        "reading": "equivalence NOT shown (not the same as 'different'; the data may simply be too noisy)"
+      },
+      "paired_by_seed": {
+        "status": "ok",
+        "outcome": "asr",
+        "n_pairs": 3,
+        "seeds": [
+          43,
+          44,
+          45
+        ],
+        "unpaired_seeds": {
+          "a_only": [],
+          "b_only": [
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52
+          ]
+        },
+        "mean_diff": 15.333331624666853,
+        "sd_diff": 12.858201113548741,
+        "t_statistic": 2.065460727258437,
+        "df": 2,
+        "p_value": 0.17487962753851358,
+        "ci_low": -16.608210666769665,
+        "ci_high": 47.27487391610337,
+        "cohens_dz": 1.1924943068832587,
+        "direction": "a > b",
+        "per_seed_diff": {
+          "43": 9.999999403953552,
+          "44": 5.99999725818634,
+          "45": 29.999998211860664
+        },
+        "sign_count": {
+          "a_lower": 0,
+          "a_higher": 3,
+          "ties": 0
+        },
+        "sign_test_p": 0.25,
+        "consistency_rule": {
+          "same_sign_seeds": 3,
+          "needed": 3,
+          "fraction": 0.8,
+          "met": true,
+          "reading": "the sign of the seed-wise difference is the same in 3 of 3 seeds (rule: at least 3)"
+        },
+        "equivalence": {
+          "margin": 5.0,
+          "p_tost": 0.8507361563777008,
+          "equivalent": false,
+          "ci_level": 0.9,
+          "ci_low": -6.343724081077779,
+          "ci_high": 37.01038733041148,
+          "reading": "equivalence NOT shown (not the same as 'different')"
+        }
+      }
+    },
+    "note": "forecast = linear([X, G(X)]) for BOTH models, same rows, same head, same evaluation subsample (src/utils/generator_path.py): a gap is attributable to the generator. It is a claim about this feature-map design, not about quantum models in general.",
+    "caveat": "RMSE here now reflects the fixed one-step-ahead target (see src/evaluation/one_step_ahead.py) rather than the old same-row-leaked values -- numbers from before that fix are not comparable to numbers generated after it"
+  },
+  "H4_matched_capacity": {
+    "forecast_design": "generator_on_forecast_path",
+    "classical_comparator": "classical_gan_llm_matched",
+    "n_runs": {
+      "QGAN-LLM": 3,
+      "Classical GAN-LLM": 10
+    },
+    "rmse": {
+      "t_statistic": 0.8931860907046797,
+      "df": 11,
+      "p_value": 0.4424546283492417,
+      "cohens_d": 0.681334904164412,
+      "mean_a": 0.00015529593586546668,
+      "mean_b": 0.00014221822546674,
+      "sd_a": 2.333098740816749e-05,
+      "sd_b": 1.814736076388092e-05,
+      "status": "ok",
+      "n_per_group": {
+        "QGAN-LLM": 3,
+        "Classical GAN-LLM": 10
+      },
+      "equivalence": {
+        "equivalent": false,
+        "diff": 1.3077710398726671e-05,
+        "margin": 2.7567287954932313e-06,
+        "se": 1.4641641349798679e-05,
+        "df": 2.7716049999057217,
+        "p_lower": 0.18225198328833736,
+        "p_upper": 0.7322610673588607,
+        "p_tost": 0.7322610673588607,
+        "ci_level": 0.9,
+        "ci_low": -2.256837132254051e-05,
+        "ci_high": 4.872379211999385e-05,
+        "alpha": 0.05,
+        "n_a": 3,
+        "n_b": 10,
+        "metric": "rmse",
+        "margin_rule": "0.02 x persistence RMSE (0.000137836)",
+        "reading": "equivalence NOT shown (not the same as 'different'; the data may simply be too noisy)"
+      },
+      "paired_by_seed": {
+        "status": "ok",
+        "outcome": "rmse",
+        "n_pairs": 3,
+        "seeds": [
+          43,
+          44,
+          45
+        ],
+        "unpaired_seeds": {
+          "a_only": [],
+          "b_only": [
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52
+          ]
+        },
+        "mean_diff": -1.9081412512000004e-06,
+        "sd_diff": 1.5761374239226266e-06,
+        "t_statistic": -2.0968968472756044,
+        "df": 2,
+        "p_value": 0.1709328779174401,
+        "ci_low": -5.823483664867214e-06,
+        "ci_high": 2.0072011624672134e-06,
+        "cohens_dz": -1.2106439592374478,
+        "direction": "a < b",
+        "per_seed_diff": {
+          "43": -1.509833635000076e-07,
+          "44": -3.1972153805999957e-06,
+          "45": -2.3762250094999974e-06
+        },
+        "sign_count": {
+          "a_lower": 3,
+          "a_higher": 0,
+          "ties": 0
+        },
+        "sign_test_p": 0.25,
+        "consistency_rule": {
+          "same_sign_seeds": 3,
+          "needed": 3,
+          "fraction": 0.8,
+          "met": true,
+          "reading": "the sign of the seed-wise difference is the same in 3 of 3 seeds (rule: at least 3)"
+        },
+        "equivalence": {
+          "margin": 2.7567287954932313e-06,
+          "p_tost": 0.2247537054334746,
+          "equivalent": false,
+          "ci_level": 0.9,
+          "ci_low": -4.565279558227936e-06,
+          "ci_high": 7.489970558279353e-07,
+          "reading": "equivalence NOT shown (not the same as 'different')"
+        }
+      }
+    },
+    "asr": {
+      "t_statistic": -0.9010575343008661,
+      "df": 11,
+      "p_value": 0.39817301286088774,
+      "cohens_d": -0.4249323186459427,
+      "mean_a": 45.99999884764353,
+      "mean_b": 51.399999260902405,
+      "sd_a": 7.211101873142466,
+      "sd_b": 13.631662247161106,
+      "status": "ok",
+      "n_per_group": {
+        "QGAN-LLM": 3,
+        "Classical GAN-LLM": 10
+      },
+      "equivalence": {
+        "equivalent": false,
+        "diff": -5.400000413258873,
+        "margin": 5.0,
+        "se": 5.9929585045296285,
+        "df": 6.839894094868718,
+        "p_lower": 0.525653193310361,
+        "p_upper": 0.06362971808597796,
+        "p_tost": 0.525653193310361,
+        "ci_level": 0.9,
+        "ci_low": -16.794244461651907,
+        "ci_high": 5.9942436351341595,
+        "alpha": 0.05,
+        "n_a": 3,
+        "n_b": 10,
+        "metric": "asr",
+        "margin_rule": "5 (absolute)",
+        "reading": "equivalence NOT shown (not the same as 'different'; the data may simply be too noisy)"
+      },
+      "paired_by_seed": {
+        "status": "ok",
+        "outcome": "asr",
+        "n_pairs": 3,
+        "seeds": [
+          43,
+          44,
+          45
+        ],
+        "unpaired_seeds": {
+          "a_only": [],
+          "b_only": [
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52
+          ]
+        },
+        "mean_diff": 1.9999990860621157,
+        "sd_diff": 5.291503771079539,
+        "t_statistic": 0.6546532294059351,
+        "df": 2,
+        "p_value": 0.5799162079975801,
+        "ci_low": -11.144824983545652,
+        "ci_high": 15.144823155669885,
+        "cohens_dz": 0.37796421822337445,
+        "direction": "a > b",
+        "per_seed_diff": {
+          "43": 3.999999165534973,
+          "44": -4.000002145767212,
+          "45": 6.000000238418586
+        },
+        "sign_count": {
+          "a_lower": 1,
+          "a_higher": 2,
+          "ties": 0
+        },
+        "sign_test_p": 1.0,
+        "consistency_rule": {
+          "same_sign_seeds": 2,
+          "needed": 3,
+          "fraction": 0.8,
+          "met": false,
+          "reading": "the sign of the seed-wise difference is the same in 2 of 3 seeds (rule: at least 3)"
+        },
+        "equivalence": {
+          "margin": 5.0,
+          "p_tost": 0.2148240704254643,
+          "equivalent": false,
+          "ci_level": 0.9,
+          "ci_low": -6.920706151001304,
+          "ci_high": 10.920704323125536,
+          "reading": "equivalence NOT shown (not the same as 'different')"
+        }
+      }
+    },
+    "note": "forecast = linear([X, G(X)]) for BOTH models, same rows, same head, same evaluation subsample (src/utils/generator_path.py): a gap is attributable to the generator. It is a claim about this feature-map design, not about quantum models in general.",
+    "caveat": "RMSE here now reflects the fixed one-step-ahead target (see src/evaluation/one_step_ahead.py) rather than the old same-row-leaked values -- numbers from before that fix are not comparable to numbers generated after it"
+  },
+  "H5_threat_detection_tomography_correlation": {
+    "r": -0.32662985244459275,
+    "df": 36,
+    "p_value": 0.045339198253528556,
+    "r_squared": 0.10668706050797644,
+    "ci_low": -0.585206989712436,
+    "ci_high": -0.007756406814037345,
+    "status": "ok",
+    "design": "controlled_sweep",
+    "unit": "run",
+    "n_levels": 4,
+    "runs_per_level": {
+      "0": 10,
+      "2": 9,
+      "4": 10,
+      "6": 9
+    },
+    "min_runs_per_level": 9,
+    "manipulation_check_level_vs_entropy": {
+      "spearman_rho": 0.5159664162618639,
+      "p_value": 0.0009140612756461694
+    },
+    "entropy_by_level": {
+      "0": 2.5113785046600022e-09,
+      "2": 0.15012446357748743,
+      "4": 0.4090275231790065,
+      "6": 0.12083539668841646
+    },
+    "entropy_ladder_monotone": false,
+    "dose_response_level_vs_outcome": {
+      "outcome": "llm_threat_accuracy",
+      "spearman_rho": -0.05713851396884515,
+      "p_value": 0.7333009093277442
+    },
+    "equivalence_r": {
+      "equivalent": false,
+      "r": -0.32662985244459275,
+      "n": 38,
+      "r0": 0.3,
+      "p_lower": 0.5693461482428638,
+      "p_upper": 6.227447831071694e-05,
+      "p_tost": 0.5693461482428638,
+      "ci_level": 0.9,
+      "ci_low": -0.549093046780154,
+      "ci_high": -0.0609443123455405,
+      "alpha": 0.05,
+      "reading": "no-relevant-correlation NOT shown (CI too wide or r too large)",
+      "runs_needed_if_r_unchanged": null
+    },
+    "decidability": {
+      "gate": "detector_above_chance",
+      "decidable": false,
+      "pooled_accuracy": 0.49983268265476855,
+      "pooled_n": 8965,
+      "p_above_chance": 0.5168485183534999,
+      "between_run_sd": 0.008499665324047298,
+      "sampling_noise_sd": 0.03500700210070024,
+      "reason": "the detector's pooled accuracy is 0.500 over 8,965 windows (44 runs), not above chance (p = 0.517); differences in accuracy between runs (sd 0.008) are what sampling noise alone gives (sd 0.035), so a correlation with entanglement has no signal to find",
+      "remedy": "use a detector that beats chance (e.g. few-shot prompts or a calibrated threshold), verify it on a positive control, then re-run H5"
+    },
+    "detector": "LLM threat probability (threat_scoring.py)",
+    "note": "accuracy column used: llm_threat_accuracy. "
+  },
+  "M2_DV2_mediation": {
+    "path_a": 0.4165079910634482,
+    "path_b": -0.1634394981554657,
+    "path_c": 0.11562315782422145,
+    "path_c_prime": 0.18369701486137266,
+    "indirect_effect": -0.06807385703715117,
+    "ci_low": -0.20392599071614528,
+    "ci_high": 0.037254465142033726,
+    "proportion_mediated": -0.5887562519321773,
+    "significant": false,
+    "n_bootstrap": 5000,
+    "n_observations": 40,
+    "mediation_type": "none",
+    "design": "controlled_sweep",
+    "unit": "run",
+    "n_levels": 4,
+    "runs_per_level": {
+      "0": 10,
+      "2": 10,
+      "4": 10,
+      "6": 10
+    },
+    "min_runs_per_level": 10,
+    "manipulation_check_level_vs_entropy": {
+      "spearman_rho": 0.4751239421837782,
+      "p_value": 0.00194790138023319
+    },
+    "entropy_by_level": {
+      "0": 2.5113785046600022e-09,
+      "2": 0.14865659961736147,
+      "4": 0.4090275231790065,
+      "6": 0.11166225401990937
+    },
+    "entropy_ladder_monotone": false,
+    "dose_response_level_vs_outcome": {
+      "outcome": "asr",
+      "spearman_rho": 0.0009698686935167601,
+      "p_value": 0.995261013422909
+    },
+    "pathway": "designed entangling level -> measured entanglement entropy -> ASR",
+    "iv_name": "designed entangling level (L1-L6, ordinal)",
+    "mediator_name": "entanglement_entropy",
+    "dv_name": "asr",
+    "standardized": true,
+    "caveat": "circuit depth also changes parameter count; treat the level as 'entangling structure', not entanglement alone"
+  },
+  "naive_baseline": {
+    "rmse_over_persistence": {
+      "label": "head / generator-on-path forecast",
+      "configs": {
+        "classical_gan_llm": {
+          "n_runs": 10,
+          "ratio_mean": 1.5663395201971435,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.1258658514708368,
+            2.0068131889234504
+          ],
+          "p_vs_1": 0.017351557844035775,
+          "beats_naive": false
+        },
+        "classical_gan_llm_matched": {
+          "n_runs": 10,
+          "ratio_mean": 1.0540558117285284,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0259587585810923,
+            1.0821528648759644
+          ],
+          "p_vs_1": 0.0018444451811249168,
+          "beats_naive": false
+        },
+        "qgan_llm": {
+          "n_runs": 3,
+          "ratio_mean": 1.0539933298055868,
+          "share_below_1": 0.0,
+          "ci95": [
+            0.9961024297469865,
+            1.1118842298641871
+          ],
+          "p_vs_1": 0.05685270229665125,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l0_none_d4": {
+          "n_runs": 10,
+          "ratio_mean": 1.2933239707971949,
+          "share_below_1": 0.0,
+          "ci95": [
+            0.9417651153776989,
+            1.6448828262166908
+          ],
+          "p_vs_1": 0.09171102345157837,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l2_linear_d2": {
+          "n_runs": 10,
+          "ratio_mean": 1.059540288356637,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0159693783447994,
+            1.1031111983684745
+          ],
+          "p_vs_1": 0.012902968869530188,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l4_ring_d4": {
+          "n_runs": 10,
+          "ratio_mean": 1.0945732575577682,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0190308515797983,
+            1.1701156635357381
+          ],
+          "p_vs_1": 0.019656655348166636,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l6_full_d4": {
+          "n_runs": 10,
+          "ratio_mean": 1.0609625861508063,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0063017125128066,
+            1.115623459788806
+          ],
+          "p_vs_1": 0.03261012803034027,
+          "beats_naive": false
+        },
+        "qgan_llm_no_noise": {
+          "n_runs": 3,
+          "ratio_mean": 1.064296006035813,
+          "share_below_1": 0.0,
+          "ci95": [
+            0.9872557878597679,
+            1.1413362242118583
+          ],
+          "p_vs_1": 0.06955788337993933,
+          "beats_naive": false
+        }
+      },
+      "reading": "ratio < 1 beats persistence; beats_naive needs the whole 95% CI below 1"
+    },
+    "llm_rmse_over_persistence": {
+      "label": "LLM forecast",
+      "configs": {
+        "classical_gan_llm": {
+          "n_runs": 10,
+          "ratio_mean": 1.122976966921901,
+          "share_below_1": 0.1,
+          "ci95": [
+            1.0529893826044527,
+            1.1929645512393492
+          ],
+          "p_vs_1": 0.003230640494368459,
+          "beats_naive": false
+        },
+        "classical_gan_llm_matched": {
+          "n_runs": 10,
+          "ratio_mean": 1.1830178975703993,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0343090163608473,
+            1.3317267787799514
+          ],
+          "p_vs_1": 0.021259033797764604,
+          "beats_naive": false
+        },
+        "qgan_llm": {
+          "n_runs": 3,
+          "ratio_mean": 1.1330941867536304,
+          "share_below_1": 0.0,
+          "ci95": [
+            0.9825968871924493,
+            1.2835914863148115
+          ],
+          "p_vs_1": 0.06264620824416173,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l0_none_d4": {
+          "n_runs": 10,
+          "ratio_mean": 1.1715873269285708,
+          "share_below_1": 0.2,
+          "ci95": [
+            1.0559111693772443,
+            1.2872634844798974
+          ],
+          "p_vs_1": 0.008448642806143653,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l2_linear_d2": {
+          "n_runs": 9,
+          "ratio_mean": 1.1617310991037146,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0868859513616067,
+            1.2365762468458226
+          ],
+          "p_vs_1": 0.0010754598669416601,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l4_ring_d4": {
+          "n_runs": 10,
+          "ratio_mean": 1.1531002265776482,
+          "share_below_1": 0.1,
+          "ci95": [
+            1.076399990685273,
+            1.2298004624700234
+          ],
+          "p_vs_1": 0.0014562518965120514,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l6_full_d4": {
+          "n_runs": 9,
+          "ratio_mean": 1.1632739404155332,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0892643921994931,
+            1.2372834886315733
+          ],
+          "p_vs_1": 0.0009445347653869188,
+          "beats_naive": false
+        },
+        "qgan_llm_no_noise": {
+          "n_runs": 3,
+          "ratio_mean": 1.1364614548318348,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0061764155620039,
+            1.2667464941016657
+          ],
+          "p_vs_1": 0.045875850828024034,
+          "beats_naive": false
+        }
+      },
+      "reading": "ratio < 1 beats persistence; beats_naive needs the whole 95% CI below 1"
+    }
+  },
+  "Q1_three_arm_feature_map": {
+    "results/feature_map_advantage.json": {
+      "status": "not_run",
+      "how": "python -m scripts.run_feature_map_experiment --seeds 0 1 2 3 4 5 6 7 8 9 --n-qubits 8   (and again with --n-qubits 12)"
+    }
+  },
+  "summary": {
+    "H1_synthetic_data_fidelity": "ok",
+    "H2_adversarial_resilience": "ok",
+    "H3_poisoning_resistance": "ok",
+    "H4_quantum_advantage": "ok",
+    "H4_matched_capacity": "ok",
+    "H5_threat_detection_tomography_correlation": "ok",
+    "M2_DV2_mediation": "ok"
+  },
+  "planned_vs_ran": {
+    "H1_synthetic_data_fidelity": {
+      "planned": "Welch on run-level FID (+ ANCOVA when a VIX covariate exists)",
+      "ran": "Welch two-sample t",
+      "fallback_triggered": true,
+      "why": "no usable 'vix' covariate (or < 2 runs per side) in results/all_results.csv -- ran a plain comparison instead of the ANCOVA Ch.3 specifies"
+    },
+    "H2_adversarial_resilience": {
+      "planned": "run-level correlation / bootstrap mediation on the controlled sweep",
+      "ran": "controlled_sweep",
+      "fallback_triggered": false,
+      "why": ""
+    },
+    "H5_threat_detection_tomography_correlation": {
+      "planned": "run-level correlation / bootstrap mediation on the controlled sweep",
+      "ran": "controlled_sweep",
+      "fallback_triggered": true,
+      "why": "decidability gate failed: detector_above_chance"
+    },
+    "M2_DV2_mediation": {
+      "planned": "run-level correlation / bootstrap mediation on the controlled sweep",
+      "ran": "controlled_sweep",
+      "fallback_triggered": false,
+      "why": ""
+    },
+    "H3_poisoning_resistance": {
+      "planned": "Welch no_noise vs noisy on matched configs + TOST",
+      "ran": "matched_config_noise_only",
+      "fallback_triggered": true,
+      "why": "decidability gate failed: poisoning_dynamic_range"
+    },
+    "H4_quantum_advantage": {
+      "planned": "Welch on run-level RMSE/ASR, paired by seed, row-level DM rule",
+      "ran": "Welch two-sample t",
+      "fallback_triggered": false,
+      "why": ""
+    }
+  },
+  "verdicts": {
+    "H1_synthetic_data_fidelity": {
+      "verdict": "CONTRADICTED",
+      "tier": "CONFIRMATORY",
+      "rule": "R2_sig_opposite_direction",
+      "lean": "against",
+      "headline": "H1 (QGAN FID lower): CONTRADICTED (confirmatory) -- observed QGAN-LLM > Classical GAN-LLM, p=<0.001.",
+      "why": [
+        "observed direction: QGAN-LLM > Classical GAN-LLM; hypothesis expects: QGAN-LLM < Classical GAN-LLM",
+        "p < 0.001, alpha = 0.05",
+        "equivalence (fid): diff = 22.28, 90% CI [14.91, 29.64] vs +/-11.67 (0.1 x |reference mean| (116.682)) -> not shown (p_TOST = 0.987)",
+        "paired by seed (fid): n = 3, mean diff = 15.44, 95% CI [-27.49, 58.37], p = 0.262; the sign of the seed-wise difference is the same in 2 of 3 seeds (rule: at least 3): rule NOT met"
+      ],
+      "blockers": [],
+      "next_action": "",
+      "p_value": 0.0003150746978860383,
+      "equivalence": {
+        "fid": {
+          "equivalent": false,
+          "p_tost": 0.9867718610861359
+        }
+      },
+      "paired_by_seed": {
+        "fid": {
+          "n_pairs": 3,
+          "mean_diff": 15.439719934952379,
+          "p_value": 0.26182680406859643,
+          "consistency_rule_met": false
+        }
+      },
+      "p_holm": 0.0009452240936581148
+    },
+    "H2_adversarial_resilience": {
+      "verdict": "NOT_SUPPORTED",
+      "tier": "CONFIRMATORY",
+      "rule": "R3_adequate_n_not_significant",
+      "lean": "for",
+      "headline": "H2 (entanglement vs ASR): NOT_SUPPORTED (confirmatory) -- r=-0.09, p=0.594, n=40.",
+      "why": [
+        "r = -0.087, 95% CI [-0.39, 0.23], p = 0.594, n = 40",
+        "hypothesis expects r < 0; observed r < 0",
+        "CI contains 0: the data are compatible with no relationship at all",
+        "equivalence (r): 90% CI of r [-0.34, 0.18] vs +/-0.3 -> not shown (p_TOST = 0.088)"
+      ],
+      "blockers": [],
+      "next_action": "",
+      "p_value": 0.5937842717315334,
+      "r": -0.08692822353120305,
+      "equivalence": {
+        "r": {
+          "equivalent": false,
+          "p_tost": 0.0880865213004629
+        }
+      },
+      "p_holm": 0.5937842717315334
+    },
+    "H3_poisoning_resistance": {
+      "verdict": "NOT_DECIDABLE",
+      "tier": "NONE",
+      "rule": "R9_not_decidable_by_design",
+      "lean": null,
+      "headline": "H3: NOT_DECIDABLE -- the poisoning attack changed RMSE by at most 0.000239 points in any of 6 runs, below 1 (= 20% of the +/-5 equivalence margin); 'equivalence' between conditions is then true of any model and is not evidence about noise",
+      "why": [
+        "the poisoning attack changed RMSE by at most 0.000239 points in any of 6 runs, below 1 (= 20% of the +/-5 equivalence margin); 'equivalence' between conditions is then true of any model and is not evidence about noise",
+        "(the test itself, kept for the record: NOT_SUPPORTED, p = 0.922; it is not evidence either way)"
+      ],
+      "blockers": [
+        "the outcome cannot answer this hypothesis under the current protocol"
+      ],
+      "next_action": "raise the poisoned fraction / strength until the un-noised control degrades measurably (a positive control), then re-run H3; until then report H3 as not decidable",
+      "underlying": {
+        "verdict": "NOT_SUPPORTED",
+        "p_value": 0.922078359464431
+      }
+    },
+    "H4_quantum_advantage": {
+      "verdict": "CONTRADICTED",
+      "tier": "CONFIRMATORY",
+      "rule": "R2_sig_opposite_direction",
+      "lean": "against",
+      "headline": "H4 (ASR): CONTRADICTED (confirmatory) -- observed QGAN-LLM > Classical GAN-LLM, p=0.005.",
+      "why": [
+        "observed direction: QGAN-LLM > Classical GAN-LLM; hypothesis expects: QGAN-LLM < Classical GAN-LLM",
+        "p = 0.005, alpha = 0.05",
+        "equivalence (rmse): diff = -5.293e-05, 90% CI [-0.0001007, -5.181e-06] vs +/-2.757e-06 (0.02 x persistence RMSE (0.000137836)) -> not shown (p_TOST = 0.957)",
+        "equivalence (asr): diff = 24.6, 90% CI [12.36, 36.84] vs +/-5 (5 (absolute)) -> not shown (p_TOST = 0.991)",
+        "paired by seed (rmse): n = 3, mean diff = -3.079e-05, 95% CI [-8.53e-05, 2.373e-05], p = 0.136; the sign of the seed-wise difference is the same in 3 of 3 seeds (rule: at least 3): rule met",
+        "paired by seed (asr): n = 3, mean diff = 15.33, 95% CI [-16.61, 47.27], p = 0.175; the sign of the seed-wise difference is the same in 3 of 3 seeds (rule: at least 3): rule met"
+      ],
+      "blockers": [],
+      "next_action": "",
+      "p_value": 0.005412545261789616,
+      "equivalence": {
+        "rmse": {
+          "equivalent": false,
+          "p_tost": 0.9570615454864736
+        },
+        "asr": {
+          "equivalent": false,
+          "p_tost": 0.9914053133294061
+        }
+      },
+      "paired_by_seed": {
+        "rmse": {
+          "n_pairs": 3,
+          "mean_diff": -3.0786224746100006e-05,
+          "p_value": 0.13572005614936714,
+          "consistency_rule_met": true
+        },
+        "asr": {
+          "n_pairs": 3,
+          "mean_diff": 15.333331624666853,
+          "p_value": 0.17487962753851358,
+          "consistency_rule_met": true
+        }
+      },
+      "p_holm": 0.010825090523579233
+    },
+    "H5_threat_detection_tomography_correlation": {
+      "verdict": "NOT_DECIDABLE",
+      "tier": "NONE",
+      "rule": "R9_not_decidable_by_design",
+      "lean": null,
+      "headline": "H5: NOT_DECIDABLE -- the detector's pooled accuracy is 0.500 over 8,965 windows (44 runs), not above chance (p = 0.517); differences in accuracy between runs (sd 0.008) are what sampling noise alone gives (sd 0.035), so a correlation with entanglement has no signal to find",
+      "why": [
+        "the detector's pooled accuracy is 0.500 over 8,965 windows (44 runs), not above chance (p = 0.517); differences in accuracy between runs (sd 0.008) are what sampling noise alone gives (sd 0.035), so a correlation with entanglement has no signal to find",
+        "(the test itself, kept for the record: CONTRADICTED, p = 0.045; it is not evidence either way)"
+      ],
+      "blockers": [
+        "the outcome cannot answer this hypothesis under the current protocol"
+      ],
+      "next_action": "use a detector that beats chance (e.g. few-shot prompts or a calibrated threshold), verify it on a positive control, then re-run H5",
+      "underlying": {
+        "verdict": "CONTRADICTED",
+        "p_value": 0.045339198253528556
+      }
+    },
+    "M2_DV2_mediation": {
+      "verdict": "NOT_SUPPORTED",
+      "tier": "CONFIRMATORY",
+      "rule": "R3_adequate_n_not_significant",
+      "lean": null,
+      "headline": "M2 (entanglement mediates): NOT_SUPPORTED (confirmatory) -- indirect CI [-0.20, 0.04] includes 0.",
+      "why": [
+        "indirect effect = -0.068, bootstrap 95% CI [-0.204, 0.037] (5000 resamples)",
+        "proportion mediated = -59%",
+        "a-path = 0.417, b-path = -0.163, total c = 0.116, direct c' = 0.184",
+        "CI contains 0: no evidence that entanglement mediates the effect"
+      ],
+      "blockers": [],
+      "next_action": ""
+    }
+  },
+  "pipeline_run_id": "P20261109T170416Z-7ff07e0",
+  "generated_utc": "20261109T170416Z"
+}

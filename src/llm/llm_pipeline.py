@@ -237,7 +237,8 @@ def reasoning_prefix(model_id: str) -> str:
 
 
 def build_dual_messages(closes: Sequence[float], synthetic_closes: Optional[Sequence[float]] = None,
-                        horizon_minutes: int = 1, prefix: str = "", extra_context: Optional[str] = None) -> List[dict]:
+                        horizon_minutes: int = 1, prefix: str = "", extra_context: Optional[str] = None,
+                        few_shot: Optional[str] = None) -> List[dict]:
     hist = ", ".join(f"{c:.5f}" for c in closes)
     user = f"The last {len(closes)} 1-minute EUR/USD closes, oldest first: {hist}.\n"
     if synthetic_closes is not None and len(synthetic_closes):
@@ -247,7 +248,7 @@ def build_dual_messages(closes: Sequence[float], synthetic_closes: Optional[Sequ
     if extra_context:
         user += extra_context.strip() + "\n"
     user += f"Predict the close {horizon_minutes} minute(s) ahead and the threat probability."
-    sys_prompt = prefix + SYSTEM_PROMPT
+    sys_prompt = prefix + SYSTEM_PROMPT + (few_shot or "")
     return [{"role": "system", "content": sys_prompt}, {"role": "user", "content": user}]
 
 
@@ -417,8 +418,31 @@ def evaluate_llm_pipeline(closes_aligned: np.ndarray, targets: np.ndarray, X_row
                 json.dump({"text": text}, fh)
         return parse_dual_response(text), False
 
+    # ---- optional H5 instrument (config llm_pipeline.threat_*; all off by default, legacy output unchanged) ----
+    #  threat_calibration: true   threshold chosen on calibration windows, accuracy reported on disjoint eval windows
+    #  threat_few_shot: k         k labelled pairs in the system prompt; those windows are excluded from every metric
+    #  threat_positive_control    the same detector on a gross perturbation (pc_k x the 1-minute SD) on pc_windows windows
+    from . import threat_calibration as tc
+    use_cal = bool(cfg.get("threat_calibration", False))
+    n_shot = int(cfg.get("threat_few_shot", 0) or 0)
+    use_pc = bool(cfg.get("threat_positive_control", False))
+    split = tc.split_windows(len(idxs), float(cfg.get("threat_cal_fraction", 0.3)) if use_cal else 0.0, n_shot, seed)
+    shot_set = set(int(j) for j in split["shot"])
+    pc_k = float(cfg.get("threat_pc_k", 20.0))
+    pc_set = set(int(j) for j in split["eval"][: int(cfg.get("threat_pc_windows", 30))]) if use_pc else set()
+    few_shot_text = None
+    if shot_set:
+        shots = []
+        for j in sorted(shot_set):
+            w0 = closes[idxs[j] - window + 1: idxs[j] + 1]
+            kind0 = "fgsm" if j % 2 == 0 else "pgd"
+            w1 = attack_window(w0, closes[idxs[j]], coef, kind0, eps, alpha, steps, np.random.default_rng(seed + 31 + j))
+            shots += [(list(w0), False), (list(w1), True)]
+        few_shot_text = tc.few_shot_block(shots)
+
     jobs = []   # (window position j, kind, messages)
     attack_kind = {}
+    pc_windows = {}
     for j, idx in enumerate(idxs):
         w = closes[idx - window + 1: idx + 1]
         syn = nearest_synthetic_closes(np.asarray(X_rows)[idx], pool_rows, pool_closes, k_syn) if use_syn else None
@@ -426,8 +450,12 @@ def evaluate_llm_pipeline(closes_aligned: np.ndarray, targets: np.ndarray, X_row
         w_adv = attack_window(w, closes[idx], coef, kind, eps, alpha, steps, rng)
         prefix = reasoning_prefix(model_id) if cfg.get("nothink", True) else ""
         ctx = context_fn(int(idx)) if context_fn is not None else None   # from the REAL row; never attacked
-        jobs.append((j, "clean", build_dual_messages(w, syn, horizon, prefix, ctx)))
-        jobs.append((j, kind, build_dual_messages(w_adv, syn, horizon, prefix, ctx)))
+        jobs.append((j, "clean", build_dual_messages(w, syn, horizon, prefix, ctx, few_shot_text)))
+        jobs.append((j, kind, build_dual_messages(w_adv, syn, horizon, prefix, ctx, few_shot_text)))
+        if j in pc_set:
+            w_pc = attack_window(w, closes[idx], coef, "fgsm", pc_k * sd, pc_k * sd * 0.1, steps, rng)
+            pc_windows[j] = (w, w_pc)
+            jobs.append((j, "pc", build_dual_messages(w_pc, syn, horizon, prefix, ctx, few_shot_text)))
 
     out = {}; errors = []; n_cached = 0
 
@@ -448,6 +476,11 @@ def evaluate_llm_pipeline(closes_aligned: np.ndarray, targets: np.ndarray, X_row
                 errors.append(err)
             else:
                 out[(j, kind)] = res
+
+    # pc / shot entries are instruments, not data: keep them out of every legacy metric below
+    pc_out = {k: out.pop(k) for k in [k for k in out if k[1] == "pc"]}
+    for k in [k for k in out if k[0] in shot_set]:
+        out.pop(k)
 
     # ---- forecast accuracy on clean windows ----
     clean = [(j, out[(j, "clean")]) for j in range(len(idxs)) if (j, "clean") in out and out[(j, "clean")]["forecast"] is not None]
@@ -497,7 +530,60 @@ def evaluate_llm_pipeline(closes_aligned: np.ndarray, targets: np.ndarray, X_row
     else:
         res.update(llm_threat_fpr=float("nan"), llm_threat_accuracy=float("nan"), llm_threat_n=len(yt))
     res["llm_detector"] = "llm_threat_probability"
+    if use_cal or use_pc or n_shot:
+        res.update(_h5_instrument(out, pc_out, pc_windows, split, use_cal, use_pc, window, closes, idxs,
+                                  attack_kind, coef, eps, alpha, steps, seed, tc, cfg))
     return res
+
+
+def _h5_instrument(out, pc_out, pc_windows, split, use_cal, use_pc, window, closes, idxs, attack_kind, coef, eps,
+                   alpha, steps, seed, tc, cfg) -> Dict:
+    """Extra, clearly named llm_threat_* columns. Nothing here changes a legacy column."""
+    r: Dict = {"llm_threat_few_shot": int(len(split["shot"]) * 2), "llm_threat_pc_k": float(cfg.get("threat_pc_k", 20.0))}
+
+    def collect(js):
+        y, s = [], []
+        for j in js:
+            for kind in ("clean", attack_kind.get(int(j))):
+                v = out.get((int(j), kind))
+                if v is not None and v["threat_probability"] is not None:
+                    y.append(0 if kind == "clean" else 1); s.append(v["threat_probability"])
+        return np.array(y, dtype=int), np.array(s, dtype=float)
+
+    y_all, s_all = collect([j for j in range(len(idxs)) if j not in set(int(x) for x in split["shot"])])
+    r["llm_threat_auroc"] = tc.auroc(y_all, s_all) if len(y_all) else float("nan")
+    if use_cal:
+        y_c, s_c = collect(split["cal"]); y_e, s_e = collect(split["eval"])
+        pick = tc.pick_threshold(y_c, s_c, default=QACL_THRESHOLD)
+        r["llm_threat_cal_threshold"] = pick["threshold"]
+        r["llm_threat_cal_calibrated"] = bool(pick["calibrated"])
+        r["llm_threat_cal_n"] = int(len(y_e))
+        r["llm_threat_accuracy_cal"] = tc.accuracy(y_e, s_e, pick["threshold"]) if len(y_e) else float("nan")
+        r["llm_threat_accuracy_eval_fixed"] = tc.accuracy(y_e, s_e, QACL_THRESHOLD) if len(y_e) else float("nan")
+        r["llm_threat_auroc_eval"] = tc.auroc(y_e, s_e) if len(y_e) else float("nan")
+    # detectability ceiling on the windows the LLM saw (needs no model)
+    ev = [int(j) for j in split["eval"]] if len(split["eval"]) else list(range(len(idxs)))
+    cw, aw = [], []
+    for j in ev:
+        w = closes[idxs[j] - window + 1: idxs[j] + 1]
+        cw.append(w)
+        aw.append(attack_window(w, closes[idxs[j]], coef, attack_kind.get(j, "fgsm"), eps, alpha, steps,
+                                np.random.default_rng(seed + 977 + j)))
+    r["ref_last_jump_auroc"] = tc.reference_auroc(cw, aw)
+    if use_pc:
+        clean_s = [out[(j, "clean")]["threat_probability"] for j in pc_windows if (j, "clean") in out]
+        pc_s = [v["threat_probability"] for v in pc_out.values()]
+        thr = r.get("llm_threat_cal_threshold", QACL_THRESHOLD)
+        pcs = tc.positive_control_summary(clean_s, pc_s, threshold=QACL_THRESHOLD,
+                                          min_accuracy=float(cfg.get("threat_pc_min_accuracy", 0.75)))
+        r["llm_threat_pc_accuracy"] = pcs.get("accuracy", float("nan"))
+        r["llm_threat_pc_auroc"] = pcs.get("auroc", float("nan"))
+        r["llm_threat_pc_n"] = pcs.get("n", 0)
+        r["llm_threat_pc_passed"] = pcs.get("passed")
+        if use_cal and pcs.get("n"):
+            y = np.r_[np.zeros(len(clean_s)), np.ones(len(pc_s))].astype(int)
+            r["llm_threat_pc_accuracy_cal"] = tc.accuracy(y, np.r_[clean_s, pc_s].astype(float), thr)
+    return r
 
 
 def evaluate_if_enabled(llm_cfg: Optional[Dict], last_prices: np.ndarray, y_next: np.ndarray, X_rows: np.ndarray,

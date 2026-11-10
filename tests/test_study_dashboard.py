@@ -82,3 +82,25 @@ def test_dashboard_failure_banner(tmp_path, capsys):
     d.run_finished("A", 1, False, 1, str(tmp_path / "x.log"), "why: test -> fix: test")
     out = capsys.readouterr().out
     assert "FAIL" in out and "why: test" in out and "4 runs; 4 remaining" in out and "retry queue" in out
+
+
+def test_status_block_shows_experiment_run_id_progress_and_three_arm(tmp_path, capsys):
+    import json
+    from scripts.study_dashboard import read_run_id, pipeline_lines
+    log = tmp_path / "a.log"
+    log.write_text(MARK + "Starting training run for A (run_id=qgan_llm_0093fcc984_20261109T094652Z)\n"
+                   "[2026-11-09 04:50:03] START  train\n", encoding="utf-8")
+    assert read_run_id(str(log)) == "qgan_llm_0093fcc984_20261109T094652Z"
+    (tmp_path / "results").mkdir()
+    (tmp_path / "results" / "feature_map_advantage_q8.json").write_text(
+        json.dumps({"per_run": [{"seed": 0, "arm": "linear"}, {"seed": 0, "arm": "quantum"}, {"seed": 1, "arm": "linear"}]}))
+    assert any("q8: 2 seed(s)" in l for l in pipeline_lines(str(tmp_path)))
+    models, seeds = ["A", "B"], [1, 2]
+    d = StudyDashboard(models, seeds, lambda: [("A", 2), ("B", 2)], lambda m, s: str(log), interval=999,
+                       experiment_id="EXP-20261109-TEST-abcd", extra_lines_fn=lambda: pipeline_lines(str(tmp_path)))
+    d.run_started("A", 1, str(log))
+    capsys.readouterr()
+    d.snapshot()
+    out = capsys.readouterr().out
+    assert "EXP-20261109-TEST-abcd" in out and "run_id: qgan_llm_0093fcc984_20261109T094652Z" in out
+    assert "required 4 | done 2 | remaining 2" in out and "three-arm feature-map q8" in out and "three-arm matrix" in out
