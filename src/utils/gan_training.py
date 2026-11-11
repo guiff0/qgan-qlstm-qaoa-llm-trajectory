@@ -55,6 +55,8 @@ def save_checkpoint(path: str, payload: dict) -> None:
     tmp = path + ".tmp"
     torch.save(payload, tmp)
     os.replace(tmp, path)  # atomic: a crash mid-write can never corrupt the last good checkpoint
+    from .checkpoint_identity import write_identity_once
+    write_identity_once(path)   # models/<ckpt>.id.json: condition + seed, so a checkpoint is never anonymous (never raises)
 
 
 def fresh_run() -> bool:

@@ -1,0 +1,4768 @@
+{
+  "run_budget": {
+    "H1": {
+      "test": "QGAN-LLM vs Classical GAN-LLM (FID)",
+      "runs_have": {
+        "qgan_llm": 4,
+        "classical_gan_llm": 10
+      },
+      "total_have": 14,
+      "needed_to_be_conclusive": "10 per condition",
+      "remaining_to_be_conclusive": 6,
+      "remaining_for_full_design": 6,
+      "caveat": ""
+    },
+    "H2": {
+      "test": "entanglement sweep, entropy vs ASR",
+      "runs_have": {
+        "qgan_llm_ent_l0_none_d4": 10,
+        "qgan_llm_ent_l2_linear_d2": 10,
+        "qgan_llm_ent_l4_ring_d4": 10,
+        "qgan_llm_ent_l6_full_d4": 10
+      },
+      "total_have": 40,
+      "needed_to_be_conclusive": ">= 10 runs in total and >= 3 per level (4 levels)",
+      "remaining_to_be_conclusive": 0,
+      "remaining_for_full_design": 0,
+      "caveat": "also needs the manipulation check (designed level raises measured entropy) to pass"
+    },
+    "H3": {
+      "test": "no-noise vs noisy poisoning degradation",
+      "runs_have": {
+        "qgan_llm_no_noise": 4,
+        "qgan_llm": 4
+      },
+      "total_have": 8,
+      "needed_to_be_conclusive": "10 per condition",
+      "remaining_to_be_conclusive": 12,
+      "remaining_for_full_design": 12,
+      "caveat": "also needs the poisoning manipulation to move the outcome (decidability gate)"
+    },
+    "H4": {
+      "test": "QGAN-LLM vs matched + large classical (RMSE/ASR)",
+      "runs_have": {
+        "qgan_llm": 4,
+        "classical_gan_llm_matched": 10,
+        "classical_gan_llm": 10
+      },
+      "total_have": 24,
+      "needed_to_be_conclusive": "10 per condition",
+      "remaining_to_be_conclusive": 6,
+      "remaining_for_full_design": 6,
+      "caveat": ""
+    },
+    "H5": {
+      "test": "entanglement sweep, entropy vs threat accuracy",
+      "runs_have": {
+        "qgan_llm_ent_l0_none_d4": 10,
+        "qgan_llm_ent_l2_linear_d2": 10,
+        "qgan_llm_ent_l4_ring_d4": 10,
+        "qgan_llm_ent_l6_full_d4": 10
+      },
+      "total_have": 40,
+      "needed_to_be_conclusive": ">= 30 runs in total and >= 3 per level (4 levels)",
+      "remaining_to_be_conclusive": 0,
+      "remaining_for_full_design": 0,
+      "caveat": "also needs the manipulation check (designed level raises measured entropy) to pass"
+    },
+    "M2": {
+      "test": "mediation through entropy over the sweep",
+      "runs_have": {
+        "qgan_llm_ent_l0_none_d4": 10,
+        "qgan_llm_ent_l2_linear_d2": 10,
+        "qgan_llm_ent_l4_ring_d4": 10,
+        "qgan_llm_ent_l6_full_d4": 10
+      },
+      "total_have": 40,
+      "needed_to_be_conclusive": ">= 30 runs in total and >= 3 per level (4 levels)",
+      "remaining_to_be_conclusive": 0,
+      "remaining_for_full_design": 0,
+      "caveat": "also needs the manipulation check (designed level raises measured entropy) to pass"
+    }
+  },
+  "three_arm_ledger": {
+    "arms": [
+      {
+        "arm": "baseline",
+        "what": "persistence (naive) + ridge on the inputs only",
+        "kind": "closed form, no training",
+        "checkpoint": "none by design (nothing to resume)",
+        "runs_in_all_results": 68,
+        "feature_map_seeds": 10,
+        "where": "persistence_rmse column of all_results.csv; feature_map_advantage_q*.json arm 'linear'"
+      },
+      {
+        "arm": "classical",
+        "what": "Classical GAN-LLM (large + parameter-matched) and random-feature ridge",
+        "kind": "GAN trained for hours",
+        "checkpoint": "24 complete / 0 incomplete",
+        "runs_in_all_results": 20,
+        "feature_map_seeds": 10,
+        "where": "all_results.csv rows; models/classical_gan_llm_*.ckpt; feature_map arm 'classical_rf'"
+      },
+      {
+        "arm": "quantum",
+        "what": "QGAN-LLM (PQC generator) and PQC-feature ridge",
+        "kind": "GAN trained for hours",
+        "checkpoint": "62 complete / 1 incomplete",
+        "runs_in_all_results": 48,
+        "feature_map_seeds": 10,
+        "where": "all_results.csv rows; models/qgan_llm_*.ckpt; feature_map arm 'quantum'"
+      }
+    ],
+    "checkpoints": {
+      "models_dir": "models",
+      "checkpoints": [
+        {
+          "file": "classical_gan_llm_0429a5f4be.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "0429a5f4be",
+          "bytes": 1339978,
+          "mtime_utc": "2026-11-03T05:03:15Z",
+          "fingerprint": "0429a5f4be",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.3912198819731447e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 896,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_05e5813cb0.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "05e5813cb0",
+          "bytes": 2374282,
+          "mtime_utc": "2026-11-07T09:22:36Z",
+          "fingerprint": "05e5813cb0",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.494414617763209e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 87072,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_073c40fbd9.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "073c40fbd9",
+          "bytes": 2374282,
+          "mtime_utc": "2026-11-04T11:31:25Z",
+          "fingerprint": "073c40fbd9",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.098148461573928e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 87072,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_0b15bba9a7.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "0b15bba9a7",
+          "bytes": 2374282,
+          "mtime_utc": "2026-11-03T11:00:39Z",
+          "fingerprint": "0b15bba9a7",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 2,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 9.767440770880933e-05,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 87072,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_0b609bdb18.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "0b609bdb18",
+          "bytes": 2374282,
+          "mtime_utc": "2026-11-03T10:41:41Z",
+          "fingerprint": "0b609bdb18",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.3842363260718157e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 87072,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_0b95fff9d4.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "0b95fff9d4",
+          "bytes": 1339978,
+          "mtime_utc": "2026-11-06T09:28:30Z",
+          "fingerprint": "0b95fff9d4",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.4268604466319513e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 896,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_1c47a6c7c3.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "1c47a6c7c3",
+          "bytes": 1339978,
+          "mtime_utc": "2026-11-04T11:47:07Z",
+          "fingerprint": "1c47a6c7c3",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.1714266516089406e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 896,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_2362010b8d.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "2362010b8d",
+          "bytes": 1339978,
+          "mtime_utc": "2026-11-06T22:58:45Z",
+          "fingerprint": "2362010b8d",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.360789841832518e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 896,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_48ac4cc9df.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "48ac4cc9df",
+          "bytes": 35164,
+          "mtime_utc": "2026-11-03T10:50:43Z",
+          "fingerprint": "48ac4cc9df",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 2,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 0.8917344895906959,
+          "head_fitted": true,
+          "head_input_dim": 8,
+          "generator_params": 648,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_4aa482bec5.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "4aa482bec5",
+          "bytes": 35164,
+          "mtime_utc": "2026-11-03T10:48:14Z",
+          "fingerprint": "4aa482bec5",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 2,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 0.8917344895906959,
+          "head_fitted": true,
+          "head_input_dim": 8,
+          "generator_params": 648,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_53edaf615d.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "53edaf615d",
+          "bytes": 1339978,
+          "mtime_utc": "2026-11-05T11:07:51Z",
+          "fingerprint": "53edaf615d",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.6187876387560742e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 896,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_6eab8ad30b.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "6eab8ad30b",
+          "bytes": 1339978,
+          "mtime_utc": "2026-11-05T22:01:52Z",
+          "fingerprint": "6eab8ad30b",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.2131796185482408e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 896,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_7f7c91a7ba.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "7f7c91a7ba",
+          "bytes": 2374282,
+          "mtime_utc": "2026-11-06T22:39:51Z",
+          "fingerprint": "7f7c91a7ba",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.2969251344520324e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 87072,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_8870b700a5.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "8870b700a5",
+          "bytes": 1339978,
+          "mtime_utc": "2026-11-03T11:09:03Z",
+          "fingerprint": "8870b700a5",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.4219987242322514e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 896,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_8b6f281697.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "8b6f281697",
+          "bytes": 2373212,
+          "mtime_utc": "2026-10-31T17:39:16Z",
+          "fingerprint": "8b6f281697",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.7442069974085852e-08,
+          "head_fitted": true,
+          "head_input_dim": 32,
+          "generator_params": 87072,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_8eb835d9df.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "8eb835d9df",
+          "bytes": 2374282,
+          "mtime_utc": "2026-11-04T22:41:43Z",
+          "fingerprint": "8eb835d9df",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.3390259563913064e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 87072,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_9c1ef41b21.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "9c1ef41b21",
+          "bytes": 2374282,
+          "mtime_utc": "2026-11-03T23:57:35Z",
+          "fingerprint": "9c1ef41b21",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.2094993021356375e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 87072,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_a2720959fc.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "a2720959fc",
+          "bytes": 1339978,
+          "mtime_utc": "2026-11-04T23:33:52Z",
+          "fingerprint": "a2720959fc",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.5068279804197515e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 896,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_b3dd11b2ae.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "b3dd11b2ae",
+          "bytes": 2374282,
+          "mtime_utc": "2026-11-03T05:05:54Z",
+          "fingerprint": "b3dd11b2ae",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.316444353736151e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 87072,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_b50b5a3919.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "b50b5a3919",
+          "bytes": 2374282,
+          "mtime_utc": "2026-11-05T10:52:53Z",
+          "fingerprint": "b50b5a3919",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.5497840804331382e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 87072,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_c0fbab2fb0.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "c0fbab2fb0",
+          "bytes": 1339978,
+          "mtime_utc": "2026-11-07T09:44:58Z",
+          "fingerprint": "c0fbab2fb0",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.5721653891120475e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 896,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_eed74aa804.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "eed74aa804",
+          "bytes": 2374282,
+          "mtime_utc": "2026-11-05T21:43:48Z",
+          "fingerprint": "eed74aa804",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.116535702143758e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 87072,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_f7f5076502.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "f7f5076502",
+          "bytes": 2374282,
+          "mtime_utc": "2026-11-06T09:06:54Z",
+          "fingerprint": "f7f5076502",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.243532375448439e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 87072,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "classical_gan_llm_f83cf016b5.ckpt",
+          "prefix": "classical_gan_llm",
+          "fingerprint_in_name": "f83cf016b5",
+          "bytes": 1339978,
+          "mtime_utc": "2026-11-04T00:17:58Z",
+          "fingerprint": "f83cf016b5",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.312885758142547e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 896,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_0093fcc984.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "0093fcc984",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-06T10:07:03Z",
+          "fingerprint": "0093fcc984",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.4237284250829916e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.09112683683633804,
+          "entropy_points": 6,
+          "entropy_first": 2.5113776397348463e-09,
+          "entropy_last": 2.5113792414480984e-09,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_0459174316.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "0459174316",
+          "bytes": 1336522,
+          "mtime_utc": "2026-11-07T21:09:14Z",
+          "fingerprint": "0459174316",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.2923712693143368e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 912,
+          "theta_params": 240,
+          "theta_sd": 0.06178313493728638,
+          "entropy_points": 6,
+          "entropy_first": 1.9019566592792347,
+          "entropy_last": 0.5674839489894962,
+          "entropy_max_possible": 10.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_046dbbdca0.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "046dbbdca0",
+          "bytes": 1336650,
+          "mtime_utc": "2026-11-09T21:24:36Z",
+          "fingerprint": "046dbbdca0",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.3849124751715427e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 912,
+          "theta_params": 240,
+          "theta_sd": 0.06752163916826248,
+          "entropy_points": 6,
+          "entropy_first": 1.9542708211160604,
+          "entropy_last": 0.8454025403518834,
+          "entropy_max_possible": 10.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_06e59730fa.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "06e59730fa",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-05T16:54:58Z",
+          "fingerprint": "06e59730fa",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.5085228951881818e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.06607943773269653,
+          "entropy_points": 6,
+          "entropy_first": 0.2751366263031304,
+          "entropy_last": 0.15514993914044295,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_09f00b5785.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "09f00b5785",
+          "bytes": 1336522,
+          "mtime_utc": "2026-11-10T21:13:44Z",
+          "fingerprint": "09f00b5785",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.441098683246526e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 912,
+          "theta_params": 240,
+          "theta_sd": 0.06955096125602722,
+          "entropy_points": 6,
+          "entropy_first": 1.9531752101523683,
+          "entropy_last": 0.8717473698431211,
+          "entropy_max_possible": 10.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_0a786568cb.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "0a786568cb",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-04T12:16:01Z",
+          "fingerprint": "0a786568cb",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.1744927580769673e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.10531771183013916,
+          "entropy_points": 6,
+          "entropy_first": 2.511377799906171e-09,
+          "entropy_last": 2.5113792414480984e-09,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_1849e2a891.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "1849e2a891",
+          "bytes": 1336586,
+          "mtime_utc": "2026-11-11T20:39:17Z",
+          "fingerprint": "1849e2a891",
+          "fingerprint_matches_name": true,
+          "completed": false,
+          "next_epoch": 29,
+          "target_frame": "delta",
+          "state": "INCOMPLETE (next epoch 29)",
+          "head_mse": null,
+          "head_fitted": false,
+          "head_input_dim": 64,
+          "generator_params": 912,
+          "theta_params": 240,
+          "theta_sd": 0.061597686260938644,
+          "entropy_points": 5,
+          "entropy_first": 1.9399627732642344,
+          "entropy_last": 0.7571125434073601,
+          "entropy_max_possible": 10.0,
+          "last_entropy_epoch": 24,
+          "has_optimizer_state": true,
+          "lock": {
+            "lock_file": "qgan_llm_1849e2a891.ckpt.train.lock",
+            "pid": 8084,
+            "utc": "2026-11-11T05:57:26Z",
+            "alive": true
+          },
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_1c759956fa.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "1c759956fa",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-05T00:18:29Z",
+          "fingerprint": "1c759956fa",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.5121988497489103e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.0959644615650177,
+          "entropy_points": 6,
+          "entropy_first": 2.511378280420147e-09,
+          "entropy_last": 2.511380682990025e-09,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_1d3f6f8d32.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "1d3f6f8d32",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-03T09:22:43Z",
+          "fingerprint": "1d3f6f8d32",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.3950615325978946e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.07472410053014755,
+          "entropy_points": 6,
+          "entropy_first": 0.28840669122428736,
+          "entropy_last": 0.09051487570285188,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_1e271b59e6.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "1e271b59e6",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-04T00:38:56Z",
+          "fingerprint": "1e271b59e6",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.303628258424874e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.10472996532917023,
+          "entropy_points": 6,
+          "entropy_first": 2.511377799906171e-09,
+          "entropy_last": 2.5113776397348463e-09,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_1fa8e61b02.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "1fa8e61b02",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-06T20:49:31Z",
+          "fingerprint": "1fa8e61b02",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.2164470109163896e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.0756138265132904,
+          "entropy_points": 6,
+          "entropy_first": 0.3727066624471447,
+          "entropy_last": 0.10002488922712233,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_2d27cfba5e.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "2d27cfba5e",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-06T06:39:41Z",
+          "fingerprint": "2d27cfba5e",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.6156038870245308e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.07066771388053894,
+          "entropy_points": 6,
+          "entropy_first": 0.27782505153185105,
+          "entropy_last": 0.12289278398420053,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_2d76e8ba89.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "2d76e8ba89",
+          "bytes": 1336522,
+          "mtime_utc": "2026-11-06T06:41:31Z",
+          "fingerprint": "2d76e8ba89",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.2919078922405294e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 912,
+          "theta_params": 240,
+          "theta_sd": 0.06204914301633835,
+          "entropy_points": 6,
+          "entropy_first": 1.8603795261450666,
+          "entropy_last": 0.5992557781403124,
+          "entropy_max_possible": 10.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_2d8deb3cb0.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "2d8deb3cb0",
+          "bytes": 1336522,
+          "mtime_utc": "2026-11-05T23:38:49Z",
+          "fingerprint": "2d8deb3cb0",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.4498689181370857e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 912,
+          "theta_params": 240,
+          "theta_sd": 0.06762998551130295,
+          "entropy_points": 6,
+          "entropy_first": 2.0214179844004425,
+          "entropy_last": 0.8188562948239373,
+          "entropy_max_possible": 10.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_2e18726a03.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "2e18726a03",
+          "bytes": 24046,
+          "mtime_utc": "2026-11-03T11:01:18Z",
+          "fingerprint": "2e18726a03",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 2,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 0.8917344883869582,
+          "head_fitted": true,
+          "head_input_dim": 8,
+          "generator_params": 52,
+          "theta_params": 12,
+          "theta_sd": 0.07620242983102798,
+          "entropy_points": 1,
+          "entropy_first": 0.12561252370931628,
+          "entropy_last": 0.12561252370931628,
+          "entropy_max_possible": 2.0,
+          "last_entropy_epoch": 1,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_3178c61c6d.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "3178c61c6d",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-08T10:58:41Z",
+          "fingerprint": "3178c61c6d",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.5520760532301448e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.06966841965913773,
+          "entropy_points": 6,
+          "entropy_first": 0.39530434921263646,
+          "entropy_last": 0.22687955776729382,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_4974ba4c07.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "4974ba4c07",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-07T09:34:37Z",
+          "fingerprint": "4974ba4c07",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.422587056057553e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.07053011655807495,
+          "entropy_points": 6,
+          "entropy_first": 0.22626807412677846,
+          "entropy_last": 0.0738571897935886,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_4adff97227.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "4adff97227",
+          "bytes": 24046,
+          "mtime_utc": "2026-11-03T10:48:16Z",
+          "fingerprint": "4adff97227",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 3,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 0.8917344895906959,
+          "head_fitted": true,
+          "head_input_dim": 8,
+          "generator_params": 52,
+          "theta_params": 12,
+          "theta_sd": 0.0761251300573349,
+          "entropy_points": 1,
+          "entropy_first": 0.12540174623840564,
+          "entropy_last": 0.12540174623840564,
+          "entropy_max_possible": 2.0,
+          "last_entropy_epoch": 2,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_4d318ea64b.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "4d318ea64b",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-07T16:27:46Z",
+          "fingerprint": "4d318ea64b",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.5594571747128787e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.06319690495729446,
+          "entropy_points": 6,
+          "entropy_first": 1.249014330550072,
+          "entropy_last": 0.41601015105020067,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_50b3e5e2e5.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "50b3e5e2e5",
+          "bytes": 1336522,
+          "mtime_utc": "2026-11-11T20:37:46Z",
+          "fingerprint": "50b3e5e2e5",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.5192636474564323e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 912,
+          "theta_params": 240,
+          "theta_sd": 0.0638425350189209,
+          "entropy_points": 6,
+          "entropy_first": 1.924752027043646,
+          "entropy_last": 0.7029972678851465,
+          "entropy_max_possible": 10.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_5390f998dc.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "5390f998dc",
+          "bytes": 1331338,
+          "mtime_utc": "2026-11-07T02:32:14Z",
+          "fingerprint": "5390f998dc",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.3562961777409398e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 488,
+          "theta_params": 72,
+          "theta_sd": 0.08169952780008316,
+          "entropy_points": 6,
+          "entropy_first": 0.2893599266445215,
+          "entropy_last": 0.13663643500145523,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_56d706db00.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "56d706db00",
+          "bytes": 1331338,
+          "mtime_utc": "2026-11-05T03:23:19Z",
+          "fingerprint": "56d706db00",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.5061542049292215e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 488,
+          "theta_params": 72,
+          "theta_sd": 0.06892342120409012,
+          "entropy_points": 6,
+          "entropy_first": 0.27991062001490696,
+          "entropy_last": 0.14792204395636926,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_5b014a4de2.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "5b014a4de2",
+          "bytes": 1331338,
+          "mtime_utc": "2026-11-04T15:16:24Z",
+          "fingerprint": "5b014a4de2",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.1704406500895263e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 488,
+          "theta_params": 72,
+          "theta_sd": 0.06811734288930893,
+          "entropy_points": 6,
+          "entropy_first": 0.26107679874410683,
+          "entropy_last": 0.15100149685145128,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_5b89afd084.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "5b89afd084",
+          "bytes": 24046,
+          "mtime_utc": "2026-11-03T10:49:02Z",
+          "fingerprint": "5b89afd084",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 3,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 0.8917344895906959,
+          "head_fitted": true,
+          "head_input_dim": 8,
+          "generator_params": 52,
+          "theta_params": 12,
+          "theta_sd": 0.07598688453435898,
+          "entropy_points": 1,
+          "entropy_first": 0.03223484320522635,
+          "entropy_last": 0.03223484320522635,
+          "entropy_max_possible": 2.0,
+          "last_entropy_epoch": 2,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_5b963ff14a.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "5b963ff14a",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-06T23:24:15Z",
+          "fingerprint": "5b963ff14a",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.347028786367272e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.1165378987789154,
+          "entropy_points": 6,
+          "entropy_first": 2.5113776397348463e-09,
+          "entropy_last": 2.5113776397348463e-09,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_5c353158f2.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "5c353158f2",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-03T23:31:46Z",
+          "fingerprint": "5c353158f2",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.4560010177560254e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.0652732253074646,
+          "entropy_points": 6,
+          "entropy_first": 0.4400060049635621,
+          "entropy_last": 0.10433423908050307,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_5ed44147e3.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "5ed44147e3",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-03T05:12:03Z",
+          "fingerprint": "5ed44147e3",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.3927246237395445e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.10771401226520538,
+          "entropy_points": 6,
+          "entropy_first": 2.5113776397348463e-09,
+          "entropy_last": 2.5113776397348463e-09,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_65a03878a6.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "65a03878a6",
+          "bytes": 1335534,
+          "mtime_utc": "2026-10-31T17:39:16Z",
+          "fingerprint": "65a03878a6",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.7442069974085852e-08,
+          "head_fitted": true,
+          "head_input_dim": 32,
+          "generator_params": 912,
+          "theta_params": 240,
+          "theta_sd": 0.06440725922584534,
+          "entropy_points": 6,
+          "entropy_first": 2.0280192408776205,
+          "entropy_last": 0.6152074498553524,
+          "entropy_max_possible": 10.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_6791c0d083.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "6791c0d083",
+          "bytes": 24046,
+          "mtime_utc": "2026-11-03T10:50:46Z",
+          "fingerprint": "6791c0d083",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 3,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 0.8917344895906959,
+          "head_fitted": true,
+          "head_input_dim": 8,
+          "generator_params": 52,
+          "theta_params": 12,
+          "theta_sd": 0.046839360147714615,
+          "entropy_points": 1,
+          "entropy_first": 0.06571012837813223,
+          "entropy_last": 0.06571012837813223,
+          "entropy_max_possible": 2.0,
+          "last_entropy_epoch": 2,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_73e201f162.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "73e201f162",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-04T13:28:05Z",
+          "fingerprint": "73e201f162",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.3081064429004682e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.07337617874145508,
+          "entropy_points": 6,
+          "entropy_first": 0.2450217487824491,
+          "entropy_last": 0.11801418181478895,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_756d6cfbdb.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "756d6cfbdb",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-03T13:18:29Z",
+          "fingerprint": "756d6cfbdb",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.4485830613107233e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.11222797632217407,
+          "entropy_points": 6,
+          "entropy_first": 2.5113776397348463e-09,
+          "entropy_last": 2.5113776397348463e-09,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_76111790cc.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "76111790cc",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-06T17:44:40Z",
+          "fingerprint": "76111790cc",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.42504961003044e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.06910429149866104,
+          "entropy_points": 6,
+          "entropy_first": 0.920979298290973,
+          "entropy_last": 0.2424768335510573,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_77d314c798.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "77d314c798",
+          "bytes": 1335534,
+          "mtime_utc": "2026-10-31T20:40:58Z",
+          "fingerprint": "77d314c798",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.7442069974085852e-08,
+          "head_fitted": true,
+          "head_input_dim": 32,
+          "generator_params": 912,
+          "theta_params": 240,
+          "theta_sd": 0.06504513323307037,
+          "entropy_points": 6,
+          "entropy_first": 2.0215706439784,
+          "entropy_last": 0.6695596938501475,
+          "entropy_max_possible": 10.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_7d0c1023fb.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "7d0c1023fb",
+          "bytes": 1336522,
+          "mtime_utc": "2026-11-08T03:54:10Z",
+          "fingerprint": "7d0c1023fb",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.170309195222422e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 912,
+          "theta_params": 240,
+          "theta_sd": 0.06652779877185822,
+          "entropy_points": 6,
+          "entropy_first": 1.8031478812801964,
+          "entropy_last": 0.5793818181588027,
+          "entropy_max_possible": 10.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_7e45790093.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "7e45790093",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-07T05:39:41Z",
+          "fingerprint": "7e45790093",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.3529177209174395e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.07230699062347412,
+          "entropy_points": 6,
+          "entropy_first": 1.1339614525675072,
+          "entropy_last": 0.3461056641290841,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_7e73e13c83.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "7e73e13c83",
+          "bytes": 24046,
+          "mtime_utc": "2026-11-03T10:49:28Z",
+          "fingerprint": "7e73e13c83",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 3,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 0.8917344895906959,
+          "head_fitted": true,
+          "head_input_dim": 8,
+          "generator_params": 52,
+          "theta_params": 12,
+          "theta_sd": 0.07533542811870575,
+          "entropy_points": 1,
+          "entropy_first": 0.03479684278446574,
+          "entropy_last": 0.03479684278446574,
+          "entropy_max_possible": 2.0,
+          "last_entropy_epoch": 2,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_81e271eb91.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "81e271eb91",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-06T04:51:47Z",
+          "fingerprint": "81e271eb91",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.2170222569724687e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.07085802406072617,
+          "entropy_points": 6,
+          "entropy_first": 1.4467542538606533,
+          "entropy_last": 0.5804010629070657,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_94c0d35bea.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "94c0d35bea",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-07T10:19:16Z",
+          "fingerprint": "94c0d35bea",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.550543512886759e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.10472845286130905,
+          "entropy_points": 6,
+          "entropy_first": 2.511379401619423e-09,
+          "entropy_last": 2.5113784405914723e-09,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_9e7b5a49fa.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "9e7b5a49fa",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-04T07:25:02Z",
+          "fingerprint": "9e7b5a49fa",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.3027167664369877e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.0668545514345169,
+          "entropy_points": 6,
+          "entropy_first": 1.293365841462059,
+          "entropy_last": 0.488766299010448,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_a7bf6d131c.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "a7bf6d131c",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-05T17:38:18Z",
+          "fingerprint": "a7bf6d131c",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.6019900958627492e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.06253376603126526,
+          "entropy_points": 6,
+          "entropy_first": 1.4288720509025472,
+          "entropy_last": 0.44741301749615126,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_aec8573531.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "aec8573531",
+          "bytes": 1331310,
+          "mtime_utc": "2026-10-31T19:08:52Z",
+          "fingerprint": "aec8573531",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.7442069974085852e-08,
+          "head_fitted": true,
+          "head_input_dim": 32,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.06124415621161461,
+          "entropy_points": 6,
+          "entropy_first": 1.2416183983537799,
+          "entropy_last": 0.3496186307398992,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_aedb1aa973.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "aedb1aa973",
+          "bytes": 24046,
+          "mtime_utc": "2026-11-03T10:50:42Z",
+          "fingerprint": "aedb1aa973",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 3,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 0.8917344895906959,
+          "head_fitted": true,
+          "head_input_dim": 8,
+          "generator_params": 52,
+          "theta_params": 12,
+          "theta_sd": 0.07634744793176651,
+          "entropy_points": 1,
+          "entropy_first": 0.12580878877703597,
+          "entropy_last": 0.12580878877703597,
+          "entropy_max_possible": 2.0,
+          "last_entropy_epoch": 2,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_b23d16091c.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "b23d16091c",
+          "bytes": 1331338,
+          "mtime_utc": "2026-11-05T14:35:32Z",
+          "fingerprint": "b23d16091c",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.6173650893783575e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 488,
+          "theta_params": 72,
+          "theta_sd": 0.0703149363398552,
+          "entropy_points": 6,
+          "entropy_first": 0.3907221573855298,
+          "entropy_last": 0.17171934449044335,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_b8cd743c0d.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "b8cd743c0d",
+          "bytes": 1336522,
+          "mtime_utc": "2026-11-04T07:22:32Z",
+          "fingerprint": "b8cd743c0d",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.4497591113033378e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 912,
+          "theta_params": 240,
+          "theta_sd": 0.06666173040866852,
+          "entropy_points": 6,
+          "entropy_first": 2.0744847995057647,
+          "entropy_last": 0.7502087666421989,
+          "entropy_max_possible": 10.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_bb9db8280d.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "bb9db8280d",
+          "bytes": 1331338,
+          "mtime_utc": "2026-11-06T01:29:33Z",
+          "fingerprint": "bb9db8280d",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.214348248451938e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 488,
+          "theta_params": 72,
+          "theta_sd": 0.07582221925258636,
+          "entropy_points": 6,
+          "entropy_first": 0.25780794113866196,
+          "entropy_last": 0.10424300037475714,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_bc3156ac1a.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "bc3156ac1a",
+          "bytes": 1336522,
+          "mtime_utc": "2026-11-04T00:54:20Z",
+          "fingerprint": "bc3156ac1a",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.384673950801995e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 912,
+          "theta_params": 240,
+          "theta_sd": 0.06462282687425613,
+          "entropy_points": 6,
+          "entropy_first": 1.9211463086857503,
+          "entropy_last": 0.6882542408814151,
+          "entropy_max_possible": 10.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_bc9a538b52.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "bc9a538b52",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-07T22:32:32Z",
+          "fingerprint": "bc9a538b52",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.3514406738318255e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.07903017848730087,
+          "entropy_points": 6,
+          "entropy_first": 0.1846225756271285,
+          "entropy_last": 0.029103970003345685,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_bcee38091a.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "bcee38091a",
+          "bytes": 1331338,
+          "mtime_utc": "2026-11-06T14:42:32Z",
+          "fingerprint": "bcee38091a",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.416450479632386e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 488,
+          "theta_params": 72,
+          "theta_sd": 0.07165346294641495,
+          "entropy_points": 6,
+          "entropy_first": 0.2727388220950181,
+          "entropy_last": 0.13544582397622784,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_bcf519ab2b.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "bcf519ab2b",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-03T08:39:33Z",
+          "fingerprint": "bcf519ab2b",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.3966260056692717e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.06628179550170898,
+          "entropy_points": 6,
+          "entropy_first": 1.262667451875771,
+          "entropy_last": 0.36863128871001816,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_c994b2a625.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "c994b2a625",
+          "bytes": 1331338,
+          "mtime_utc": "2026-11-04T03:57:17Z",
+          "fingerprint": "c994b2a625",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.2991430886214447e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 488,
+          "theta_params": 72,
+          "theta_sd": 0.07880454510450363,
+          "entropy_points": 6,
+          "entropy_first": 0.30472734278537633,
+          "entropy_last": 0.1503138170125566,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_cf558bb094.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "cf558bb094",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-05T22:24:13Z",
+          "fingerprint": "cf558bb094",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.2011346018495658e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.1136065348982811,
+          "entropy_points": 6,
+          "entropy_first": 2.5113800423047235e-09,
+          "entropy_last": 2.5113792414480984e-09,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_d100556665.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "d100556665",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-05T06:47:34Z",
+          "fingerprint": "d100556665",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.5238409346416354e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.05945669859647751,
+          "entropy_points": 6,
+          "entropy_first": 1.0651344583251898,
+          "entropy_last": 0.3242823923195208,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_d4442854e1.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "d4442854e1",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-03T19:48:23Z",
+          "fingerprint": "d4442854e1",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.4544884762928163e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.0616181343793869,
+          "entropy_points": 6,
+          "entropy_first": 1.537695182946319,
+          "entropy_last": 0.4891324455219229,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_d48e1be5f9.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "d48e1be5f9",
+          "bytes": 24046,
+          "mtime_utc": "2026-11-03T10:49:53Z",
+          "fingerprint": "d48e1be5f9",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 3,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 0.8917344895906959,
+          "head_fitted": true,
+          "head_input_dim": 8,
+          "generator_params": 52,
+          "theta_params": 12,
+          "theta_sd": 0.07622809708118439,
+          "entropy_points": 1,
+          "entropy_first": 0.1257279760346906,
+          "entropy_last": 0.1257279760346906,
+          "entropy_max_possible": 2.0,
+          "last_entropy_epoch": 2,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_d4b33a1501.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "d4b33a1501",
+          "bytes": 1335534,
+          "mtime_utc": "2026-10-31T19:16:56Z",
+          "fingerprint": "d4b33a1501",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.7442069974085852e-08,
+          "head_fitted": true,
+          "head_input_dim": 32,
+          "generator_params": 912,
+          "theta_params": 240,
+          "theta_sd": 0.06716600805521011,
+          "entropy_points": 6,
+          "entropy_first": 1.2010000866212827,
+          "entropy_last": 0.40983786107842357,
+          "entropy_max_possible": 10.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_d70f2d7280.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "d70f2d7280",
+          "bytes": 1336650,
+          "mtime_utc": "2026-11-09T15:40:50Z",
+          "fingerprint": "d70f2d7280",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.1705926718785454e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 912,
+          "theta_params": 240,
+          "theta_sd": 0.06686326861381531,
+          "entropy_points": 6,
+          "entropy_first": 1.7943660415991332,
+          "entropy_last": 0.6012996489887636,
+          "entropy_max_possible": 10.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_d784142290.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "d784142290",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-04T18:36:24Z",
+          "fingerprint": "d784142290",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.168397458004215e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.0680212676525116,
+          "entropy_points": 6,
+          "entropy_first": 1.23168850628681,
+          "entropy_last": 0.3870560770945961,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_e0330a33c8.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "e0330a33c8",
+          "bytes": 1331338,
+          "mtime_utc": "2026-11-03T16:28:31Z",
+          "fingerprint": "e0330a33c8",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.441750718520136e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 488,
+          "theta_params": 72,
+          "theta_sd": 0.07110617309808731,
+          "entropy_points": 6,
+          "entropy_first": 0.3051822170721637,
+          "entropy_last": 0.14309223957636305,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_e1724b1bc7.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "e1724b1bc7",
+          "bytes": 24046,
+          "mtime_utc": "2026-11-03T10:50:18Z",
+          "fingerprint": "e1724b1bc7",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 3,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 0.8917344895906959,
+          "head_fitted": true,
+          "head_input_dim": 8,
+          "generator_params": 52,
+          "theta_params": 12,
+          "theta_sd": 0.07619380950927734,
+          "entropy_points": 1,
+          "entropy_first": 0.12687853671991703,
+          "entropy_last": 0.12687853671991703,
+          "entropy_max_possible": 2.0,
+          "last_entropy_epoch": 2,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_e3ba9c7fcf.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "e3ba9c7fcf",
+          "bytes": 1331338,
+          "mtime_utc": "2026-11-07T13:13:43Z",
+          "fingerprint": "e3ba9c7fcf",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.5565488336917715e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 488,
+          "theta_params": 72,
+          "theta_sd": 0.07729952037334442,
+          "entropy_points": 6,
+          "entropy_first": 0.37846430334018505,
+          "entropy_last": 0.24297910911997783,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_f1212f5c8d.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "f1212f5c8d",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-05T11:37:06Z",
+          "fingerprint": "f1212f5c8d",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.612346131393599e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.10567741096019745,
+          "entropy_points": 6,
+          "entropy_first": 2.5113776397348463e-09,
+          "entropy_last": 2.5113776397348463e-09,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_f9e2f903ec.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "f9e2f903ec",
+          "bytes": 1331338,
+          "mtime_utc": "2026-11-03T05:27:10Z",
+          "fingerprint": "f9e2f903ec",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.387521228296587e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 488,
+          "theta_params": 72,
+          "theta_sd": 0.08038978278636932,
+          "entropy_points": 6,
+          "entropy_first": 0.2607053746724978,
+          "entropy_last": 0.10321268581401342,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qgan_llm_fe6f08d5fb.ckpt",
+          "prefix": "qgan_llm",
+          "fingerprint_in_name": "fe6f08d5fb",
+          "bytes": 1332298,
+          "mtime_utc": "2026-11-05T03:11:05Z",
+          "fingerprint": "fe6f08d5fb",
+          "fingerprint_matches_name": true,
+          "completed": true,
+          "next_epoch": 30,
+          "target_frame": "delta",
+          "state": "COMPLETE",
+          "head_mse": 2.165094515453775e-08,
+          "head_fitted": true,
+          "head_input_dim": 64,
+          "generator_params": 560,
+          "theta_params": 144,
+          "theta_sd": 0.07647445052862167,
+          "entropy_points": 6,
+          "entropy_first": 0.18425975431610547,
+          "entropy_last": 0.09585091368495631,
+          "entropy_max_possible": 6.0,
+          "last_entropy_epoch": 29,
+          "has_optimizer_state": true,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qlstm_forecaster_479c505794.ckpt",
+          "prefix": "qlstm_forecaster",
+          "fingerprint_in_name": "479c505794",
+          "bytes": 18482,
+          "mtime_utc": "2026-10-26T11:07:41Z",
+          "fingerprint": "479c505794",
+          "fingerprint_matches_name": true,
+          "completed": false,
+          "next_epoch": 23,
+          "target_frame": null,
+          "state": "INCOMPLETE (next epoch 23)",
+          "head_mse": null,
+          "head_fitted": false,
+          "head_input_dim": 32,
+          "generator_params": 0,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": false,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qlstm_forecaster_d02a21f0c2.ckpt",
+          "prefix": "qlstm_forecaster",
+          "fingerprint_in_name": "d02a21f0c2",
+          "bytes": 18546,
+          "mtime_utc": "2026-11-01T04:34:28Z",
+          "fingerprint": "d02a21f0c2",
+          "fingerprint_matches_name": true,
+          "completed": false,
+          "next_epoch": 12,
+          "target_frame": "delta",
+          "state": "INCOMPLETE (next epoch 12)",
+          "head_mse": null,
+          "head_fitted": false,
+          "head_input_dim": 32,
+          "generator_params": 0,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": false,
+          "lock": null,
+          "synth_cache": null
+        },
+        {
+          "file": "qlstm_forecaster_d1d1534fba.ckpt",
+          "prefix": "qlstm_forecaster",
+          "fingerprint_in_name": "d1d1534fba",
+          "bytes": 7730,
+          "mtime_utc": "2026-11-03T11:01:45Z",
+          "fingerprint": "d1d1534fba",
+          "fingerprint_matches_name": true,
+          "completed": false,
+          "next_epoch": 2,
+          "target_frame": "delta",
+          "state": "INCOMPLETE (next epoch 2)",
+          "head_mse": null,
+          "head_fitted": false,
+          "head_input_dim": 8,
+          "generator_params": 0,
+          "theta_params": null,
+          "theta_sd": null,
+          "entropy_points": 0,
+          "entropy_first": null,
+          "entropy_last": null,
+          "entropy_max_possible": null,
+          "last_entropy_epoch": null,
+          "has_optimizer_state": false,
+          "lock": null,
+          "synth_cache": null
+        }
+      ],
+      "by_prefix": {
+        "classical_gan_llm": {
+          "complete": 24,
+          "incomplete": 0,
+          "unreadable": 0,
+          "live_lock": 0,
+          "stale_lock": 0
+        },
+        "qgan_llm": {
+          "complete": 62,
+          "incomplete": 1,
+          "unreadable": 0,
+          "live_lock": 1,
+          "stale_lock": 0
+        },
+        "qlstm_forecaster": {
+          "complete": 0,
+          "incomplete": 3,
+          "unreadable": 0,
+          "live_lock": 0,
+          "stale_lock": 0
+        }
+      }
+    },
+    "feature_map": {
+      "feature_map_advantage.json": {
+        "arms": {
+          "linear": 10,
+          "classical_rf": 10,
+          "quantum": 10
+        },
+        "seeds": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9
+        ],
+        "n_qubits": 8,
+        "walk_forward_windows": null
+      }
+    },
+    "walk_forward": {},
+    "temporal_blocks": {},
+    "chronology": [
+      {
+        "utc": "2026-11-03T05:01:03Z",
+        "kind": "freeze",
+        "label": "preregistration_20261103T050103Z.json",
+        "detail": {}
+      },
+      {
+        "utc": "2026-11-03T05:02:55Z",
+        "kind": "run",
+        "label": "qgan_llm seed 43",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-03T05:03:32Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l0_none_d4 seed 43",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-03T05:05:28Z",
+        "kind": "run",
+        "label": "classical_gan_llm seed 43",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-03T05:20:35Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l2_linear_d2 seed 43",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-03T08:29:23Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l4_ring_d4 seed 43",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-03T09:01:27Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l6_full_d4 seed 43",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-03T11:32:58Z",
+        "kind": "run",
+        "label": "qgan_llm_no_noise seed 44",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-03T13:11:08Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l0_none_d4 seed 44",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-03T16:22:48Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l2_linear_d2 seed 44",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-03T19:38:18Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l4_ring_d4 seed 44",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-03T23:11:44Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l6_full_d4 seed 44",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-03T23:57:09Z",
+        "kind": "run",
+        "label": "classical_gan_llm seed 45",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-04T00:17:35Z",
+        "kind": "run",
+        "label": "classical_gan_llm_matched seed 45",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-04T00:30:34Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l0_none_d4 seed 45",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-04T03:51:35Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l2_linear_d2 seed 45",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-04T07:15:18Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l4_ring_d4 seed 45",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-04T11:31:02Z",
+        "kind": "run",
+        "label": "classical_gan_llm seed 46",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-04T11:46:46Z",
+        "kind": "run",
+        "label": "classical_gan_llm_matched seed 46",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-04T12:08:26Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l0_none_d4 seed 46",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-04T13:08:30Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l6_full_d4 seed 45",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-04T15:10:10Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l2_linear_d2 seed 46",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-04T18:27:01Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l4_ring_d4 seed 46",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-04T22:41:21Z",
+        "kind": "run",
+        "label": "classical_gan_llm seed 47",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-04T23:33:30Z",
+        "kind": "run",
+        "label": "classical_gan_llm_matched seed 47",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-05T00:10:41Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l0_none_d4 seed 47",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-05T02:51:41Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l6_full_d4 seed 46",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-05T03:17:28Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l2_linear_d2 seed 47",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-05T04:46:07Z",
+        "kind": "run",
+        "label": "qgan_llm seed 44",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-05T06:37:31Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l4_ring_d4 seed 47",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-05T10:52:29Z",
+        "kind": "run",
+        "label": "classical_gan_llm seed 48",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-05T11:07:34Z",
+        "kind": "run",
+        "label": "classical_gan_llm_matched seed 48",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-05T11:22:59Z",
+        "kind": "run",
+        "label": "qgan_llm_no_noise seed 45",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-05T11:29:56Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l0_none_d4 seed 48",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-05T14:30:15Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l2_linear_d2 seed 48",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-05T16:36:50Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l6_full_d4 seed 47",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-05T17:29:12Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l4_ring_d4 seed 48",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-05T21:43:23Z",
+        "kind": "run",
+        "label": "classical_gan_llm seed 49",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-05T22:01:30Z",
+        "kind": "run",
+        "label": "classical_gan_llm_matched seed 49",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-05T22:16:54Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l0_none_d4 seed 49",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-06T01:23:45Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l2_linear_d2 seed 49",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-06T04:41:37Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l4_ring_d4 seed 49",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-06T06:19:31Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l6_full_d4 seed 48",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-06T09:06:31Z",
+        "kind": "run",
+        "label": "classical_gan_llm seed 50",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-06T09:28:06Z",
+        "kind": "run",
+        "label": "classical_gan_llm_matched seed 50",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-06T09:59:09Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l0_none_d4 seed 50",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-06T14:36:43Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l2_linear_d2 seed 50",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-06T17:34:45Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l4_ring_d4 seed 50",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-06T20:29:21Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l6_full_d4 seed 49",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-06T22:39:27Z",
+        "kind": "run",
+        "label": "classical_gan_llm seed 51",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-06T22:58:24Z",
+        "kind": "run",
+        "label": "classical_gan_llm_matched seed 51",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-06T23:16:50Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l0_none_d4 seed 51",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-07T02:26:58Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l2_linear_d2 seed 51",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-07T03:45:19Z",
+        "kind": "run",
+        "label": "qgan_llm seed 45",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-07T05:30:40Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l4_ring_d4 seed 51",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-07T09:18:14Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l6_full_d4 seed 50",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-07T09:22:14Z",
+        "kind": "run",
+        "label": "classical_gan_llm seed 52",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-07T09:44:39Z",
+        "kind": "run",
+        "label": "classical_gan_llm_matched seed 52",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-07T10:09:13Z",
+        "kind": "run",
+        "label": "qgan_llm_no_noise seed 46",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-07T10:12:30Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l0_none_d4 seed 52",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-07T13:08:13Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l2_linear_d2 seed 52",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-07T16:18:06Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l4_ring_d4 seed 52",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-07T22:14:53Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l6_full_d4 seed 51",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-08T10:40:51Z",
+        "kind": "run",
+        "label": "qgan_llm_ent_l6_full_d4 seed 52",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": null,
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-09T09:31:44Z",
+        "kind": "freeze",
+        "label": "preregistration_20261109T093144Z.json",
+        "detail": {}
+      },
+      {
+        "utc": "2026-11-09T09:46:52Z",
+        "kind": "calibration",
+        "label": "poisoning_calibration_20261109T094652Z.json",
+        "detail": {}
+      },
+      {
+        "utc": "2026-11-09T09:48:16Z",
+        "kind": "run",
+        "label": "classical_gan_llm_matched seed 43",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": "v2_triggered_shift",
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-09T09:48:16Z",
+        "kind": "run",
+        "label": "qgan_llm_no_noise seed 43",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": "v2_triggered_shift",
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-09T09:48:17Z",
+        "kind": "run",
+        "label": "qgan_llm seed 46",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": "v2_triggered_shift",
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-09T09:48:17Z",
+        "kind": "run",
+        "label": "classical_gan_llm seed 44",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": "v2_triggered_shift",
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-09T10:15:48Z",
+        "kind": "run",
+        "label": "classical_gan_llm_matched seed 44",
+        "detail": {
+          "forecast_path": "generator",
+          "poisoning_protocol": "v2_triggered_shift",
+          "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa"
+        }
+      },
+      {
+        "utc": "2026-11-09T22:50:27Z",
+        "kind": "deviation",
+        "label": "deviations_20261109T225027Z.json",
+        "detail": {}
+      }
+    ],
+    "chronology_summary": {
+      "n_runs": 68,
+      "first_run": "2026-11-03T05:02:55Z",
+      "last_run": "2026-11-09T10:15:48Z",
+      "first_freeze": "2026-11-03T05:01:03Z",
+      "last_freeze": "2026-11-09T09:31:44Z",
+      "calibration": "2026-11-09T09:46:52Z",
+      "runs_before_first_freeze": 0,
+      "runs_before_calibration": 63,
+      "runs_after_last_freeze": 5
+    },
+    "three_arm_ran": true
+  },
+  "confirmatory_gate": null,
+  "analysis_plan_sha": "ca2a2d3997482622",
+  "experiment_id": "EXP-20261109-DESKTOPK9L37-68aa",
+  "experiments_used": [
+    "EXP-20261109-DESKTOPK9L37-68aa"
+  ],
+  "experiments_in_file": {
+    "unassigned": 23,
+    "EXP-20261109-DESKTOPK9L37-68aa": 68
+  },
+  "pooled_experiments": false,
+  "seed_overlap_between_experiments": {},
+  "n_rows_in_file": 91,
+  "n_rows_raw": 68,
+  "n_rows": 68,
+  "analysed_design": {
+    "design": "generator_on_forecast_path",
+    "include_pilot": false,
+    "excluded_pilot_rows": {}
+  },
+  "n_rows_excluded_other_design": 0,
+  "dedupe": "config_seed",
+  "equivalence_margins": {
+    "fid": {
+      "kind": "rel_ref",
+      "value": 0.1
+    },
+    "rmse": {
+      "kind": "rel_persistence",
+      "value": 0.02
+    },
+    "asr": {
+      "kind": "abs",
+      "value": 5.0
+    },
+    "poisoning": {
+      "kind": "abs",
+      "value": 5.0
+    },
+    "r0": {
+      "kind": "abs",
+      "value": 0.3
+    }
+  },
+  "n_runs_per_model": {
+    "Classical GAN-LLM": 20,
+    "QGAN-LLM": 48
+  },
+  "n_runs_per_config": {
+    "qgan_llm_ent_l0_none_d4": 10,
+    "classical_gan_llm": 10,
+    "qgan_llm_ent_l2_linear_d2": 10,
+    "qgan_llm_ent_l4_ring_d4": 10,
+    "qgan_llm_ent_l6_full_d4": 10,
+    "classical_gan_llm_matched": 10,
+    "qgan_llm": 4,
+    "qgan_llm_no_noise": 4
+  },
+  "H1_synthetic_data_fidelity": {
+    "t_statistic": 5.0182373825805815,
+    "df": 12,
+    "p_value": 0.00043063973727348946,
+    "cohens_d": 1.9140802901621732,
+    "mean_a": 137.73745776412966,
+    "mean_b": 116.68215868921693,
+    "sd_a": 2.6050809874841145,
+    "sd_b": 12.61259520609992,
+    "status": "ok",
+    "n_per_group": {
+      "QGAN-LLM": 4,
+      "Classical GAN-LLM": 10
+    },
+    "note_covariate": "no usable 'vix' covariate (or < 2 runs per side) in results/all_results.csv -- ran a plain comparison instead of the ANCOVA Ch.3 specifies",
+    "equivalence": {
+      "equivalent": false,
+      "diff": 21.055299074912725,
+      "margin": 11.668215868921694,
+      "se": 4.195755893892216,
+      "df": 10.658415271883184,
+      "p_lower": 5.027707540294912e-06,
+      "p_upper": 0.9761692782543845,
+      "p_tost": 0.9761692782543845,
+      "ci_level": 0.9,
+      "ci_low": 13.498045386063872,
+      "ci_high": 28.612552763761578,
+      "alpha": 0.05,
+      "n_a": 4,
+      "n_b": 10,
+      "metric": "fid",
+      "margin_rule": "0.1 x |reference mean| (116.682)",
+      "reading": "equivalence NOT shown (not the same as 'different'; the data may simply be too noisy)"
+    },
+    "paired_by_seed": {
+      "status": "ok",
+      "outcome": "fid",
+      "n_pairs": 4,
+      "seeds": [
+        43,
+        44,
+        45,
+        46
+      ],
+      "unpaired_seeds": {
+        "a_only": [],
+        "b_only": [
+          47,
+          48,
+          49,
+          50,
+          51,
+          52
+        ]
+      },
+      "mean_diff": 16.481163845131185,
+      "sd_diff": 14.26315499868751,
+      "t_statistic": 2.3110123737206494,
+      "df": 3,
+      "p_value": 0.10393466799419152,
+      "ci_low": -6.214698618499771,
+      "ci_high": 39.17702630876214,
+      "cohens_dz": 1.1555061868603247,
+      "direction": "a > b",
+      "per_seed_diff": {
+        "43": 20.68127925154684,
+        "44": 29.493570563847484,
+        "45": -3.855690010537188,
+        "46": 19.605495575667604
+      },
+      "sign_count": {
+        "a_lower": 1,
+        "a_higher": 3,
+        "ties": 0
+      },
+      "sign_test_p": 0.625,
+      "consistency_rule": {
+        "same_sign_seeds": 3,
+        "needed": 4,
+        "fraction": 0.8,
+        "met": false,
+        "reading": "the sign of the seed-wise difference is the same in 3 of 4 seeds (rule: at least 4)"
+      },
+      "equivalence": {
+        "margin": 11.668215868921694,
+        "p_tost": 0.7259451666049085,
+        "equivalent": false,
+        "ci_level": 0.9,
+        "ci_low": -0.30202987427983174,
+        "ci_high": 33.2643575645422,
+        "reading": "equivalence NOT shown (not the same as 'different')"
+      }
+    },
+    "configs_used": {
+      "QGAN-LLM": "qgan_llm",
+      "Classical GAN-LLM": "classical_gan_llm"
+    },
+    "n_per_group_used": {
+      "QGAN-LLM": 4,
+      "Classical GAN-LLM": 10
+    },
+    "pooled_qgan_configs": false,
+    "pooled_classical_configs": false
+  },
+  "H2_adversarial_resilience": {
+    "r": -0.08692822353120305,
+    "df": 38,
+    "p_value": 0.5937842717315334,
+    "r_squared": 0.007556516046290804,
+    "ci_low": -0.3879327590464871,
+    "ci_high": 0.23083180946970744,
+    "status": "ok",
+    "design": "controlled_sweep",
+    "unit": "run",
+    "n_levels": 4,
+    "runs_per_level": {
+      "0": 10,
+      "2": 10,
+      "4": 10,
+      "6": 10
+    },
+    "min_runs_per_level": 10,
+    "manipulation_check_level_vs_entropy": {
+      "spearman_rho": 0.4751239421837782,
+      "p_value": 0.00194790138023319
+    },
+    "entropy_by_level": {
+      "0": 2.5113785046600022e-09,
+      "2": 0.14865659961736147,
+      "4": 0.4090275231790065,
+      "6": 0.11166225401990937
+    },
+    "entropy_ladder_monotone": false,
+    "dose_response_level_vs_outcome": {
+      "outcome": "asr",
+      "spearman_rho": 0.0009698686935167601,
+      "p_value": 0.995261013422909
+    },
+    "equivalence_r": {
+      "equivalent": false,
+      "r": -0.08692822353120305,
+      "n": 40,
+      "r0": 0.3,
+      "p_lower": 0.0880865213004629,
+      "p_upper": 0.007914471512448869,
+      "p_tost": 0.0880865213004629,
+      "ci_level": 0.9,
+      "ci_low": -0.3430634053682675,
+      "ci_high": 0.18123959808295356,
+      "alpha": 0.05,
+      "reading": "no-relevant-correlation NOT shown (CI too wide or r too large)",
+      "runs_needed_if_r_unchanged": 58
+    }
+  },
+  "H3_poisoning_resistance": {
+    "t_statistic": 0.040320202488031504,
+    "df": 6,
+    "p_value": 0.9691501745890284,
+    "cohens_d": 0.02851068859810178,
+    "mean_a": 0.07621651555056451,
+    "mean_b": 0.07198579653666314,
+    "sd_a": 0.15257195797065096,
+    "sd_b": 0.1440880119330853,
+    "status": "ok",
+    "n_per_group": {
+      "no_noise": 4,
+      "noisy": 4
+    },
+    "design": "matched_config_noise_only",
+    "equivalence": {
+      "equivalent": true,
+      "diff": 0.004230719013901374,
+      "margin": 5.0,
+      "se": 0.10492802002066345,
+      "df": 5.980467271405981,
+      "p_lower": 2.9937528012169423e-09,
+      "p_upper": 3.0241350875042366e-09,
+      "p_tost": 3.0241350875042366e-09,
+      "ci_level": 0.9,
+      "ci_low": -0.1997826646968448,
+      "ci_high": 0.20824410272464755,
+      "alpha": 0.05,
+      "n_a": 4,
+      "n_b": 4,
+      "metric": "poisoning",
+      "margin_rule": "5 (absolute)",
+      "reading": "EQUIVALENT: the true difference lies within +/- margin"
+    },
+    "n_per_group_used": {
+      "no_noise": 4,
+      "noisy": 4
+    },
+    "configs_used": {
+      "no_noise": "qgan_llm_no_noise",
+      "noisy": "qgan_llm"
+    },
+    "interpretation": "positive t (no_noise mean > noisy mean) supports Ha3: noise injection -> lower poisoning degradation",
+    "decidability": {
+      "gate": "poisoning_positive_control",
+      "decidable": false,
+      "positive_control_median": 0.2347270719317585,
+      "required_at_least": 5.0,
+      "n_values": 2,
+      "margin": 5.0,
+      "reason": "the positive control (the same attack on a head trained on real rows only) degraded RMSE by a median of 0.235 points over 2 runs, below 5; an attack that cannot hurt a plain head cannot show that noise protects a generator",
+      "remedy": "raise poisoning.shift_sd / fraction using scripts/calibrate_poisoning.py on pilot seeds (real-only head, no generator), freeze it, then re-run H3"
+    },
+    "positive_control": {
+      "median_degradation_pct": 0.2347270719317585,
+      "n_runs": 2,
+      "protocol": "nan"
+    },
+    "paired_by_seed": {
+      "status": "ok",
+      "outcome": "poisoning_rmse_degradation_pct",
+      "n_pairs": 4,
+      "seeds": [
+        43,
+        44,
+        45,
+        46
+      ],
+      "unpaired_seeds": {
+        "a_only": [],
+        "b_only": []
+      },
+      "mean_diff": 0.004230719013901374,
+      "sd_diff": 0.24222117561572337,
+      "t_statistic": 0.03493269325563247,
+      "df": 3,
+      "p_value": 0.974327756792649,
+      "ci_low": -0.3811972236859661,
+      "ci_high": 0.38965866171376884,
+      "cohens_dz": 0.017466346627816234,
+      "direction": "a > b",
+      "per_seed_diff": {
+        "43": 0.3050824078004749,
+        "44": -5.04111447621e-05,
+        "45": 4.765858278174107e-06,
+        "46": -0.2881138864583855
+      },
+      "sign_count": {
+        "a_lower": 2,
+        "a_higher": 2,
+        "ties": 0
+      },
+      "sign_test_p": 1.0,
+      "consistency_rule": {
+        "same_sign_seeds": 2,
+        "needed": 4,
+        "fraction": 0.8,
+        "met": false,
+        "reading": "the sign of the seed-wise difference is the same in 2 of 4 seeds (rule: at least 4)"
+      }
+    }
+  },
+  "H4_quantum_advantage": {
+    "forecast_design": "generator_on_forecast_path",
+    "classical_comparator": "classical_gan_llm",
+    "n_runs": {
+      "QGAN-LLM": 4,
+      "Classical GAN-LLM": 10
+    },
+    "rmse": {
+      "t_statistic": -2.1226455720495476,
+      "df": 12,
+      "p_value": 0.05649503058983158,
+      "cohens_d": -0.8304605945019029,
+      "mean_a": 0.0001557456785741,
+      "mean_b": 0.00020822356967294003,
+      "sd_a": 1.9070895529818607e-05,
+      "sd_b": 7.213151531200023e-05,
+      "status": "ok",
+      "n_per_group": {
+        "QGAN-LLM": 4,
+        "Classical GAN-LLM": 10
+      },
+      "equivalence": {
+        "equivalent": false,
+        "diff": -5.247789109884003e-05,
+        "margin": 2.768621308476429e-06,
+        "se": 2.4722870266169463e-05,
+        "df": 11.378022083945911,
+        "p_lower": 0.9656658887713954,
+        "p_upper": 0.023189591455454666,
+        "p_tost": 0.9656658887713954,
+        "ci_level": 0.9,
+        "ci_low": -9.674271663571773e-05,
+        "ci_high": -8.21306556196233e-06,
+        "alpha": 0.05,
+        "n_a": 4,
+        "n_b": 10,
+        "metric": "rmse",
+        "margin_rule": "0.02 x persistence RMSE (0.000138431)",
+        "reading": "equivalence NOT shown (not the same as 'different'; the data may simply be too noisy)"
+      },
+      "paired_by_seed": {
+        "status": "ok",
+        "outcome": "rmse",
+        "n_pairs": 4,
+        "seeds": [
+          43,
+          44,
+          45,
+          46
+        ],
+        "unpaired_seeds": {
+          "a_only": [],
+          "b_only": [
+            47,
+            48,
+            49,
+            50,
+            51,
+            52
+          ]
+        },
+        "mean_diff": -4.037816691077501e-05,
+        "sd_diff": 2.624997956188237e-05,
+        "t_statistic": -3.0764341599266003,
+        "df": 3,
+        "p_value": 0.05428750249631867,
+        "ci_low": -8.214774214601771e-05,
+        "ci_high": 1.3914083244676834e-06,
+        "cohens_dz": -1.5382170799633001,
+        "direction": "a < b",
+        "per_seed_diff": {
+          "43": -3.9164750076100006e-05,
+          "44": -5.886813638200005e-06,
+          "45": -4.730711052400001e-05,
+          "46": -6.915399340480001e-05
+        },
+        "sign_count": {
+          "a_lower": 4,
+          "a_higher": 0,
+          "ties": 0
+        },
+        "sign_test_p": 0.125,
+        "consistency_rule": {
+          "same_sign_seeds": 4,
+          "needed": 4,
+          "fraction": 0.8,
+          "met": true,
+          "reading": "the sign of the seed-wise difference is the same in 4 of 4 seeds (rule: at least 4)"
+        },
+        "equivalence": {
+          "margin": 2.768621308476429e-06,
+          "p_tost": 0.96785645190085,
+          "equivalent": false,
+          "ci_level": 0.9,
+          "ci_low": -7.126603794338959e-05,
+          "ci_high": -9.490295878160432e-06,
+          "reading": "equivalence NOT shown (not the same as 'different')"
+        }
+      }
+    },
+    "asr": {
+      "t_statistic": 2.0560365698219703,
+      "df": 12,
+      "p_value": 0.08279010824385709,
+      "cohens_d": 1.1440963392829802,
+      "mean_a": 39.49999921023846,
+      "mean_b": 21.400000043213367,
+      "sd_a": 14.271182196824379,
+      "sd_b": 16.304055353455414,
+      "status": "ok",
+      "n_per_group": {
+        "QGAN-LLM": 4,
+        "Classical GAN-LLM": 10
+      },
+      "equivalence": {
+        "equivalent": false,
+        "diff": 18.09999916702509,
+        "margin": 5.0,
+        "se": 8.803344956355687,
+        "df": 6.371268374307409,
+        "p_lower": 0.018623252393233702,
+        "p_upper": 0.9077654431732389,
+        "p_tost": 0.9077654431732389,
+        "ci_level": 0.9,
+        "ci_low": 1.1703896742550448,
+        "ci_high": 35.02960865979513,
+        "alpha": 0.05,
+        "n_a": 4,
+        "n_b": 10,
+        "metric": "asr",
+        "margin_rule": "5 (absolute)",
+        "reading": "equivalence NOT shown (not the same as 'different'; the data may simply be too noisy)"
+      },
+      "paired_by_seed": {
+        "status": "ok",
+        "outcome": "asr",
+        "n_pairs": 4,
+        "seeds": [
+          43,
+          44,
+          45,
+          46
+        ],
+        "unpaired_seeds": {
+          "a_only": [],
+          "b_only": [
+            47,
+            48,
+            49,
+            50,
+            51,
+            52
+          ]
+        },
+        "mean_diff": 14.999998826533558,
+        "sd_diff": 10.519822571454785,
+        "t_statistic": 2.8517589008080027,
+        "df": 3,
+        "p_value": 0.06501505178029435,
+        "ci_low": -1.7393864108496597,
+        "ci_high": 31.739384063916773,
+        "cohens_dz": 1.4258794504040013,
+        "direction": "a > b",
+        "per_seed_diff": {
+          "43": 9.999999403953552,
+          "44": 5.99999725818634,
+          "45": 29.999998211860664,
+          "46": 14.000000432133675
+        },
+        "sign_count": {
+          "a_lower": 0,
+          "a_higher": 4,
+          "ties": 0
+        },
+        "sign_test_p": 0.125,
+        "consistency_rule": {
+          "same_sign_seeds": 4,
+          "needed": 4,
+          "fraction": 0.8,
+          "met": true,
+          "reading": "the sign of the seed-wise difference is the same in 4 of 4 seeds (rule: at least 4)"
+        },
+        "equivalence": {
+          "margin": 5.0,
+          "p_tost": 0.923272941686033,
+          "equivalent": false,
+          "ci_level": 0.9,
+          "ci_low": 2.6215159364012663,
+          "ci_high": 27.37848171666585,
+          "reading": "equivalence NOT shown (not the same as 'different')"
+        }
+      }
+    },
+    "note": "forecast = linear([X, G(X)]) for BOTH models, same rows, same head, same evaluation subsample (src/utils/generator_path.py): a gap is attributable to the generator. It is a claim about this feature-map design, not about quantum models in general.",
+    "caveat": "RMSE here now reflects the fixed one-step-ahead target (see src/evaluation/one_step_ahead.py) rather than the old same-row-leaked values -- numbers from before that fix are not comparable to numbers generated after it"
+  },
+  "H4_matched_capacity": {
+    "forecast_design": "generator_on_forecast_path",
+    "classical_comparator": "classical_gan_llm_matched",
+    "n_runs": {
+      "QGAN-LLM": 4,
+      "Classical GAN-LLM": 10
+    },
+    "rmse": {
+      "t_statistic": 1.2155000956706612,
+      "df": 12,
+      "p_value": 0.2752237936128001,
+      "cohens_d": 0.7358837674550937,
+      "mean_a": 0.0001557456785741,
+      "mean_b": 0.00014221822546674,
+      "sd_a": 1.9070895529818607e-05,
+      "sd_b": 1.814736076388092e-05,
+      "status": "ok",
+      "n_per_group": {
+        "QGAN-LLM": 4,
+        "Classical GAN-LLM": 10
+      },
+      "equivalence": {
+        "equivalent": false,
+        "diff": 1.3527453107360003e-05,
+        "margin": 2.768621308476429e-06,
+        "se": 1.1129125497843859e-05,
+        "df": 5.333512913971756,
+        "p_lower": 0.09972095319662855,
+        "p_upper": 0.812277479018038,
+        "p_tost": 0.812277479018038,
+        "ci_level": 0.9,
+        "ci_low": -8.592187205280115e-06,
+        "ci_high": 3.564709342000012e-05,
+        "alpha": 0.05,
+        "n_a": 4,
+        "n_b": 10,
+        "metric": "rmse",
+        "margin_rule": "0.02 x persistence RMSE (0.000138431)",
+        "reading": "equivalence NOT shown (not the same as 'different'; the data may simply be too noisy)"
+      },
+      "paired_by_seed": {
+        "status": "ok",
+        "outcome": "rmse",
+        "n_pairs": 4,
+        "seeds": [
+          43,
+          44,
+          45,
+          46
+        ],
+        "unpaired_seeds": {
+          "a_only": [],
+          "b_only": [
+            47,
+            48,
+            49,
+            50,
+            51,
+            52
+          ]
+        },
+        "mean_diff": -9.171520272500196e-08,
+        "sd_diff": 3.854056799145582e-06,
+        "t_statistic": -0.04759411057218181,
+        "df": 3,
+        "p_value": 0.965030921671263,
+        "ci_low": -6.224379613122207e-06,
+        "ci_high": 6.040949207672203e-06,
+        "cohens_dz": -0.023797055286090905,
+        "direction": "a < b",
+        "per_seed_diff": {
+          "43": -1.509833635000076e-07,
+          "44": -3.1972153805999957e-06,
+          "45": -2.3762250094999974e-06,
+          "46": 5.357562942699993e-06
+        },
+        "sign_count": {
+          "a_lower": 3,
+          "a_higher": 1,
+          "ties": 0
+        },
+        "sign_test_p": 0.625,
+        "consistency_rule": {
+          "same_sign_seeds": 3,
+          "needed": 4,
+          "fraction": 0.8,
+          "met": false,
+          "reading": "the sign of the seed-wise difference is the same in 3 of 4 seeds (rule: at least 4)"
+        },
+        "equivalence": {
+          "margin": 2.768621308476429e-06,
+          "p_tost": 0.12947333533886318,
+          "equivalent": false,
+          "ci_level": 0.9,
+          "ci_low": -4.626713376104285e-06,
+          "ci_high": 4.4432829706542814e-06,
+          "reading": "equivalence NOT shown (not the same as 'different')"
+        }
+      }
+    },
+    "asr": {
+      "t_statistic": -1.4274406309289838,
+      "df": 12,
+      "p_value": 0.20910476354187035,
+      "cohens_d": -0.8626737848643653,
+      "mean_a": 39.49999921023846,
+      "mean_b": 51.399999260902405,
+      "sd_a": 14.271182196824379,
+      "sd_b": 13.631662247161106,
+      "status": "ok",
+      "n_per_group": {
+        "QGAN-LLM": 4,
+        "Classical GAN-LLM": 10
+      },
+      "equivalence": {
+        "equivalent": false,
+        "diff": -11.900000050663948,
+        "margin": 5.0,
+        "se": 8.336598939963887,
+        "df": 5.351695930288828,
+        "p_lower": 0.7784071909748633,
+        "p_upper": 0.04736809677860983,
+        "p_tost": 0.7784071909748633,
+        "ci_level": 0.9,
+        "ci_low": -28.45783498998615,
+        "ci_high": 4.657834888658254,
+        "alpha": 0.05,
+        "n_a": 4,
+        "n_b": 10,
+        "metric": "asr",
+        "margin_rule": "5 (absolute)",
+        "reading": "equivalence NOT shown (not the same as 'different'; the data may simply be too noisy)"
+      },
+      "paired_by_seed": {
+        "status": "ok",
+        "outcome": "asr",
+        "n_pairs": 4,
+        "seeds": [
+          43,
+          44,
+          45,
+          46
+        ],
+        "unpaired_seeds": {
+          "a_only": [],
+          "b_only": [
+            47,
+            48,
+            49,
+            50,
+            51,
+            52
+          ]
+        },
+        "mean_diff": -8.000000193715094,
+        "sd_diff": 20.46134446108266,
+        "t_statistic": -0.7819623201135234,
+        "df": 3,
+        "p_value": 0.4912771751209952,
+        "ci_low": -40.55856523436998,
+        "ci_high": 24.558564846939788,
+        "cohens_dz": -0.3909811600567617,
+        "direction": "a < b",
+        "per_seed_diff": {
+          "43": 3.999999165534973,
+          "44": -4.000002145767212,
+          "45": 6.000000238418586,
+          "46": -37.99999803304672
+        },
+        "sign_count": {
+          "a_lower": 2,
+          "a_higher": 2,
+          "ties": 0
+        },
+        "sign_test_p": 1.0,
+        "consistency_rule": {
+          "same_sign_seeds": 2,
+          "needed": 4,
+          "fraction": 0.8,
+          "met": false,
+          "reading": "the sign of the seed-wise difference is the same in 2 of 4 seeds (rule: at least 4)"
+        },
+        "equivalence": {
+          "margin": 5.0,
+          "p_tost": 0.6057718422922798,
+          "equivalent": false,
+          "ci_level": 0.9,
+          "ci_low": -32.07649013451347,
+          "ci_high": 16.07648974708328,
+          "reading": "equivalence NOT shown (not the same as 'different')"
+        }
+      }
+    },
+    "note": "forecast = linear([X, G(X)]) for BOTH models, same rows, same head, same evaluation subsample (src/utils/generator_path.py): a gap is attributable to the generator. It is a claim about this feature-map design, not about quantum models in general.",
+    "caveat": "RMSE here now reflects the fixed one-step-ahead target (see src/evaluation/one_step_ahead.py) rather than the old same-row-leaked values -- numbers from before that fix are not comparable to numbers generated after it"
+  },
+  "H5_threat_detection_tomography_correlation": {
+    "r": -0.32662985244459275,
+    "df": 36,
+    "p_value": 0.045339198253528556,
+    "r_squared": 0.10668706050797644,
+    "ci_low": -0.585206989712436,
+    "ci_high": -0.007756406814037345,
+    "status": "ok",
+    "design": "controlled_sweep",
+    "unit": "run",
+    "n_levels": 4,
+    "runs_per_level": {
+      "0": 10,
+      "2": 9,
+      "4": 10,
+      "6": 9
+    },
+    "min_runs_per_level": 9,
+    "manipulation_check_level_vs_entropy": {
+      "spearman_rho": 0.5159664162618639,
+      "p_value": 0.0009140612756461694
+    },
+    "entropy_by_level": {
+      "0": 2.5113785046600022e-09,
+      "2": 0.15012446357748743,
+      "4": 0.4090275231790065,
+      "6": 0.12083539668841646
+    },
+    "entropy_ladder_monotone": false,
+    "dose_response_level_vs_outcome": {
+      "outcome": "llm_threat_accuracy",
+      "spearman_rho": -0.05713851396884515,
+      "p_value": 0.7333009093277442
+    },
+    "equivalence_r": {
+      "equivalent": false,
+      "r": -0.32662985244459275,
+      "n": 38,
+      "r0": 0.3,
+      "p_lower": 0.5693461482428638,
+      "p_upper": 6.227447831071694e-05,
+      "p_tost": 0.5693461482428638,
+      "ci_level": 0.9,
+      "ci_low": -0.549093046780154,
+      "ci_high": -0.0609443123455405,
+      "alpha": 0.05,
+      "reading": "no-relevant-correlation NOT shown (CI too wide or r too large)",
+      "runs_needed_if_r_unchanged": null
+    },
+    "decidability": {
+      "gate": "detector_above_chance",
+      "decidable": false,
+      "pooled_accuracy": 0.500480923372876,
+      "pooled_n": 9357,
+      "p_above_chance": 0.4670441096368582,
+      "between_run_sd": 0.00896487676277781,
+      "sampling_noise_sd": 0.03500700210070024,
+      "reason": "the detector's pooled accuracy is 0.500 over 9,357 windows (46 runs), not above chance (p = 0.467); differences in accuracy between runs (sd 0.009) are what sampling noise alone gives (sd 0.035), so a correlation with entanglement has no signal to find",
+      "remedy": "use a detector that beats chance (e.g. few-shot prompts or a calibrated threshold), verify it on a positive control, then re-run H5"
+    },
+    "diag_llm_threat_auroc_median": 0.5152800916284881,
+    "diag_ref_last_jump_auroc_median": 0.8799621928166352,
+    "diag_llm_threat_pc_accuracy_median": 0.825,
+    "detector": "LLM threat probability (threat_scoring.py)",
+    "note": "accuracy column used: llm_threat_accuracy. "
+  },
+  "M2_DV2_mediation": {
+    "path_a": 0.4165079910634482,
+    "path_b": -0.1634394981554657,
+    "path_c": 0.11562315782422145,
+    "path_c_prime": 0.18369701486137266,
+    "indirect_effect": -0.06807385703715117,
+    "ci_low": -0.20392599071614528,
+    "ci_high": 0.037254465142033726,
+    "proportion_mediated": -0.5887562519321773,
+    "significant": false,
+    "n_bootstrap": 5000,
+    "n_observations": 40,
+    "mediation_type": "none",
+    "design": "controlled_sweep",
+    "unit": "run",
+    "n_levels": 4,
+    "runs_per_level": {
+      "0": 10,
+      "2": 10,
+      "4": 10,
+      "6": 10
+    },
+    "min_runs_per_level": 10,
+    "manipulation_check_level_vs_entropy": {
+      "spearman_rho": 0.4751239421837782,
+      "p_value": 0.00194790138023319
+    },
+    "entropy_by_level": {
+      "0": 2.5113785046600022e-09,
+      "2": 0.14865659961736147,
+      "4": 0.4090275231790065,
+      "6": 0.11166225401990937
+    },
+    "entropy_ladder_monotone": false,
+    "dose_response_level_vs_outcome": {
+      "outcome": "asr",
+      "spearman_rho": 0.0009698686935167601,
+      "p_value": 0.995261013422909
+    },
+    "pathway": "designed entangling level -> measured entanglement entropy -> ASR",
+    "iv_name": "designed entangling level (L1-L6, ordinal)",
+    "mediator_name": "entanglement_entropy",
+    "dv_name": "asr",
+    "standardized": true,
+    "caveat": "circuit depth also changes parameter count; treat the level as 'entangling structure', not entanglement alone"
+  },
+  "naive_baseline": {
+    "rmse_over_persistence": {
+      "label": "head / generator-on-path forecast",
+      "configs": {
+        "classical_gan_llm": {
+          "n_runs": 10,
+          "ratio_mean": 1.5663395201971435,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.1258658514708368,
+            2.0068131889234504
+          ],
+          "p_vs_1": 0.017351557844035775,
+          "beats_naive": false
+        },
+        "classical_gan_llm_matched": {
+          "n_runs": 10,
+          "ratio_mean": 1.0540558117285284,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0259587585810923,
+            1.0821528648759644
+          ],
+          "p_vs_1": 0.0018444451811249168,
+          "beats_naive": false
+        },
+        "qgan_llm": {
+          "n_runs": 4,
+          "ratio_mean": 1.059196451505847,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0246867946386822,
+            1.0937061083730117
+          ],
+          "p_vs_1": 0.012078076726794892,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l0_none_d4": {
+          "n_runs": 10,
+          "ratio_mean": 1.2933239707971949,
+          "share_below_1": 0.0,
+          "ci95": [
+            0.9417651153776989,
+            1.6448828262166908
+          ],
+          "p_vs_1": 0.09171102345157837,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l2_linear_d2": {
+          "n_runs": 10,
+          "ratio_mean": 1.059540288356637,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0159693783447994,
+            1.1031111983684745
+          ],
+          "p_vs_1": 0.012902968869530188,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l4_ring_d4": {
+          "n_runs": 10,
+          "ratio_mean": 1.0945732575577682,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0190308515797983,
+            1.1701156635357381
+          ],
+          "p_vs_1": 0.019656655348166636,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l6_full_d4": {
+          "n_runs": 10,
+          "ratio_mean": 1.0609625861508063,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0063017125128066,
+            1.115623459788806
+          ],
+          "p_vs_1": 0.03261012803034027,
+          "beats_naive": false
+        },
+        "qgan_llm_no_noise": {
+          "n_runs": 4,
+          "ratio_mean": 1.0577804992365798,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0124653890844293,
+            1.1030956093887303
+          ],
+          "p_vs_1": 0.02697303744136801,
+          "beats_naive": false
+        }
+      },
+      "reading": "ratio < 1 beats persistence; beats_naive needs the whole 95% CI below 1"
+    },
+    "llm_rmse_over_persistence": {
+      "label": "LLM forecast",
+      "configs": {
+        "classical_gan_llm": {
+          "n_runs": 10,
+          "ratio_mean": 1.122976966921901,
+          "share_below_1": 0.1,
+          "ci95": [
+            1.0529893826044527,
+            1.1929645512393492
+          ],
+          "p_vs_1": 0.003230640494368459,
+          "beats_naive": false
+        },
+        "classical_gan_llm_matched": {
+          "n_runs": 10,
+          "ratio_mean": 1.1830178975703993,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0343090163608473,
+            1.3317267787799514
+          ],
+          "p_vs_1": 0.021259033797764604,
+          "beats_naive": false
+        },
+        "qgan_llm": {
+          "n_runs": 4,
+          "ratio_mean": 1.140576830205014,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0583419632664808,
+            1.2228116971435474
+          ],
+          "p_vs_1": 0.01219433483072491,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l0_none_d4": {
+          "n_runs": 10,
+          "ratio_mean": 1.1715873269285708,
+          "share_below_1": 0.2,
+          "ci95": [
+            1.0559111693772443,
+            1.2872634844798974
+          ],
+          "p_vs_1": 0.008448642806143653,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l2_linear_d2": {
+          "n_runs": 9,
+          "ratio_mean": 1.1617310991037146,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0868859513616067,
+            1.2365762468458226
+          ],
+          "p_vs_1": 0.0010754598669416601,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l4_ring_d4": {
+          "n_runs": 10,
+          "ratio_mean": 1.1531002265776482,
+          "share_below_1": 0.1,
+          "ci95": [
+            1.076399990685273,
+            1.2298004624700234
+          ],
+          "p_vs_1": 0.0014562518965120514,
+          "beats_naive": false
+        },
+        "qgan_llm_ent_l6_full_d4": {
+          "n_runs": 9,
+          "ratio_mean": 1.1632739404155332,
+          "share_below_1": 0.0,
+          "ci95": [
+            1.0892643921994931,
+            1.2372834886315733
+          ],
+          "p_vs_1": 0.0009445347653869188,
+          "beats_naive": false
+        },
+        "qgan_llm_no_noise": {
+          "n_runs": 4,
+          "ratio_mean": 1.2762798225469942,
+          "share_below_1": 0.0,
+          "ci95": [
+            0.8261282184966147,
+            1.7264314265973737
+          ],
+          "p_vs_1": 0.14581406726887794,
+          "beats_naive": false
+        }
+      },
+      "reading": "ratio < 1 beats persistence; beats_naive needs the whole 95% CI below 1"
+    }
+  },
+  "Q1_three_arm_feature_map": {
+    "8_qubits (feature_map_advantage.json)": {
+      "verdict": "EQUIVALENT_TO_CONTROLS",
+      "versus_naive": {
+        "linear": {
+          "n_seeds": 10,
+          "skill_mean": 4.294537121918296e-06,
+          "skill_ci95": [
+            4.294537121918296e-06,
+            4.294537121918296e-06
+          ],
+          "p_skill_ne_0": null,
+          "seeds_beating_persistence": 10,
+          "rmse_over_persistence_mean": 0.9999978527291337,
+          "beats_naive": true
+        },
+        "classical_rf": {
+          "n_seeds": 10,
+          "skill_mean": 7.599891247656032e-06,
+          "skill_ci95": [
+            4.5114633572935925e-06,
+            1.0688319138018472e-05
+          ],
+          "p_skill_ne_0": 0.0003488864585551428,
+          "seeds_beating_persistence": 10,
+          "rmse_over_persistence_mean": 0.9999962000450594,
+          "beats_naive": true
+        },
+        "quantum": {
+          "n_seeds": 10,
+          "skill_mean": 1.1115574420816898e-05,
+          "skill_ci95": [
+            -4.221972434957605e-06,
+            2.6453121276591402e-05
+          ],
+          "p_skill_ne_0": 0.13554082984735952,
+          "seeds_beating_persistence": 10,
+          "rmse_over_persistence_mean": 0.9999944421456275,
+          "beats_naive": false
+        }
+      },
+      "versus_controls": {
+        "linear": {
+          "control": "linear",
+          "n_seeds": 10,
+          "rmse_diff_over_persistence_mean": -3.410583506111466e-06,
+          "ci90": [
+            -9.625004206581427e-06,
+            2.8038371943584946e-06
+          ],
+          "p_paired_t": 0.34067473195089715,
+          "tost_equivalent_within_margin": true,
+          "margin": 0.02,
+          "dm_seeds_favouring_quantum": 0,
+          "dm_seeds_favouring_control": 0,
+          "dm_seeds_total": 10,
+          "dm_seeds_needed": 8,
+          "advantage_rule_met": false,
+          "control_better_rule_met": false
+        },
+        "classical_rf": {
+          "control": "classical_rf",
+          "n_seeds": 10,
+          "rmse_diff_over_persistence_mean": -1.7578994318922246e-06,
+          "ci90": [
+            -8.045261158907696e-06,
+            4.529462295123246e-06
+          ],
+          "p_paired_t": 0.6206245204978047,
+          "tost_equivalent_within_margin": true,
+          "margin": 0.02,
+          "dm_seeds_favouring_quantum": 0,
+          "dm_seeds_favouring_control": 0,
+          "dm_seeds_total": 10,
+          "dm_seeds_needed": 8,
+          "advantage_rule_met": false,
+          "control_better_rule_met": false
+        }
+      },
+      "notes": [],
+      "rule": "quantum beats BOTH controls (paired DM p<.05, >= 80% of seeds) AND skill>0; equivalence = paired TOST +/-2% of persistence RMSE",
+      "audit": {
+        "checks": [
+          {
+            "check": "same seeds fed to all three arms",
+            "passed": true,
+            "detail": {
+              "linear": 10,
+              "classical_rf": 10,
+              "quantum": 10
+            }
+          },
+          {
+            "check": "identical test rows (same n_test in every arm and seed)",
+            "passed": true,
+            "detail": {
+              "linear": [
+                199999
+              ],
+              "classical_rf": [
+                199999
+              ],
+              "quantum": [
+                199999
+              ]
+            }
+          },
+          {
+            "check": "feature dimensions: classical_rf == quantum design width",
+            "passed": true,
+            "detail": {
+              "linear": [
+                32
+              ],
+              "classical_rf": [
+                40
+              ],
+              "quantum": [
+                40
+              ]
+            }
+          },
+          {
+            "check": "random-parameter budget within 5% (circuit 72 vs classical 72)",
+            "passed": true,
+            "detail": {
+              "circuit": 72,
+              "classical": 72
+            }
+          },
+          {
+            "check": "tuning effort: one shared ridge grid, one validation split, argmin on validation only",
+            "passed": true,
+            "detail": {
+              "grid": [
+                1e-08,
+                1e-06,
+                0.0001,
+                0.01,
+                1.0,
+                100.0
+              ],
+              "validation_fits_per_arm": 6
+            }
+          },
+          {
+            "check": "no arm sits on the edge of the tuning grid (an edge optimum means the arm is under-tuned)",
+            "passed": false,
+            "detail": {
+              "linear": [
+                100.0
+              ],
+              "classical_rf": [
+                100.0
+              ],
+              "quantum": [
+                100.0
+              ]
+            }
+          },
+          {
+            "check": "training budget: closed-form fit on the same chronological rows",
+            "passed": true,
+            "detail": {
+              "max_train_rows": 300000,
+              "max_eval_rows": 200000
+            }
+          }
+        ],
+        "not_applicable": [
+          {
+            "dimension": "synthetic-sample count",
+            "status": "N/A in this study",
+            "reason": "no generator: 0 synthetic rows in every arm. The generator study (QGAN vs classical GAN) is audited by src/evaluation/balance_audit.py (synthetic_ratio, eval_samples)"
+          },
+          {
+            "dimension": "loss weights",
+            "status": "N/A in this study",
+            "reason": "one unweighted squared loss on the residual target in every arm. Generator study: balance_audit checks alpha == mse_weight"
+          }
+        ],
+        "all_passed": false
+      },
+      "source": "results/feature_map_advantage.json"
+    }
+  },
+  "sample_table": {
+    "classical_gan_llm": 10,
+    "classical_gan_llm_matched": 10,
+    "qgan_llm": 4,
+    "qgan_llm_ent_l0_none_d4": 10,
+    "qgan_llm_ent_l2_linear_d2": 10,
+    "qgan_llm_ent_l4_ring_d4": 10,
+    "qgan_llm_ent_l6_full_d4": 10,
+    "qgan_llm_no_noise": 4
+  },
+  "study_status": {
+    "design": "pre-registered generator-on-path study",
+    "planned_runs": 80,
+    "completed_runs": 68,
+    "seeds_per_condition": 10,
+    "n_per_condition": {
+      "QGAN-LLM": 4,
+      "Classical GAN-LLM": 10,
+      "Classical GAN-LLM (matched)": 10,
+      "QGAN-LLM (no noise)": 4,
+      "QGAN-LLM (ent-L0 none-d4)": 10,
+      "QGAN-LLM (ent-L2 linear-d2)": 10,
+      "QGAN-LLM (ent-L4 ring-d4)": 10,
+      "QGAN-LLM (ent-L6 full-d4)": 10
+    },
+    "conditions_short": {
+      "QGAN-LLM": 4,
+      "QGAN-LLM (no noise)": 4
+    },
+    "other_configs_not_counted": {},
+    "complete": false,
+    "label": "INTERIM: 68 of 80 planned runs; 2 of 8 conditions short"
+  },
+  "count_audit": {
+    "consistent": true,
+    "issues": []
+  },
+  "summary": {
+    "H1_synthetic_data_fidelity": "ok",
+    "H2_adversarial_resilience": "ok",
+    "H3_poisoning_resistance": "ok",
+    "H4_quantum_advantage": "ok",
+    "H4_matched_capacity": "ok",
+    "H5_threat_detection_tomography_correlation": "ok",
+    "M2_DV2_mediation": "ok"
+  },
+  "planned_vs_ran": {
+    "H1_synthetic_data_fidelity": {
+      "planned": "Welch on run-level FID (+ ANCOVA when a VIX covariate exists)",
+      "ran": "Welch two-sample t",
+      "fallback_triggered": true,
+      "why": "no usable 'vix' covariate (or < 2 runs per side) in results/all_results.csv -- ran a plain comparison instead of the ANCOVA Ch.3 specifies"
+    },
+    "H2_adversarial_resilience": {
+      "planned": "run-level correlation / bootstrap mediation on the controlled sweep",
+      "ran": "controlled_sweep",
+      "fallback_triggered": false,
+      "why": ""
+    },
+    "H5_threat_detection_tomography_correlation": {
+      "planned": "run-level correlation / bootstrap mediation on the controlled sweep",
+      "ran": "controlled_sweep",
+      "fallback_triggered": true,
+      "why": "decidability gate failed: detector_above_chance"
+    },
+    "M2_DV2_mediation": {
+      "planned": "run-level correlation / bootstrap mediation on the controlled sweep",
+      "ran": "controlled_sweep",
+      "fallback_triggered": false,
+      "why": ""
+    },
+    "H3_poisoning_resistance": {
+      "planned": "Welch no_noise vs noisy on matched configs + TOST",
+      "ran": "matched_config_noise_only",
+      "fallback_triggered": true,
+      "why": "decidability gate failed: poisoning_positive_control"
+    },
+    "H4_quantum_advantage": {
+      "planned": "Welch on run-level RMSE/ASR, paired by seed, row-level DM rule",
+      "ran": "Welch two-sample t",
+      "fallback_triggered": false,
+      "why": ""
+    }
+  },
+  "verdicts": {
+    "H1_synthetic_data_fidelity": {
+      "verdict": "SUGGESTIVE_AGAINST",
+      "tier": "EXPLORATORY",
+      "rule": "R2i_sig_opposite_direction_interim",
+      "lean": "against",
+      "headline": "H1 (QGAN FID lower): CONTRADICTED (exploratory, interim) -- observed QGAN-LLM > Classical GAN-LLM, p=<0.001.",
+      "why": [
+        "observed direction: QGAN-LLM > Classical GAN-LLM; hypothesis expects: QGAN-LLM < Classical GAN-LLM",
+        "p < 0.001, alpha = 0.05",
+        "equivalence (fid): diff = 21.06, 90% CI [13.5, 28.61] vs +/-11.67 (0.1 x |reference mean| (116.682)) -> not shown (p_TOST = 0.976)",
+        "paired by seed (fid): n = 4, mean diff = 16.48, 95% CI [-6.215, 39.18], p = 0.104; the sign of the seed-wise difference is the same in 3 of 4 seeds (rule: at least 4): rule NOT met"
+      ],
+      "blockers": [
+        "interim analysis: INTERIM: 68 of 80 planned runs; 2 of 8 conditions short; confirmatory status needs every pre-registered condition at 10 seeds"
+      ],
+      "next_action": "",
+      "p_value": 0.00043063973727348946,
+      "equivalence": {
+        "fid": {
+          "equivalent": false,
+          "p_tost": 0.9761692782543845
+        }
+      },
+      "paired_by_seed": {
+        "fid": {
+          "n_pairs": 4,
+          "mean_diff": 16.481163845131185,
+          "p_value": 0.10393466799419152,
+          "consistency_rule_met": false
+        }
+      },
+      "interim": true,
+      "chapter_label": "Inconclusive (exploratory); observed direction contrary to the hypothesis"
+    },
+    "H2_adversarial_resilience": {
+      "verdict": "INCONCLUSIVE",
+      "tier": "EXPLORATORY",
+      "rule": "R4i_not_significant_interim",
+      "lean": "for",
+      "headline": "H2 (entanglement vs ASR): NOT_SUPPORTED (exploratory, interim) -- r=-0.09, p=0.594, n=40.",
+      "why": [
+        "r = -0.087, 95% CI [-0.39, 0.23], p = 0.594, n = 40",
+        "hypothesis expects r < 0; observed r < 0",
+        "CI contains 0: the data are compatible with no relationship at all",
+        "equivalence (r): 90% CI of r [-0.34, 0.18] vs +/-0.3 -> not shown (p_TOST = 0.088)"
+      ],
+      "blockers": [
+        "interim analysis: INTERIM: 68 of 80 planned runs; 2 of 8 conditions short; confirmatory status needs every pre-registered condition at 10 seeds"
+      ],
+      "next_action": "",
+      "p_value": 0.5937842717315334,
+      "r": -0.08692822353120305,
+      "equivalence": {
+        "r": {
+          "equivalent": false,
+          "p_tost": 0.0880865213004629
+        }
+      },
+      "interim": true,
+      "chapter_label": "Inconclusive (exploratory); observed direction as hypothesised"
+    },
+    "H3_poisoning_resistance": {
+      "verdict": "NOT_DECIDABLE",
+      "tier": "NONE",
+      "rule": "R9_not_decidable_by_design",
+      "lean": null,
+      "headline": "H3: NOT_DECIDABLE -- the positive control (the same attack on a head trained on real rows only) degraded RMSE by a median of 0.235 points over 2 runs, below 5; an attack that cannot hurt a plain head cannot show that noise protects a generator",
+      "why": [
+        "the positive control (the same attack on a head trained on real rows only) degraded RMSE by a median of 0.235 points over 2 runs, below 5; an attack that cannot hurt a plain head cannot show that noise protects a generator",
+        "(the test itself, kept for the record: NOT_SUPPORTED, p = 0.969; it is not evidence either way)"
+      ],
+      "blockers": [
+        "the outcome cannot answer this hypothesis under the current protocol"
+      ],
+      "next_action": "raise poisoning.shift_sd / fraction using scripts/calibrate_poisoning.py on pilot seeds (real-only head, no generator), freeze it, then re-run H3",
+      "underlying": {
+        "verdict": "NOT_SUPPORTED",
+        "p_value": 0.9691501745890284
+      },
+      "chapter_label": "Untestable (the outcome cannot move under the current protocol)"
+    },
+    "H4_quantum_advantage": {
+      "verdict": "INCONCLUSIVE",
+      "tier": "EXPLORATORY",
+      "rule": "R4i_not_significant_interim",
+      "lean": "for",
+      "headline": "H4 (RMSE): NOT_SUPPORTED (exploratory, interim) -- observed QGAN-LLM < Classical GAN-LLM, p=0.056.",
+      "why": [
+        "observed direction: QGAN-LLM < Classical GAN-LLM; hypothesis expects: QGAN-LLM < Classical GAN-LLM",
+        "p = 0.056, alpha = 0.05",
+        "equivalence (rmse): diff = -5.248e-05, 90% CI [-9.674e-05, -8.213e-06] vs +/-2.769e-06 (0.02 x persistence RMSE (0.000138431)) -> not shown (p_TOST = 0.966)",
+        "equivalence (asr): diff = 18.1, 90% CI [1.17, 35.03] vs +/-5 (5 (absolute)) -> not shown (p_TOST = 0.908)",
+        "paired by seed (rmse): n = 4, mean diff = -4.038e-05, 95% CI [-8.215e-05, 1.391e-06], p = 0.054; the sign of the seed-wise difference is the same in 4 of 4 seeds (rule: at least 4): rule met",
+        "paired by seed (asr): n = 4, mean diff = 15, 95% CI [-1.739, 31.74], p = 0.065; the sign of the seed-wise difference is the same in 4 of 4 seeds (rule: at least 4): rule met"
+      ],
+      "blockers": [
+        "interim analysis: INTERIM: 68 of 80 planned runs; 2 of 8 conditions short; confirmatory status needs every pre-registered condition at 10 seeds"
+      ],
+      "next_action": "",
+      "p_value": 0.05649503058983158,
+      "equivalence": {
+        "rmse": {
+          "equivalent": false,
+          "p_tost": 0.9656658887713954
+        },
+        "asr": {
+          "equivalent": false,
+          "p_tost": 0.9077654431732389
+        }
+      },
+      "paired_by_seed": {
+        "rmse": {
+          "n_pairs": 4,
+          "mean_diff": -4.037816691077501e-05,
+          "p_value": 0.05428750249631867,
+          "consistency_rule_met": true
+        },
+        "asr": {
+          "n_pairs": 4,
+          "mean_diff": 14.999998826533558,
+          "p_value": 0.06501505178029435,
+          "consistency_rule_met": true
+        }
+      },
+      "interim": true,
+      "chapter_label": "Inconclusive (exploratory); observed direction as hypothesised"
+    },
+    "H5_threat_detection_tomography_correlation": {
+      "verdict": "NOT_DECIDABLE",
+      "tier": "NONE",
+      "rule": "R9_not_decidable_by_design",
+      "lean": null,
+      "headline": "H5: NOT_DECIDABLE -- the detector's pooled accuracy is 0.500 over 9,357 windows (46 runs), not above chance (p = 0.467); differences in accuracy between runs (sd 0.009) are what sampling noise alone gives (sd 0.035), so a correlation with entanglement has no signal to find",
+      "why": [
+        "the detector's pooled accuracy is 0.500 over 9,357 windows (46 runs), not above chance (p = 0.467); differences in accuracy between runs (sd 0.009) are what sampling noise alone gives (sd 0.035), so a correlation with entanglement has no signal to find",
+        "(the test itself, kept for the record: CONTRADICTED, p = 0.045; it is not evidence either way)"
+      ],
+      "blockers": [
+        "the outcome cannot answer this hypothesis under the current protocol"
+      ],
+      "next_action": "use a detector that beats chance (e.g. few-shot prompts or a calibrated threshold), verify it on a positive control, then re-run H5",
+      "underlying": {
+        "verdict": "CONTRADICTED",
+        "p_value": 0.045339198253528556
+      },
+      "chapter_label": "Untestable (the outcome cannot move under the current protocol)"
+    },
+    "M2_DV2_mediation": {
+      "verdict": "INCONCLUSIVE",
+      "tier": "EXPLORATORY",
+      "rule": "R4i_not_significant_interim",
+      "lean": null,
+      "headline": "M2 (entanglement mediates): NOT_SUPPORTED (exploratory, interim) -- indirect CI [-0.20, 0.04] includes 0.",
+      "why": [
+        "indirect effect = -0.068, bootstrap 95% CI [-0.204, 0.037] (5000 resamples)",
+        "proportion mediated = -59%",
+        "a-path = 0.417, b-path = -0.163, total c = 0.116, direct c' = 0.184",
+        "CI contains 0: no evidence that entanglement mediates the effect"
+      ],
+      "blockers": [
+        "interim analysis: INTERIM: 68 of 80 planned runs; 2 of 8 conditions short; confirmatory status needs every pre-registered condition at 10 seeds"
+      ],
+      "next_action": "",
+      "interim": true,
+      "chapter_label": "Inconclusive (exploratory)"
+    }
+  },
+  "pipeline_run_id": "P20261111T204934Z-f775631",
+  "generated_utc": "20261111T204934Z"
+}

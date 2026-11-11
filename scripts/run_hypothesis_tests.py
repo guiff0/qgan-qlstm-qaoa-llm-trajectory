@@ -41,6 +41,7 @@ from src.utils.run_identity import config_of_run_id, latest_per_config, latest_p
 from src.evaluation.advantage_diagnostics import find_degenerate_groups
 from src.evaluation.study_status import format_budget, hypothesis_budget, study_status
 from scripts import snapshot_results as snap
+from src.evaluation.arm_ledger import build_ledger, format_ledger
 from src.evaluation.verdicts import compute_verdicts, format_table
 from src.evaluation.entanglement_design import MIN_RUNS_PER_LEVEL, sweep_subset
 from src.evaluation.mediation import mediation_analysis
@@ -769,6 +770,8 @@ def main():
                          "complete (after snapshotting the csv). Needs a clean freeze check and a csv that matches its snapshot")
     ap.add_argument("--rerun-reason", default=None, metavar="WHY",
                     help="required for a second confirmatory run on the same data; stored in the output (disclosure)")
+    ap.add_argument("--models-dir", default="models", help="where the checkpoints are (for the three-arm ledger)")
+    ap.add_argument("--no-ledger", action="store_true", help="skip the three-arm ledger / chronology section")
     ap.add_argument("--include-pilot", action="store_true",
                     help="also analyse pilot rows (forecast_path != generator); default: generator-on-path rows only")
     ap.add_argument("--feature-map-json", nargs="*", default=["results/feature_map_advantage.json"],
@@ -804,6 +807,7 @@ def main():
     elif mode == "config":
         df = latest_per_config(df)
     n_before_design = len(df)
+    df_all = df                          # everything in the experiment: the chronology must also show the pilot/legacy rows
     df, design_info = authoritative_design(df, args.include_pilot)
     if "asr_baseline" in df.columns:
         legacy = df["asr_baseline"].isna()
@@ -813,6 +817,16 @@ def main():
     status0 = study_status(tbl0)
     budget0 = hypothesis_budget(tbl0)
     print("\n" + format_budget(budget0, status0), flush=True)
+    ledger = None
+    if not args.no_ledger:
+        try:
+            ledger = build_ledger(df_all, models_dir=args.models_dir,
+                                  results_dir=os.path.dirname(os.path.abspath(args.results_csv)),
+                                  feature_map_paths=args.feature_map_json or None,
+                                  experiment_id=getattr(args, "experiment_id", None))
+            print("\n" + format_ledger(ledger), flush=True)
+        except Exception as exc:  # noqa: BLE001 -- a display problem must never block the analysis
+            print(f"\n[ledger] unavailable: {type(exc).__name__}: {exc}", flush=True)
     gate = None
     if status0["complete"]:
         if not args.run_confirmatory:
@@ -834,6 +848,7 @@ def main():
 
     out = {
         "run_budget": budget0,
+        "three_arm_ledger": ledger,
         "confirmatory_gate": gate,
         "analysis_plan_sha": aplan.plan_sha() if os.path.isfile(aplan.PLAN_PATH) else None,
         "experiment_id": used_ids[0] if len(used_ids) == 1 else None,

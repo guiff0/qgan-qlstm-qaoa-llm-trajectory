@@ -1,0 +1,523 @@
+{
+  "args": {
+    "processed_dir": "data/processed",
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+    ],
+    "n_qubits": 8,
+    "n_layers": 3,
+    "entanglement": "ring",
+    "input_scale": 1.0,
+    "max_train_rows": 300000,
+    "max_eval_rows": 200000,
+    "out": "results/feature_map_advantage.json"
+  },
+  "per_run": [
+    {
+      "rmse": 0.00012535653651162457,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.294537121918296e-06,
+      "arm": "linear",
+      "ridge": 100.0,
+      "n_features": 32,
+      "n_test": 199999,
+      "seed": 0
+    },
+    {
+      "rmse": 0.0001253565215768475,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.532812882485082e-06,
+      "arm": "classical_rf",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 0
+    },
+    {
+      "rmse": 0.0001253565194449205,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.56682654692564e-06,
+      "arm": "quantum",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 0
+    },
+    {
+      "rmse": 0.00012535653651162457,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.294537121918296e-06,
+      "arm": "linear",
+      "ridge": 100.0,
+      "n_features": 32,
+      "n_test": 199999,
+      "seed": 1
+    },
+    {
+      "rmse": 0.00012535632230310155,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 7.712107933044443e-06,
+      "arm": "classical_rf",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 1
+    },
+    {
+      "rmse": 0.00012535655721452224,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 3.964234274622669e-06,
+      "arm": "quantum",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 1
+    },
+    {
+      "rmse": 0.00012535653651162457,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.294537121918296e-06,
+      "arm": "linear",
+      "ridge": 100.0,
+      "n_features": 32,
+      "n_test": 199999,
+      "seed": 2
+    },
+    {
+      "rmse": 0.00012535654563449285,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.1489870025168685e-06,
+      "arm": "classical_rf",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 2
+    },
+    {
+      "rmse": 0.00012535659167719614,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 3.4144019757098576e-06,
+      "arm": "quantum",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 2
+    },
+    {
+      "rmse": 0.00012535653651162457,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.294537121918296e-06,
+      "arm": "linear",
+      "ridge": 100.0,
+      "n_features": 32,
+      "n_test": 199999,
+      "seed": 3
+    },
+    {
+      "rmse": 0.00012535629392214384,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 8.164908957941641e-06,
+      "arm": "classical_rf",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 3
+    },
+    {
+      "rmse": 0.0001253522853668592,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 7.211795573203172e-05,
+      "arm": "quantum",
+      "ridge": 1.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 3
+    },
+    {
+      "rmse": 0.00012535653651162457,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.294537121918296e-06,
+      "arm": "linear",
+      "ridge": 100.0,
+      "n_features": 32,
+      "n_test": 199999,
+      "seed": 4
+    },
+    {
+      "rmse": 0.00012535636414383937,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 7.044564064973002e-06,
+      "arm": "classical_rf",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 4
+    },
+    {
+      "rmse": 0.00012535654216655183,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.204316009226439e-06,
+      "arm": "quantum",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 4
+    },
+    {
+      "rmse": 0.00012535653651162457,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.294537121918296e-06,
+      "arm": "linear",
+      "ridge": 100.0,
+      "n_features": 32,
+      "n_test": 199999,
+      "seed": 5
+    },
+    {
+      "rmse": 0.00012535651998854747,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.5581532924776624e-06,
+      "arm": "classical_rf",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 5
+    },
+    {
+      "rmse": 0.00012535650901471156,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.73323449956542e-06,
+      "arm": "quantum",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 5
+    },
+    {
+      "rmse": 0.00012535653651162457,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.294537121918296e-06,
+      "arm": "linear",
+      "ridge": 100.0,
+      "n_features": 32,
+      "n_test": 199999,
+      "seed": 6
+    },
+    {
+      "rmse": 0.00012535560155030388,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 1.9211251396700213e-05,
+      "arm": "classical_rf",
+      "ridge": 1.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 6
+    },
+    {
+      "rmse": 0.00012535655420410787,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.012263711050679e-06,
+      "arm": "quantum",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 6
+    },
+    {
+      "rmse": 0.00012535653651162457,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.294537121918296e-06,
+      "arm": "linear",
+      "ridge": 100.0,
+      "n_features": 32,
+      "n_test": 199999,
+      "seed": 7
+    },
+    {
+      "rmse": 0.00012535635512639546,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 7.188431990989841e-06,
+      "arm": "classical_rf",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 7
+    },
+    {
+      "rmse": 0.00012535650703874906,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.764759836684007e-06,
+      "arm": "quantum",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 7
+    },
+    {
+      "rmse": 0.00012535653651162457,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.294537121918296e-06,
+      "arm": "linear",
+      "ridge": 100.0,
+      "n_features": 32,
+      "n_test": 199999,
+      "seed": 8
+    },
+    {
+      "rmse": 0.0001253563848787125,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 6.7137515226134425e-06,
+      "arm": "classical_rf",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 8
+    },
+    {
+      "rmse": 0.00012535647469925551,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 5.280717660816059e-06,
+      "arm": "quantum",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 8
+    },
+    {
+      "rmse": 0.00012535653651162457,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.294537121918296e-06,
+      "arm": "linear",
+      "ridge": 100.0,
+      "n_features": 32,
+      "n_test": 199999,
+      "seed": 9
+    },
+    {
+      "rmse": 0.0001253563842398977,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 6.723943432818125e-06,
+      "arm": "classical_rf",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 9
+    },
+    {
+      "rmse": 0.0001253565488908332,
+      "persistence_rmse": 0.00012535680568664132,
+      "skill": 4.097033961536489e-06,
+      "arm": "quantum",
+      "ridge": 100.0,
+      "n_features": 40,
+      "n_test": 199999,
+      "seed": 9
+    }
+  ],
+  "dm_quantum_vs": [
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 0,
+      "vs": "linear"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 0,
+      "vs": "classical_rf"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 1,
+      "vs": "linear"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 1,
+      "vs": "classical_rf"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 2,
+      "vs": "linear"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 2,
+      "vs": "classical_rf"
+    },
+    {
+      "statistic": 0.7288438132048778,
+      "p_value": 0.4660972075232009,
+      "mean_loss_diff": 1.0657994957646126e-12,
+      "n": 199999,
+      "lag": 58,
+      "seed": 3,
+      "vs": "linear"
+    },
+    {
+      "statistic": 0.6812911424590787,
+      "p_value": 0.495687286825923,
+      "mean_loss_diff": 1.0049792004188617e-12,
+      "n": 199999,
+      "lag": 58,
+      "seed": 3,
+      "vs": "classical_rf"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 4,
+      "vs": "linear"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 4,
+      "vs": "classical_rf"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 5,
+      "vs": "linear"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 5,
+      "vs": "classical_rf"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 6,
+      "vs": "linear"
+    },
+    {
+      "statistic": -0.15629828378609864,
+      "p_value": 0.8757979090553399,
+      "mean_loss_diff": -2.3884188888871437e-13,
+      "n": 199999,
+      "lag": 58,
+      "seed": 6,
+      "vs": "classical_rf"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 7,
+      "vs": "linear"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 7,
+      "vs": "classical_rf"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 8,
+      "vs": "linear"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 8,
+      "vs": "classical_rf"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 9,
+      "vs": "linear"
+    },
+    {
+      "statistic": 0.0,
+      "p_value": 1.0,
+      "mean_loss_diff": 0.0,
+      "n": 199999,
+      "note": "identical forecasts",
+      "seed": 9,
+      "vs": "classical_rf"
+    }
+  ],
+  "summary": {
+    "linear": {
+      "skill_mean": 4.294537121918296e-06,
+      "skill_sd": 0.0
+    },
+    "classical_rf": {
+      "skill_mean": 7.599891247656032e-06,
+      "skill_sd": 4.317324491572169e-06
+    },
+    "quantum": {
+      "skill_mean": 1.1115574420816898e-05,
+      "skill_sd": 2.1440412090469795e-05
+    }
+  },
+  "reading": "skill>0 beats persistence. Quantum 'advantage' = DM statistic > 0 (control has larger loss) with p<0.05 consistently across seeds AND over classical_rf, not only over linear."
+}

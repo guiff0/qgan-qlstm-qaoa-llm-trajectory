@@ -50,6 +50,7 @@ def load_processed_split(processed_dir: str, split: str) -> tuple[np.ndarray, np
 def run_one_model(model, model_name: str, splits: dict, cfg: dict, seed: int,
                   reuse_checkpoint: bool = False):
     set_all_seeds(seed)
+    os.environ["PIPELINE_CONDITION"], os.environ["PIPELINE_SEED"] = model_name, str(seed)   # read by save_checkpoint
     log_cfg = cfg.get("logging", {})
     run_id = make_run_id(model_name, log_cfg.get("log_dir", "logs"))
     run_logger = RunLogger(

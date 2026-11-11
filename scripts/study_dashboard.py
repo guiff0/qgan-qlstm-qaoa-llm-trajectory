@@ -133,6 +133,18 @@ def pipeline_lines(root: str = ROOT) -> list[str]:
             out.append(f"  three-arm feature-map {label}: {len(seeds)} seed(s) x {len(arms) or '?'} arm(s) = {len(rows)} rows")
         except (OSError, ValueError):
             out.append(f"  three-arm feature-map {label}: file present but unreadable")
+    wfiles = [f for f in sorted(glob.glob(os.path.join(root, "results", "walk_forward_q*.json"))) if "__" not in os.path.basename(f)]
+    if not wfiles:
+        out.append("  walk-forward windows (3 arms, same seeds): not run yet (python -m scripts.run_walk_forward)")
+    for fp in wfiles:
+        try:
+            with open(fp, encoding="utf8") as fh:
+                dd = json.load(fh)
+            sm = dd.get("summary", {})
+            out.append(f"  walk-forward {os.path.basename(fp)[13:-5]}: {sm.get('n_windows_run')} window(s); quantum beats both controls in "
+                       f"{sm.get('windows_quantum_beats_both')}")
+        except (OSError, ValueError):
+            out.append(f"  walk-forward {os.path.basename(fp)}: unreadable")
     mx = os.path.join(root, "results", "three_arm_matrix.json")
     out.append("  three-arm matrix: " + ("results/three_arm_matrix.json present" if os.path.isfile(mx) else "not run yet (stage matrix)"))
     return out
