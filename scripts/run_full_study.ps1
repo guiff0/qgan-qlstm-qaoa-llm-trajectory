@@ -10,7 +10,7 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
-$py = Join-Path $root 'venv\Scripts\python.exe'
-if (-not (Test-Path $py)) { throw "Python not found at $py (activate/create the venv first)." }
+. (Join-Path $PSScriptRoot '_python.ps1')
+$py = Resolve-ProjectPython $root
 & $py -m scripts.run_full_study @args
 exit $LASTEXITCODE

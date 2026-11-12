@@ -62,7 +62,7 @@ def needs_calibration(cfg_text: str) -> bool:
     return bool(s["present"] and (s["protocol"] or "").startswith("v2") and not s["calibrated"])
 
 
-def apply_calibration(cfg_text: str, shift_sd: float) -> str:
+def apply_calibration(cfg_text: str, shift_sd: float, fraction: float | None = None) -> str:
     """Set poisoning.shift_sd and calibrated: true inside the `poisoning:` block only; line endings preserved."""
     m = re.search(r"(?m)^poisoning:\s*\r?\n((?:[ \t]+.*\r?\n?|\s*\r?\n)*)", cfg_text)
     if not m:
@@ -72,6 +72,10 @@ def apply_calibration(cfg_text: str, shift_sd: float) -> str:
     new, n2 = re.subn(r"(?m)^([ \t]+calibrated:\s*)(false|False)", r"\1true", new, count=1)
     if n1 != 1 or n2 != 1:
         raise ValueError("could not find both `shift_sd:` and `calibrated: false` in the poisoning block")
+    if fraction is not None:
+        new, n3 = re.subn(r"(?m)^([ \t]+fraction:\s*)[0-9.eE+-]+", lambda x: f"{x.group(1)}{float(fraction)!r}", new, count=1)
+        if n3 != 1:
+            raise ValueError("could not find `fraction:` in the poisoning block")
     return cfg_text[: m.start(1)] + new + cfg_text[m.end(1):]
 
 
@@ -187,10 +191,10 @@ class Driver:
         if not self.a.apply_calibration:
             return 3, (f"calibration chose shift_sd = {cal['chosen_shift_sd']}. Rerun with --apply-calibration to write it (and "
                        f"calibrated: true) into {self.a.config}, or paste it yourself.")
-        new = apply_calibration(text, float(cal["chosen_shift_sd"]))
+        new = apply_calibration(text, float(cal["chosen_shift_sd"]), cal.get("chosen_fraction"))
         with open(self.config_path, "w", encoding="utf8", newline="") as fh:
             fh.write(new)
-        return 0, f"wrote shift_sd = {cal['chosen_shift_sd']} and calibrated: true to {self.a.config}"
+        return 0, f"wrote shift_sd = {cal['chosen_shift_sd']}, fraction = {cal.get('chosen_fraction')} and calibrated: true to {self.a.config}"
 
     def _generic(self, stage: str) -> tuple[int, str]:
         cmds = self.commands(stage)

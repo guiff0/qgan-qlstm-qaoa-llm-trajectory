@@ -31,8 +31,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
-$py = Join-Path $root 'venv\Scripts\python.exe'
-if (-not (Test-Path $py)) { throw "Python not found at $py (activate/create the venv first)." }
+. (Join-Path $PSScriptRoot '_python.ps1')
+$py = Resolve-ProjectPython $root
 if (-not $env:NVIDIA_API_KEY) {
     Write-Warning 'NVIDIA_API_KEY is not set: the LLM stage and the LLM Forecaster will be skipped.'
 }

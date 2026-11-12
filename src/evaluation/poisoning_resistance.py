@@ -107,10 +107,17 @@ def evaluate_poisoning_resistance(model, X_test: np.ndarray, y_test: np.ndarray,
     n = len(X_test)
     half = n // 2
     rng = np.random.default_rng(seed)
-    perm = rng.permutation(n)
-    train_idx, eval_idx = perm[:half], perm[half:]
-    del perm
     pcfg = _protocol_cfg(protocol_cfg)
+    if pcfg:
+        # v2: CHRONOLOGICAL split (earlier half trains, later half evaluates, 1-row embargo), the same function the calibration
+        # uses. The old random permutation let the head train on rows later than rows it was scored on (look-ahead).
+        from .poisoning_protocol import chronological_split
+        sp = chronological_split(n, int((pcfg or {}).get("pc_max_rows", 100_000)))
+        train_idx, eval_idx = np.arange(n)[sp["train"]], np.arange(n)[sp["eval"]]
+    else:
+        perm = rng.permutation(n)
+        train_idx, eval_idx = perm[:half], perm[half:]
+        del perm
     y_train_diag = y_test[train_idx]
     X_eval_diag, y_eval_diag = X_test[eval_idx], y_test[eval_idx]
     X_mixed = X_test[train_idx]            # fancy indexing already copies; mutated in place below

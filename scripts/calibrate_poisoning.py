@@ -40,6 +40,8 @@ def main() -> int:
     ap.add_argument("--fraction", type=float, default=float(cfg.get("fraction", 0.2)))
     ap.add_argument("--target", type=float, default=float(cfg.get("pc_target_pct", 10.0)))
     ap.add_argument("--max-rows", type=int, default=int(cfg.get("pc_max_rows", 100000)))
+    ap.add_argument("--escalate-fractions", type=float, nargs="*", default=None,
+                    help="fractions tried in increasing order if the configured one cannot reach the target (default 0.3 0.4)")
     args = ap.parse_args()
 
     clash = sorted(set(args.seeds) & set(args.confirmatory_seeds))
@@ -52,15 +54,25 @@ def main() -> int:
     except FileNotFoundError as exc:
         print(f"cannot read the processed test arrays in {pdir}: {exc}\nrun scripts/prepare_data.py first")
         return 2
-    rng = np.random.default_rng(args.seeds[0])
-    n = min(len(X), 2 * args.max_rows)
-    sel = np.sort(rng.choice(len(X), n, replace=False))
-    X, y = np.asarray(X[sel], dtype=np.float32), np.asarray(y[sel], dtype=np.float64)
-    half = n // 2
-    out = calibrate_shift(X[:half], y[:half], X[half:], y[half:], seeds=args.seeds, fraction=args.fraction,
-                          target_pct=args.target, ridge=float(cfg.get("ridge", 1.0)))
+    # SAME recipe as the in-run H3 evaluation (poisoning_protocol.chronological_split): earlier half trains, later half is scored,
+    # 1-row embargo, control head on the first pc_max_rows training rows. The old recipe (random sorted subset) measured a
+    # different quantity, which is why 662 % here became 0.3 % in the runs (scripts/diagnose_poisoning_gap.py).
+    from src.evaluation.poisoning_protocol import DEFAULT_FRACTIONS, chronological_split
+    sp = chronological_split(len(X), args.max_rows)
+    Xtr, ytr = np.asarray(X[sp["train"]][sp["pc"]], dtype=np.float32), np.asarray(y[sp["train"]][sp["pc"]], dtype=np.float64)
+    Xev, yev = np.asarray(X[sp["eval"]], dtype=np.float32), np.asarray(y[sp["eval"]], dtype=np.float64)
+    fractions = [args.fraction] + [f for f in (args.escalate_fractions or DEFAULT_FRACTIONS) if f > args.fraction]
+    out = None
+    for fr in fractions:        # raise `fraction` only when no shift in the grid reaches the target at the smaller one
+        out = calibrate_shift(Xtr, ytr, Xev, yev, seeds=args.seeds, fraction=fr, target_pct=args.target,
+                              ridge=float(cfg.get("ridge", 1.0)))
+        out["chosen_fraction"] = fr if out["chosen_shift_sd"] is not None else None
+        if out["chosen_shift_sd"] is not None:
+            break
+    out["recipe"] = "chronological_split (same function as the in-run protocol)"
+    half = len(Xtr)
     out["generated_utc"] = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    out["n_rows_train"], out["n_rows_eval"] = int(half), int(n - half)
+    out["n_rows_train"], out["n_rows_eval"] = int(len(Xtr)), int(len(Xev))
     os.makedirs(os.path.join(ROOT, "results"), exist_ok=True)
     path = os.path.join(ROOT, "results", f"poisoning_calibration_{out['generated_utc']}.json")
     with open(path, "w", encoding="utf8") as fh:
@@ -70,7 +82,7 @@ def main() -> int:
         print(f"{r['shift_sd']:9.2f} {r['median_degradation_pct']:10.2f} {r['min_degradation_pct']:9.2f}")
     print(f"\n{out['note']}\nwritten: {path}")
     if out["chosen_shift_sd"] is not None:
-        print(f"\nconfig/default_config.yaml ->  poisoning:\n    shift_sd: {out['chosen_shift_sd']}\n    calibrated: true")
+        print(f"\nconfig/default_config.yaml ->  poisoning:\n    shift_sd: {out['chosen_shift_sd']}\n    fraction: {out['chosen_fraction']}\n    calibrated: true")
         return 0
     return 1
 

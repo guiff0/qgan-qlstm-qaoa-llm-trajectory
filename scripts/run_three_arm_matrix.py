@@ -30,8 +30,8 @@ from src.quantum.feature_map import ClassicalRandomFeatureMap  # noqa: E402
 
 
 def _grid(k: int):
-    """k log-spaced ridge values spanning the default grid (k = 6 reproduces it)."""
-    return DEFAULT_RIDGE_GRID if k == 6 else tuple(np.logspace(np.log10(min(DEFAULT_RIDGE_GRID)), np.log10(max(DEFAULT_RIDGE_GRID)), k))
+    """k log-spaced ridge values spanning the default grid (k = len(default) reproduces it)."""
+    return DEFAULT_RIDGE_GRID if k == len(DEFAULT_RIDGE_GRID) else tuple(np.logspace(np.log10(min(DEFAULT_RIDGE_GRID)), np.log10(max(DEFAULT_RIDGE_GRID)), k))
 
 
 def run_cell(data, seeds, n_qubits=8, n_layers=3, entanglement="ring", train_frac=1.0, grid_all=6, classical_width_mult=1,

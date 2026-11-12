@@ -882,6 +882,15 @@ def main():
     out["summary"] = build_summary(out)          # execution status only: could the test RUN?
     out["planned_vs_ran"] = aplan.planned_vs_ran(out)   # planned analysis, what ran, which fallback fired
     out["verdicts"] = compute_verdicts(out)       # what the test SAYS, how far to trust it, and why
+    # methodology figure (inputs-only / classical features / quantum features, identical chronological splits, identical metrics,
+    # paired seeds x walk-forward windows): checked against the files that exist, attached to EVERY verdict
+    from src.baselines.feature_map_forecaster import DEFAULT_RIDGE_GRID as _RG
+    from src.evaluation import protocol_compliance as pcmp
+    _wf = pcmp.load_json(os.path.join("results", "walk_forward_q8.json"))
+    _checks = pcmp.check_walk_forward(_wf, pcmp.find_naive(out.get("experiment_id")), ridge_grid=_RG)
+    _checks += pcmp.check_poisoning_and_detector(df.to_dict("records"))
+    out["methodology_compliance"] = pcmp.summarise(_checks)
+    out["verdicts"] = pcmp.annotate_verdicts(out["verdicts"], out["methodology_compliance"])
 
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     from src.utils.run_identity import pipeline_run_id, save_json_timestamped, utc_stamp
@@ -921,6 +930,10 @@ def main():
           f"{out['n_rows_excluded_other_design']} row(s) of other designs excluded)")
     print("  n per condition:", out["sample_table"])
     print("  count audit:", "consistent" if out["count_audit"]["consistent"] else "MISMATCH -> " + "; ".join(out["count_audit"]["issues"]))
+    mc = out["methodology_compliance"]
+    print(f"\nMETHODOLOGY FIGURE: {mc['label']}")
+    for c in mc["checks"]:
+        print(f"  [{c['status']:<14}] {c['id']:<32} {c['detail']}" + (f"\n{'':19}fix: {c['fix']}" if c["fix"] else ""))
     print("\nHYPOTHESIS VERDICTS (deterministic rules in src/evaluation/verdicts.py):")
     print(format_table(out["verdicts"]))
 

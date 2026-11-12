@@ -437,7 +437,7 @@ poisoning:
                            # PROVISIONAL (from a simulation, not from your data). Run
                            #   python -m scripts.calibrate_poisoning
                            # on the pilot seeds, paste the value it prints here, and set calibrated: true BEFORE the rerun.
-  calibrated: true
+  calibrated: false        # reset 11 Nov 2026: the earlier 0.5 came from a different split than the in-run protocol (see CHANGES_NOV11_METHODOLOGY.md); the launcher recalibrates
   ridge: 1.0               # closed-form ridge head (deterministic)
   pc_floor_pct: 5.0        # positive control (same attack, real-only head) must degrade at least this much (= H3 margin)
   pc_target_pct: 10.0      # what the calibration aims for on the positive control
@@ -496,6 +496,7 @@ llm_pipeline:
   # over 9,168 windows; it said "threat" for ~76 % of clean AND attacked windows), so H5 was not decidable. ---
   threat_calibration: true     # threshold picked on calibration windows; accuracy reported on DISJOINT eval windows
   threat_cal_fraction: 0.3
+  threat_feature_assist: true  # put the computed last-jump statistic in the prompt; zero-shot LLM alone had held-out AUROC 0.50-0.55
   threat_few_shot: 4           # labelled clean/attacked pairs in the system prompt; those windows are never scored
   threat_positive_control: true  # same detector on a GROSS perturbation; H5 is not decidable if it misses that
   threat_pc_k: 20.0            # gross perturbation = k x the 1-minute SD (the study's attack uses price_attack_k = 2)

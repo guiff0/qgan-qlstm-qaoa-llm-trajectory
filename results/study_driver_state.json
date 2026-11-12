@@ -11,8 +11,8 @@
   "freeze": {
     "status": "failed",
     "rc": 2,
-    "utc": "20261109T094655Z",
-    "seconds": 3.0,
+    "utc": "20261112T070903Z",
+    "seconds": 4.3,
     "commands": [],
     "note": "tracked files differ from the pre-registration freeze. If that is the intended Amendment, rerun with --record-deviation \"<reason>\" (margins, alpha and seeds cannot be recorded away).",
     "experiment_id": null

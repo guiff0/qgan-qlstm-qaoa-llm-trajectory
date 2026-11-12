@@ -81,14 +81,15 @@ def split_windows(n_windows: int, cal_fraction: float, n_shot: int, seed: int) -
     return {"shot": np.sort(shots), "cal": np.sort(rest[:n_cal]), "eval": np.sort(rest[n_cal:])}
 
 
-def few_shot_block(examples: list[tuple[list[float], bool]]) -> str:
+def few_shot_block(examples: list[tuple[list[float], bool]], assist: bool = False) -> str:
     """Labelled examples appended to the system prompt. Each is (closes, attacked?). Probabilities are the answers the
     prompt wants, not claims about the model: 0.05 for an untouched window, 0.95 for a manipulated one."""
     if not examples:
         return ""
     lines = ["", "Labelled reference windows (for calibration only; ignore them when forecasting):"]
     for closes, attacked in examples:
-        lines.append("Window: " + ", ".join(f"{c:.5f}" for c in closes)
+        stats = (" | " + window_stats_line(closes)) if assist else ""
+        lines.append("Window: " + ", ".join(f"{c:.5f}" for c in closes) + stats
                      + f" -> Threat probability: {0.95 if attacked else 0.05:.2f}")
     return "\n".join(lines) + "\n"
 
@@ -100,6 +101,19 @@ def last_jump_z(window) -> float:
     if len(d) < 3:
         return float("nan")
     return float(abs(d[-1]) / (np.std(d[:-1]) + 1e-12))
+
+
+def window_stats_line(window) -> str:
+    """One prompt line with the calibrated statistic the detectability ceiling uses (feature-assisted prompt). The LLM cannot
+    compute a z-score reliably from ten raw closes (held-out AUROC 0.50-0.55 zero-shot); handing it the number turns the task
+    into reading, so the detector is reported as 'LLM + statistic', never as the LLM alone."""
+    z = last_jump_z(window)
+    d = np.abs(np.diff(np.asarray(window, dtype=float)))
+    mx = float(d.max() / (np.std(np.diff(np.asarray(window, dtype=float))) + 1e-12)) if len(d) else float("nan")
+    if not np.isfinite(z):
+        return ""
+    return (f"Window diagnostics (computed, not estimated): last 1-minute change = {z:.2f} x the SD of the earlier changes; "
+            f"largest single change = {mx:.2f} x the SD of all changes. Values above ~3 are unusual for an untouched window.")
 
 
 def reference_auroc(clean_windows, attacked_windows) -> float:

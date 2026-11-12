@@ -9,6 +9,14 @@ planned.
 a separate list — those are manuscript-text fixes, not implementation
 gaps, so they don't count toward that number.
 
+## Added 11/11 - methodology figure
+
+- [x] `scripts/run_naive_baseline.py` (Arm 1 only, beside a live study); `src/evaluation/protocol_compliance.py` in every verdict.
+- [x] H3 calibration and in-run evaluation share one chronological split; grid down to 0.05; fraction escalation.
+- [x] H5 `threat_feature_assist` (computed statistic in the prompt).
+- [ ] **Run** run_walk_forward, run_naive_baseline, then the study with `calibrated: false` (see CHANGES_NOV11_METHODOLOGY.md).
+- [ ] Confirm in-run positive control >= 5 % and held-out detector AUROC >= 0.60 after the rerun; M1b/M8/M9 must read PASS.
+
 ## Added 10/19 — no-advantage diagnosis
 
 - [x] Diagnosis, diagnostics module, feature-map experiment, alpha/mse_weight match (see CHANGES_OCT19.md).

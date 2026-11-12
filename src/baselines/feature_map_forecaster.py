@@ -36,7 +36,9 @@ from ..quantum.feature_map import ClassicalRandomFeatureMap, QuantumFeatureMap
 
 ARMS = ("linear", "classical_rf", "quantum")
 # penalty = lam * n_rows * I on standardised columns, so lam is scale-free
-DEFAULT_RIDGE_GRID = (1e-8, 1e-6, 1e-4, 1e-2, 1.0, 100.0)
+# Widened 12 Nov 2026 from (1e-8 ... 100): the audit found an arm with its optimum ON the edge (under-tuned). One shared grid for all
+# three arms (same tuning protocol); 1e6 lets a head shrink to ~persistence, 1e-10 lets the inputs-only head go ~unregularised.
+DEFAULT_RIDGE_GRID = (1e-10, 1e-8, 1e-6, 1e-4, 1e-2, 1.0, 1e2, 1e4, 1e6)
 
 
 class FeatureMapForecaster:
@@ -87,6 +89,7 @@ class FeatureMapForecaster:
         Xt64 = np.asarray(Xt, dtype=np.float64)
         self.mu_ = Xt64[:, : self.n_qubits].mean(axis=0)
         self.sd_ = Xt64[:, : self.n_qubits].std(axis=0) + 1e-12
+        self.x_sd_ = Xt64.std(axis=0) + 1e-12       # all input columns: the adversarial step is in these units
 
         # accumulate normal equations on standardised design columns
         d = None
@@ -131,12 +134,22 @@ class FeatureMapForecaster:
             out.append(self.r_mu_ + ((D - self.col_mu_) / self.col_sd_) @ self.w_)
         return np.concatenate(out)
 
-    def evaluate(self, X_test, y_test) -> Dict:
-        """RMSE, persistence RMSE, MSE skill score, and the raw error series
-        (for paired Diebold-Mariano tests between arms on the SAME rows)."""
+    def evaluate(self, X_test, y_test, full_metrics: bool = True, attack_rows: int = 300, attack_eps: float = 0.1,
+                 latency_repeats: int = 50, metric_seed: int = 0) -> Dict:
+        """RMSE, persistence RMSE, MSE skill score and the raw error series (for paired Diebold-Mariano tests on the SAME
+        rows). With full_metrics (default) it also returns the other two metrics of the methodology figure for EVERY arm
+        by the same code: adversarial ASR, forecast fidelity and single-row latency (src/evaluation/arm_metrics.py)."""
+        from ..evaluation import arm_metrics as am
         Xs, cur, nxt = self._residual_pairs(X_test, y_test)
-        pred = cur + self.predict_residual(Xs)
+        pred_res = self.predict_residual(Xs)
+        pred = cur + pred_res
         rep = skill_vs_persistence(nxt, pred, cur)
         rep.update({"arm": self.arm, "ridge": self.ridge_, "n_features": self.n_features_,
-                    "n_test": int(len(nxt)), "errors": (nxt - pred)})
+                    "n_test": int(len(nxt)), "errors": (nxt - pred),
+                    "map_on_inference_path": bool(self.fmap is not None)})
+        if full_metrics:
+            rep["fidelity"] = am.forecast_fidelity(pred_res, nxt - cur)
+            rep["fidelity_kind"] = "forecast_distribution_w1"
+            rep.update(am.adversarial_asr(self.predict_residual, Xs, self.x_sd_, attack_eps, attack_rows, metric_seed))
+            rep.update(am.latency_ms(self.predict_residual, Xs, latency_repeats, seed=metric_seed))
         return rep

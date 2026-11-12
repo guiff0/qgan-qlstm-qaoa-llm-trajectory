@@ -28,8 +28,21 @@ import numpy as np
 from ..attacks.poisoning import inject_triggered_shift
 
 PROTOCOL_NAME = "v2_triggered_shift"
+SPLIT_NAME = "chronological"
+DEFAULT_GRID = (0.05, 0.1, 0.2, 0.3, 0.5, 1.0, 2.0, 3.0, 4.0, 6.0, 8.0)
+DEFAULT_FRACTIONS = (0.2, 0.3, 0.4)
 DEFAULTS = {"fraction": 0.2, "shift_sd": 3.0, "ridge": 1.0, "pc_floor_pct": 5.0, "pc_max_rows": 100_000,
             "pc_target_pct": 10.0}
+
+
+def chronological_split(n: int, pc_max_rows: int, gap: int = 1) -> dict:
+    """THE split of the H3 protocol, shared by the in-run evaluation AND the calibration (one function, so they cannot drift
+    apart again): the earlier half trains, the later half evaluates, with `gap` rows of embargo. This is the methodology
+    figure's "identical chronological training and test splits (no look-ahead)". The control/positive-control head sees the
+    first `pc_max_rows` training rows."""
+    half = n // 2
+    k = min(int(pc_max_rows), half)
+    return {"train": slice(0, half), "eval": slice(half + int(gap), n), "pc": slice(0, k)}
 
 
 def fit_ridge(X: np.ndarray, y: np.ndarray, ridge: float = 1.0) -> dict:
@@ -78,7 +91,7 @@ def run_protocol(X_mixed, y_train, X_eval, y_eval, *, X_real_train=None, seed: i
            "poisoning_rmse_degradation_pct": main["degradation_pct"], "poisoning_fraction": fraction,
            "poisoning_n_poisoned": main["n_poisoned"], "poisoning_protocol": PROTOCOL_NAME,
            "poisoning_shift_sd": shift, "poisoning_pc_floor_pct": float(c["pc_floor_pct"]),
-           "poisoning_calibrated": bool(c.get("calibrated", False))}
+           "poisoning_calibrated": bool(c.get("calibrated", False)), "poisoning_split": SPLIT_NAME}
     if X_real_train is not None:
         n = min(len(X_real_train), int(c["pc_max_rows"]))
         pc = degradation(np.asarray(X_real_train)[:n], np.asarray(y_train)[:n], X_eval, y_eval, fraction=fraction,
@@ -87,7 +100,7 @@ def run_protocol(X_mixed, y_train, X_eval, y_eval, *, X_real_train=None, seed: i
     return out
 
 
-def calibrate_shift(X_train, y_train, X_eval, y_eval, *, seeds, fraction: float = 0.2, grid=(0.5, 1, 2, 3, 4, 6, 8),
+def calibrate_shift(X_train, y_train, X_eval, y_eval, *, seeds, fraction: float = 0.2, grid=DEFAULT_GRID,
                     target_pct: float = 10.0, ridge: float = 1.0) -> dict:
     """Smallest shift_sd whose REAL-ONLY positive control degrades by >= target_pct in the median pilot seed.
     Pilot seeds must lie outside the confirmatory seed list. Uses no generator and no condition, so it cannot favour

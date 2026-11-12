@@ -238,13 +238,15 @@ def reasoning_prefix(model_id: str) -> str:
 
 def build_dual_messages(closes: Sequence[float], synthetic_closes: Optional[Sequence[float]] = None,
                         horizon_minutes: int = 1, prefix: str = "", extra_context: Optional[str] = None,
-                        few_shot: Optional[str] = None) -> List[dict]:
+                        few_shot: Optional[str] = None, stats_line: Optional[str] = None) -> List[dict]:
     hist = ", ".join(f"{c:.5f}" for c in closes)
     user = f"The last {len(closes)} 1-minute EUR/USD closes, oldest first: {hist}.\n"
     if synthetic_closes is not None and len(synthetic_closes):
         syn = ", ".join(f"{c:.5f}" for c in synthetic_closes)
         user += (f"A generative model of this market produced {len(synthetic_closes)} nearby synthetic "
                  f"market states with closes: {syn}.\n")
+    if stats_line:
+        user += stats_line.strip() + "\n"
     if extra_context:
         user += extra_context.strip() + "\n"
     user += f"Predict the close {horizon_minutes} minute(s) ahead and the threat probability."
@@ -426,6 +428,8 @@ def evaluate_llm_pipeline(closes_aligned: np.ndarray, targets: np.ndarray, X_row
     use_cal = bool(cfg.get("threat_calibration", False))
     n_shot = int(cfg.get("threat_few_shot", 0) or 0)
     use_pc = bool(cfg.get("threat_positive_control", False))
+    assist = bool(cfg.get("threat_feature_assist", False))     # computed jump statistic in the prompt (detector that beats chance)
+    stat = (lambda w_: tc.window_stats_line(w_)) if assist else (lambda w_: None)
     split = tc.split_windows(len(idxs), float(cfg.get("threat_cal_fraction", 0.3)) if use_cal else 0.0, n_shot, seed)
     shot_set = set(int(j) for j in split["shot"])
     pc_k = float(cfg.get("threat_pc_k", 20.0))
@@ -438,7 +442,7 @@ def evaluate_llm_pipeline(closes_aligned: np.ndarray, targets: np.ndarray, X_row
             kind0 = "fgsm" if j % 2 == 0 else "pgd"
             w1 = attack_window(w0, closes[idxs[j]], coef, kind0, eps, alpha, steps, np.random.default_rng(seed + 31 + j))
             shots += [(list(w0), False), (list(w1), True)]
-        few_shot_text = tc.few_shot_block(shots)
+        few_shot_text = tc.few_shot_block(shots, assist=assist)
 
     jobs = []   # (window position j, kind, messages)
     attack_kind = {}
@@ -450,12 +454,12 @@ def evaluate_llm_pipeline(closes_aligned: np.ndarray, targets: np.ndarray, X_row
         w_adv = attack_window(w, closes[idx], coef, kind, eps, alpha, steps, rng)
         prefix = reasoning_prefix(model_id) if cfg.get("nothink", True) else ""
         ctx = context_fn(int(idx)) if context_fn is not None else None   # from the REAL row; never attacked
-        jobs.append((j, "clean", build_dual_messages(w, syn, horizon, prefix, ctx, few_shot_text)))
-        jobs.append((j, kind, build_dual_messages(w_adv, syn, horizon, prefix, ctx, few_shot_text)))
+        jobs.append((j, "clean", build_dual_messages(w, syn, horizon, prefix, ctx, few_shot_text, stat(w))))
+        jobs.append((j, kind, build_dual_messages(w_adv, syn, horizon, prefix, ctx, few_shot_text, stat(w_adv))))
         if j in pc_set:
             w_pc = attack_window(w, closes[idx], coef, "fgsm", pc_k * sd, pc_k * sd * 0.1, steps, rng)
             pc_windows[j] = (w, w_pc)
-            jobs.append((j, "pc", build_dual_messages(w_pc, syn, horizon, prefix, ctx, few_shot_text)))
+            jobs.append((j, "pc", build_dual_messages(w_pc, syn, horizon, prefix, ctx, few_shot_text, stat(w_pc))))
 
     out = {}; errors = []; n_cached = 0
 
@@ -539,7 +543,8 @@ def evaluate_llm_pipeline(closes_aligned: np.ndarray, targets: np.ndarray, X_row
 def _h5_instrument(out, pc_out, pc_windows, split, use_cal, use_pc, window, closes, idxs, attack_kind, coef, eps,
                    alpha, steps, seed, tc, cfg) -> Dict:
     """Extra, clearly named llm_threat_* columns. Nothing here changes a legacy column."""
-    r: Dict = {"llm_threat_few_shot": int(len(split["shot"]) * 2), "llm_threat_pc_k": float(cfg.get("threat_pc_k", 20.0))}
+    r: Dict = {"llm_threat_feature_assist": bool(cfg.get("threat_feature_assist", False)),
+               "llm_threat_few_shot": int(len(split["shot"]) * 2), "llm_threat_pc_k": float(cfg.get("threat_pc_k", 20.0))}
 
     def collect(js):
         y, s = [], []
