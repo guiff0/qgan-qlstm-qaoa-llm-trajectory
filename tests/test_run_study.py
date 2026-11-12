@@ -150,7 +150,7 @@ def test_run_study_main_stage_does_not_prepare_twice(tmp_path):
 
 def test_run_full_study_defaults_to_the_reduced_25_run_plan():
     from scripts import run_full_study as fs
-    assert len(fs.REDUCED_CONDITIONS) * fs.REDUCED_N_RUNS == 25 and fs.FULL_N_RUNS == 10
+    assert len(fs.REDUCED_CONDITIONS) * fs.REDUCED_N_RUNS == 16 and fs.FULL_N_RUNS == 10
     assert len(fs.build_conditions(fs.DEFAULT_LEVELS)) * fs.FULL_N_RUNS == 80
 
 

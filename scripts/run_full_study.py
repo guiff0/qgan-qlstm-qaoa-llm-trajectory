@@ -1,8 +1,9 @@
 r"""
 Launch the study once; it stops only when every run is done.
 
-DEFAULT = REDUCED 25-run plan (5 conditions x 5 seeds: QGAN-LLM, Classical GAN-LLM (matched), QGAN-LLM (no noise),
-ent-L0, ent-L6). It is NOT the pre-registered design (lower power): report it as reduced/exploratory. Pass --full for the
+DEFAULT = REDUCED 16-run plan (4 conditions x 4 seeds: QGAN-LLM, Classical GAN-LLM (matched), QGAN-LLM (no noise),
+ent-L0), fully crossed: every condition gets the SAME seeds, so groups are paired and balanced. One sweep level means the
+H2 dose-response is NOT testable on this plan. It is NOT the pre-registered design (lower power): report it as reduced/exploratory. Pass --full for the
 pre-registered 8 conditions x 10 seeds = 80 runs. The hypothesis tests are not run automatically on the reduced plan
 (pass --hypothesis-tests). Relaunching resumes the experiment with the same plan; a plan that differs from the ACTIVE
 experiment automatically starts (or resumes) its own experiment instead of refusing.
@@ -63,10 +64,10 @@ from src.utils import experiment as exp  # noqa: E402
 
 PRIMARY = ["QGAN-LLM", "Classical GAN-LLM", "Classical GAN-LLM (matched)", "QGAN-LLM (no noise)"]
 DEFAULT_LEVELS = (0, 2, 4, 6)
-# DEFAULT PLAN = the reduced 25-run study: 5 conditions x 5 seeds. `--full` restores the pre-registered 8 x 10 = 80 runs.
+# DEFAULT PLAN = the reduced 16-run study: 4 conditions x 4 seeds. `--full` restores the pre-registered 8 x 10 = 80 runs.
 REDUCED_CONDITIONS = ["QGAN-LLM", "Classical GAN-LLM (matched)", "QGAN-LLM (no noise)",
-                      "QGAN-LLM (ent-L0 none-d4)", "QGAN-LLM (ent-L6 full-d4)"]
-REDUCED_N_RUNS, FULL_N_RUNS = 5, 10
+                      "QGAN-LLM (ent-L0 none-d4)"]
+REDUCED_N_RUNS, FULL_N_RUNS = 4, 10
 STATUS_FILE = os.path.join("logs", "full_study_status.json")
 DASH: StudyDashboard | None = None      # set in main(); None (e.g. in unit tests) = plain one-line output
 EXPERIMENT: str | None = None           # experiment id of this launch (None = legacy, no id)
@@ -443,9 +444,9 @@ def prepare_study(args) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--n-runs", type=int, default=None,
-                    help="seeds per condition (default 5 = reduced plan; 10 with --full, as pre-registered)")
+                    help="seeds per condition (default 4 = reduced plan; 10 with --full, as pre-registered)")
     ap.add_argument("--full", action="store_true",
-                    help="the pre-registered plan: 8 conditions x 10 seeds = 80 runs (default is the reduced 25-run plan)")
+                    help="the pre-registered plan: 8 conditions x 10 seeds = 80 runs (default is the reduced 16-run plan)")
     ap.add_argument("--hypothesis-tests", action="store_true",
                     help="run the hypothesis tests when all runs finish (default: only with --full)")
     ap.add_argument("--base-seed", type=int, default=43)
