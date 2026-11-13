@@ -183,3 +183,26 @@ def test_feature_map_experiment_is_skipped_only_when_complete_and_current(tiny_d
     json.dump(d, open("results/fm.json", "w"))
     assert fm.main_argv(a + ["--skip-if-current"]) == 0
     assert json.load(open("results/fm.json"))["ridge_grid"][0] == 1e-10
+
+
+# ---- independence: the three-arm path shares no component with either GAN-LLM arm, the LLM, or QAOA ----------------------------------
+FORBIDDEN = ("torch", "pennylane", "requests", "src.llm", "src.quantum.qaoa", "src.quantum.circuits", "src.baselines.qgan_llm",
+             "src.baselines.classical_gan_llm", "src.baselines.qaoa_llm", "src.baselines.context_llm", "src.baselines.llm_forecaster",
+             "src.baselines.qlstm_forecaster", "src.baselines.classical_lstm", "src.attacks", "src.utils.gan_training",
+             "src.utils.generator_path")
+
+
+def test_the_three_scripts_import_no_generator_llm_qaoa_or_torch_even_when_they_run(tiny_data):
+    import sys
+    import scripts.run_feature_map_experiment as fm
+    import scripts.run_naive_baseline as nb
+    import scripts.run_walk_forward as rwf
+    before = set(sys.modules)
+    assert rwf.main(["--windows", "2", "--test-len", "400", "--min-train", "800", "--seeds", "0", "--n-qubits", "4", "--n-layers", "2",
+                     "--out", "results/w.json"]) == 0
+    assert nb.main(["--like", "results/w.json", "--experiment-id", "legacy"]) == 0
+    assert fm.main(["--seeds", "0", "--n-qubits", "4", "--n-layers", "2", "--max-train-rows", "1200", "--max-eval-rows", "500",
+                    "--out", "results/f.json"]) == 0
+    new = {m for m in set(sys.modules) - before}
+    bad = sorted(m for m in new if any(m == f or m.startswith(f + ".") for f in FORBIDDEN))
+    assert not bad, f"the three-arm path pulled in generator/LLM/QAOA code: {bad}"

@@ -64,10 +64,18 @@ def test_compliance_flags_missing_arm_and_missing_metrics():
     assert not s["conforms"] and "NOT" in pc.caveat(s)
 
 
-def test_annotate_verdicts_attaches_methodology_to_every_verdict():
+def test_annotate_verdicts_attaches_methodology_only_where_asked():
     s = pc.summarise([pc._chk("M2", "x", pc.FAIL, "d")])
     v = pc.annotate_verdicts({"H1": {"why": []}, "H3": {"why": []}}, s)
-    assert all("methodology" in d and d["why"] for d in v.values())
+    assert all("methodology" in d and d["why"] for d in v.values())           # default: all (kept for callers that want it)
+    v = pc.annotate_verdicts({"H1": {"why": []}, "H4": {"why": []}}, s, only=("H4",))
+    assert "methodology" not in v["H1"] and not v["H1"]["why"] and "methodology" in v["H4"]
+
+
+def test_three_arm_status_goes_to_q1_and_never_to_the_generator_hypotheses():
+    s = pc.summarise([pc._chk("M2", "x", pc.FAIL, "d")])
+    q1 = pc.annotate_three_arm({"8_qubits": {"verdict": "INCONCLUSIVE", "notes": []}, "x": {"status": "not_run"}}, s)
+    assert q1["8_qubits"]["methodology"]["failed"] == ["M2"] and q1["8_qubits"]["notes"] and "methodology" not in q1["x"]
 
 
 def test_naive_baseline_status_and_pairing(tmp_path):

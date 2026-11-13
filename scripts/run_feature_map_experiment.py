@@ -58,6 +58,7 @@ def main(argv=None) -> int:
     ap.add_argument("--max-train-rows", type=int, default=300_000)
     ap.add_argument("--max-eval-rows", type=int, default=200_000)
     ap.add_argument("--out", default="results/feature_map_advantage.json")
+    ap.add_argument("--dry-run", action="store_true", help="check the data and print the plan; fit nothing (fast preflight)")
     ap.add_argument("--skip-if-current", action="store_true",
                     help="do nothing when --out already holds a COMPLETE run of this exact plan with the current ridge grid "
                          "(used by run_full_study.ps1 so a relaunch does not refit everything)")
@@ -72,6 +73,23 @@ def main(argv=None) -> int:
     Xva, yva = _tail(ld("X_val.npy"), a.max_eval_rows), _tail(ld("y_val.npy"), a.max_eval_rows)
     Xte, yte = _tail(ld("X_test.npy"), a.max_eval_rows), _tail(ld("y_test.npy"), a.max_eval_rows)
 
+    print(f"[feature-map] train {len(Xtr):,} rows, val {len(Xva):,}, test {len(Xte):,}; {len(a.seeds)} seeds x {len(ARMS)} arms; "
+          f"{a.n_qubits} qubits, {a.n_layers} layers, {a.entanglement}")
+    problems = []
+    if min(len(Xtr), len(Xva), len(Xte)) < 100:
+        problems.append("fewer than 100 rows in a split")
+    if not (np.isfinite(Xtr).all() and np.isfinite(ytr).all()):
+        problems.append("non-finite values in the training data")
+    if Xtr.shape[1] < a.n_qubits:
+        problems.append(f"only {Xtr.shape[1]} feature columns for {a.n_qubits} qubits")
+    if len(set(a.seeds)) != len(a.seeds):
+        problems.append("duplicate seeds")
+    if problems:
+        print("[feature-map] CANNOT RUN: " + "; ".join(problems))
+        return 2
+    if a.dry_run:
+        print("[feature-map] dry run: data and plan are valid; nothing fitted")
+        return 0
     rows, dm = [], []
     for seed in a.seeds:
         errs = {}

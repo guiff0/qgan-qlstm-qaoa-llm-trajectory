@@ -709,7 +709,7 @@ def test_q1_three_arm(paths) -> dict:
     res = {}
     for p in paths:
         if not os.path.isfile(p):
-            res[p] = {"status": "not_run", "how": "python -m scripts.run_feature_map_experiment --seeds 0 1 2 3 4 5 6 7 8 9 --n-qubits 8   (and again with --n-qubits 12)"}
+            res[p] = {"status": "not_run", "how": "python -m scripts.run_feature_map_experiment --seeds 0 1 2 3 4 5 6 7 8 9 --n-qubits 8   (and again with --n-qubits 12 --out results/feature_map_advantage_q12.json)"}
             continue
         with open(p, encoding="utf8") as fh:
             d = json.load(fh)
@@ -847,7 +847,7 @@ def main():
     ap.add_argument("--walk-forward-json", default=os.path.join("results", "walk_forward_q8.json"),
                     help="walk-forward file of the three arms (scripts.run_walk_forward); the naive baseline file is looked up by "
                          "experiment id, then in results/naive_baseline/legacy")
-    ap.add_argument("--feature-map-json", nargs="*", default=["results/feature_map_advantage.json"],
+    ap.add_argument("--feature-map-json", nargs="*", default=["results/feature_map_advantage.json", "results/feature_map_advantage_q12.json"],
                     help="three-arm feature-map result file(s) from run_feature_map_experiment (one per qubit count)")
     ap.add_argument("--experiment-id", default=None,
                     help="analyse ONE experiment (EXP-...); several comma-separated ids need --pool-experiments. "
@@ -971,10 +971,18 @@ def main():
         _wf_path = max(_cand, key=os.path.getmtime) if _cand else _wf_path
     _wf = pcmp.load_json(_wf_path)
     out["walk_forward_file"] = _wf_path if _wf else None
-    _checks = pcmp.check_walk_forward(_wf, pcmp.find_naive(out.get("experiment_id")), ridge_grid=_RG)
-    _checks += pcmp.check_poisoning_and_detector(df.to_dict("records"))
-    out["methodology_compliance"] = pcmp.summarise(_checks)
-    out["verdicts"] = pcmp.annotate_verdicts(out["verdicts"], out["methodology_compliance"])
+    # The three-arm study (run_walk_forward, run_naive_baseline, run_feature_map_experiment) has no generator, LLM or QAOA on its path, so
+    # its compliance (M1-M7) is summarised and attached to ITS OWN result (Q1) only. The generator-side checks (M8 poisoning positive
+    # control -> H4, M9 detector -> exploratory X2) are summarised separately and attached to the hypothesis they test.
+    _three = pcmp.check_walk_forward(_wf, pcmp.find_naive(out.get("experiment_id")), ridge_grid=_RG)
+    out["methodology_compliance"] = pcmp.summarise(_three)                      # three-arm only
+    _gen = pcmp.check_poisoning_and_detector(df.to_dict("records"))
+    out["generator_study_checks"] = pcmp.summarise(_gen) if _gen else None
+    for _c in _gen:
+        _target = {"M8": "H4_poisoning_resistance_noise", "M9": "X2_entanglement_vs_detection"}.get(_c["id"][:2])
+        if _target in out["verdicts"]:
+            pcmp.annotate_verdicts(out["verdicts"], pcmp.summarise([_c]), only=(_target,))
+    pcmp.annotate_three_arm(out.get("Q1_three_arm_feature_map"), out["methodology_compliance"])
 
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     from src.utils.run_identity import pipeline_run_id, save_json_timestamped, utc_stamp
@@ -1015,9 +1023,13 @@ def main():
     print("  n per condition:", out["sample_table"])
     print("  count audit:", "consistent" if out["count_audit"]["consistent"] else "MISMATCH -> " + "; ".join(out["count_audit"]["issues"]))
     mc = out["methodology_compliance"]
-    print(f"\nMETHODOLOGY FIGURE: {mc['label']}")
+    print(f"\nTHREE-ARM METHODOLOGY (M1-M7; independent of the generator comparison): {mc['label']}")
     for c in mc["checks"]:
         print(f"  [{c['status']:<14}] {c['id']:<32} {c['detail']}" + (f"\n{'':19}fix: {c['fix']}" if c["fix"] else ""))
+    if out.get("generator_study_checks"):
+        print(f"\nGENERATOR-STUDY CHECKS (M8 / M9): {out['generator_study_checks']['label']}")
+        for c in out["generator_study_checks"]["checks"]:
+            print(f"  [{c['status']:<14}] {c['id']:<32} {c['detail']}")
     print("\nHYPOTHESIS VERDICTS (deterministic rules in src/evaluation/verdicts.py):")
     print(format_table(out["verdicts"]))
 

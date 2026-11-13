@@ -160,14 +160,14 @@ def check_poisoning_and_detector(df_rows: list[dict] | None) -> list[dict]:
         floor = float(pr[0].get("poisoning_pc_floor_pct") or 5.0)
         if pc:
             okpc = min(pc) >= floor
-            out.append(_chk("M8_poisoning_positive_control", "H3 positive control reaches its floor", PASS if okpc else FAIL,
+            out.append(_chk("M8_poisoning_positive_control", "H4 poisoning positive control reaches its floor", PASS if okpc else FAIL,
                             f"{len(pc)} rows, min positive-control degradation {min(pc):.3g} % vs floor {floor} %",
                             "" if okpc else "raise poisoning.shift_sd/fraction via scripts.calibrate_poisoning (same recipe as in-run) and rerun"))
     dr = [r for r in df_rows if r.get("llm_threat_auroc_eval") not in (None, "")]
     if dr:
         au = [float(r["llm_threat_auroc_eval"]) for r in dr]
         mean = sum(au) / len(au)
-        out.append(_chk("M9_detector_beats_chance", "H5 detector beats chance on held-out windows", PASS if mean >= 0.60 else FAIL,
+        out.append(_chk("M9_detector_beats_chance", "X2 (exploratory) threat detector beats chance on held-out windows", PASS if mean >= 0.60 else FAIL,
                         f"{len(au)} rows, mean held-out AUROC {mean:.3f}",
                         "" if mean >= 0.60 else "turn on llm_pipeline.threat_feature_assist (calibrated statistic in the prompt) and rerun the LLM stage"))
     return out
@@ -191,12 +191,28 @@ def caveat(summary: dict) -> str:
     return "methodology NOT fully followed: " + ", ".join(bits) + " -- read every number below as exploratory until these pass"
 
 
-def annotate_verdicts(verdicts: dict, summary: dict) -> dict:
-    """Every verdict carries the methodology status; nothing is reported without it."""
-    for d in verdicts.values():
+def annotate_verdicts(verdicts: dict, summary: dict, only=None) -> dict:
+    """Attach a methodology status to verdicts. `only` limits it to the named verdicts (default: all of them).
+
+    13 Nov 2026: the three-arm checks (M1-M7) are no longer stamped on the generator hypotheses H1-H5. The three-arm study shares no
+    component with either GAN-LLM arm, so its compliance must neither colour nor be coloured by the generator comparison; its status
+    is attached to its own Q1 result (see annotate_three_arm). Generator-side checks (M8 / M9) go only to the hypothesis they test."""
+    for k, d in verdicts.items():
+        if only is not None and k not in only:
+            continue
         d["methodology"] = {"conforms": summary["conforms"], "failed": summary["failed"], "not_assessable": summary["not_assessable"]}
         d.setdefault("why", []).append(caveat(summary))
     return verdicts
+
+
+def annotate_three_arm(q1: dict | None, summary: dict) -> dict | None:
+    """Attach the three-arm methodology status (M1-M7) to the Q1 result(s) it describes, and nowhere else."""
+    for r in (q1 or {}).values():
+        if isinstance(r, dict) and "verdict" in r:
+            r["methodology"] = {"conforms": summary["conforms"], "failed": summary["failed"], "not_assessable": summary["not_assessable"]}
+            if not summary["conforms"]:
+                r.setdefault("notes", []).append(caveat(summary))
+    return q1
 
 
 def load_json(path: str):

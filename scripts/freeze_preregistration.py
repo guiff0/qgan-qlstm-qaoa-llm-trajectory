@@ -32,6 +32,12 @@ TRACKED = [
     "src/evaluation/verdicts.py", "src/evaluation/paired_tests.py", "src/evaluation/study_status.py",
     "config/analysis_plan.yaml", "PREREGISTRATION_V2.md", "PREREGISTRATION_ADDENDUM.md", "PREREGISTRATION_AMENDMENT_2.md",
     "scripts/snapshot_results.py",
+    # the three-arm study's own decision rules and measurement code (13 Nov 2026: these were NOT hashed before, so a change to the
+    # Q1 verdict, the balance audit, the windows or the metrics would not have shown up in --check)
+    "src/evaluation/three_arm.py", "src/evaluation/walk_forward.py", "src/evaluation/arm_metrics.py",
+    "src/evaluation/protocol_compliance.py", "src/evaluation/advantage_diagnostics.py",
+    "scripts/run_walk_forward.py", "scripts/run_naive_baseline.py", "scripts/run_full_study.py", "scripts/run_full_study.ps1",
+    "PREREGISTRATION_AMENDMENT_3.md", "HYPOTHESES_V3.md",
 ]
 # results/all_results.csv is NOT tracked here: it changes while the study runs. Its sha256 is fixed by
 # scripts/snapshot_results.py at the confirmatory gate instead.
