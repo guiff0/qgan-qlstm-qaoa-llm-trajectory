@@ -104,8 +104,8 @@ def audit(cfg: dict, tol: float = 0.05, quantum: str = "QGAN-LLM", matched: str 
                 "tuning effort cannot be equalised; none of the arms was tuned (check no_per_arm_tuning)",
                 f"the large classical generator has {n_params(arms[large], False) / pq:.0f}x the quantum parameters; "
                 f"it is a bracket, the matched control is the primary comparator",
-                "entanglement-sweep circuits (12 qubits) have fewer parameters than the matched control, "
-                "which is sized to the 20-qubit primary"]}
+                "entanglement-sweep circuits share the primary's 12 qubits, but all levels except ring-d4 differ in depth "
+                "(so in parameter count) from the matched control, which is sized to the primary"]}
 
 
 def compute_budget(runs: list[dict]) -> dict:

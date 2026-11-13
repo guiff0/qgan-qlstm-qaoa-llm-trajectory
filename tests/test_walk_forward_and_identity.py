@@ -51,7 +51,7 @@ def test_run_windows_feeds_the_same_seeds_to_every_arm_and_never_trains_on_test_
         def fit(self, Xt, yt, Xv, yv):
             seen.append((self.arm, self.seed, len(Xt), float(yt[-1]), float(yv[-1])))
             return self
-        def evaluate(self, Xte, yte):
+        def evaluate(self, Xte, yte, **kw):
             e = np.random.default_rng(self.seed).normal(size=len(yte) - 1) * (0.5 if self.arm == "quantum" else 1.0)
             return {"skill": 0.1 if self.arm == "quantum" else 0.0, "rmse": 1.0, "persistence_rmse": 1.0, "n_test": len(e),
                     "arm": self.arm, "errors": e}

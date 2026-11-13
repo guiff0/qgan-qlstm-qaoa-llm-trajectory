@@ -12,8 +12,8 @@ def test_param_formula_reproduces_the_diagnosed_classical_count():
 
 
 def test_matched_hidden_is_within_five_percent_of_the_qgan():
-    h = match_hidden(912, latent=20, out=32)
-    assert h == 6 and abs(lstm_generator_params(20, h, 32) - 912) / 912 < 0.05
+    h = match_hidden(560, latent=12, out=32)          # 12-qubit, 4-layer circuit: 560 parameters
+    assert h == 5 and abs(lstm_generator_params(12, h, 32) - 560) / 560 < 0.05
 
 
 def test_config_matches_input_width_and_capacity():
@@ -22,7 +22,7 @@ def test_config_matches_input_width_and_capacity():
     (m,) = [a for a in cfg["classical_ablations"] if a["name"] == "Classical GAN-LLM (matched)"]
     assert m["latent_dim"] == m["generator_input_dims"] == cfg["qgan_llm"]["n_qubits"]
     n = lstm_generator_params(m["latent_dim"], m["generator_hidden"], cfg["classical_gan_llm"].get("output_dim", 32))
-    assert abs(n - 912) / 912 < 0.05
+    assert abs(n - 560) / 560 < 0.05
 
 
 def test_input_dims_changes_generator_mode_fingerprint_but_not_head_only():

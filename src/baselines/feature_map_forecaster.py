@@ -38,8 +38,11 @@ ARMS = ("linear", "classical_rf", "quantum")
 # penalty = lam * n_rows * I on standardised columns, so lam is scale-free
 # Widened 12 Nov 2026 from (1e-8 ... 100): the audit found an arm with its optimum ON the edge (under-tuned). One shared grid for all
 # three arms (same tuning protocol); 1e6 lets a head shrink to ~persistence, 1e-10 lets the inputs-only head go ~unregularised.
-DEFAULT_RIDGE_GRID = (1e-10, 1e-8, 1e-6, 1e-4, 1e-2, 1.0, 1e2, 1e4, 1e6)
-
+# 13 Nov 2026: half-decade spacing (33 values, same 1e-10 ... 1e6 range) plus an automatic extension (below), so an optimum at the end
+# of the grid is followed outward instead of being reported as "under-tuned". The SAME procedure runs for every arm.
+DEFAULT_RIDGE_GRID = tuple(float(f"{10 ** (k / 2):.6g}") for k in range(-20, 13))
+EXTEND_FACTOR, EXTEND_MAX_STEPS = 100.0, 4      # beyond the grid: x100 (or /100) up to 4 times, while validation MSE keeps improving
+NULL_TOL = 1e-3                                  # val MSE within 0.1 % of the intercept-only model = "the null model won"
 
 class FeatureMapForecaster:
     def __init__(self, arm: str = "linear", n_qubits: int = 8, n_layers: int = 3,
@@ -115,12 +118,34 @@ class FeatureMapForecaster:
 
         best = (np.inf, None, None)
         Vz = np.vstack([(D - self.col_mu_) / self.col_sd_ for _, D in self._design_chunked(Xv)])
-        for lam in self.ridge_grid:
+
+        def _try(lam):
             w = np.linalg.solve(A + lam * n * np.eye(d), b)
-            mse = float(np.mean((self.r_mu_ + Vz @ w - r_v) ** 2))
+            return float(np.mean((self.r_mu_ + Vz @ w - r_v) ** 2)), w
+
+        for lam in self.ridge_grid:
+            mse, w = _try(lam)
             if mse < best[0]:
                 best = (mse, lam, w)
+        # Optimum on an end of the grid: follow it outward (same rule for every arm) while validation MSE keeps improving.
+        self.ridge_extended_, self.ridge_status_ = False, "interior"
+        lo, hi = min(self.ridge_grid), max(self.ridge_grid)
+        null_mse = float(np.mean((self.r_mu_ - r_v) ** 2))        # ridge -> infinity: intercept-only = persistence + mean residual
+        if best[1] in (lo, hi):
+            up, lam_i, mse_i = best[1] == hi, best[1], best[0]
+            for _ in range(EXTEND_MAX_STEPS):
+                lam_i = lam_i * EXTEND_FACTOR if up else lam_i / EXTEND_FACTOR
+                mse_i, w_i = _try(lam_i)
+                if mse_i < best[0] * (1 - 1e-9):
+                    best, self.ridge_extended_ = (mse_i, lam_i, w_i), True
+                else:
+                    break
+            else:                                   # still improving after the last step: the edge is real
+                self.ridge_status_ = "saturated_null" if (up and best[0] >= null_mse * (1 - NULL_TOL)) else "edge_unresolved"
+            if self.ridge_status_ == "interior" and up and best[1] >= hi and best[0] >= null_mse * (1 - NULL_TOL):
+                self.ridge_status_ = "saturated_null"   # more shrinkage cannot change anything: the head is already ~ intercept-only
         self.val_mse_, self.ridge_, self.w_ = best
+        self.val_mse_null_ = null_mse
         self.n_features_ = d
         self._fitted = True
         return self
@@ -144,9 +169,10 @@ class FeatureMapForecaster:
         pred_res = self.predict_residual(Xs)
         pred = cur + pred_res
         rep = skill_vs_persistence(nxt, pred, cur)
-        rep.update({"arm": self.arm, "ridge": self.ridge_, "n_features": self.n_features_,
+        rep.update({"arm": self.arm, "ridge": self.ridge_, "ridge_status": self.ridge_status_, "ridge_extended": self.ridge_extended_,
+                    "val_mse": self.val_mse_, "val_mse_null": self.val_mse_null_, "n_features": self.n_features_,
                     "n_test": int(len(nxt)), "errors": (nxt - pred),
-                    "map_on_inference_path": bool(self.fmap is not None)})
+                    "map_on_inference_path": bool(self.fmap is not None), "metric_seed": int(metric_seed)})
         if full_metrics:
             rep["fidelity"] = am.forecast_fidelity(pred_res, nxt - cur)
             rep["fidelity_kind"] = "forecast_distribution_w1"

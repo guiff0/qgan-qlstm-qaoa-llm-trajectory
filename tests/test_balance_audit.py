@@ -26,14 +26,14 @@ def test_real_config_is_balanced(cfg):
     rep = audit(cfg)
     assert rep["pass"], format_report(rep)
     row = {r["arm"]: r for r in rep["param_table"]}
-    assert row["QGAN-LLM"]["generator_params"] == 912 and row["Classical GAN-LLM (matched)"]["generator_params"] == 896
+    assert row["QGAN-LLM"]["generator_params"] == 560 and row["Classical GAN-LLM (matched)"]["generator_params"] == 572
     assert row["Classical GAN-LLM"]["ratio_to_matched_classical"] > 90          # the bracket is disclosed, not hidden
 
 
 def test_arms_are_resolved_like_run_all(cfg):
     arms = resolve_arms(cfg)
     assert arms["QGAN-LLM (no noise)"]["noise_strength"] == 0.0 and arms["QGAN-LLM (no noise)"]["epochs"] == 30
-    assert arms["Classical GAN-LLM (matched)"]["generator_hidden"] == 6
+    assert arms["Classical GAN-LLM (matched)"]["generator_hidden"] == 5
 
 
 @pytest.mark.parametrize("mutate,expect", [

@@ -93,6 +93,17 @@ def verdict(rows, dm) -> dict:
         v = "EQUIVALENT_TO_CONTROLS"
     else:
         v = "INCONCLUSIVE"
+    share_null = {a: (sum(1 for r in rows if r["arm"] == a and r.get("ridge_status") == "saturated_null")
+                      / max(1, sum(1 for r in rows if r["arm"] == a))) for a in ARMS}
+    if v == "EQUIVALENT_TO_CONTROLS" and all(s >= SEED_SHARE for s in share_null.values()):
+        v = "NOT_DECIDABLE"      # every arm forecast "persistence + mean residual": their equivalence is vacuous, not evidence
+        notes.append("every arm chose the null model in >= 80 % of seeds, so all three forecasts are the same persistence forecast: "
+                     "'equivalent' would be true of any features, including none. Needs a setting where the controls carry signal")
+    for a in ARMS:
+        nul = sum(1 for r in rows if r["arm"] == a and r.get("ridge_status") == "saturated_null")
+        if nul:
+            notes.append(f"{a} chose the null model (ridge -> infinity) in {nul} of {sum(1 for r in rows if r['arm'] == a)} seeds: "
+                         f"its features carried no usable signal on the validation set")
     return {"verdict": v, "versus_naive": naive, "versus_controls": vs, "notes": notes,
             "rule": "quantum beats BOTH controls (paired DM p<.05, >= 80% of seeds) AND skill>0; equivalence = paired TOST +/-2% of persistence RMSE"}
 
@@ -118,8 +129,23 @@ def audit(rows, args: dict, ridge_grid, tol: float = 0.05) -> dict:
         abs(classical_params - circuit_params) <= tol * circuit_params, {"circuit": circuit_params, "classical": classical_params})
     chk("tuning effort: one shared ridge grid, one validation split, argmin on validation only", len(ridge_grid) >= 1,
         {"grid": list(ridge_grid), "validation_fits_per_arm": len(ridge_grid)})
-    edge = {a: sorted({r["ridge"] for r in rows if r["arm"] == a} & {min(ridge_grid), max(ridge_grid)}) for a in ARMS}
-    chk("no arm sits on the edge of the tuning grid (an edge optimum means the arm is under-tuned)", not any(edge.values()), edge)
+    notes = []
+    if any(r.get("ridge_status") for r in rows):
+        # new protocol: the grid is followed outward when the optimum sits on its end, so only an optimum that is STILL on the
+        # edge after the extension is under-tuning. Choosing the null model (ridge -> infinity) is a finding, not a tuning defect.
+        st = {a: {k: sum(1 for r in rows if r["arm"] == a and r.get("ridge_status") == k)
+                  for k in ("interior", "saturated_null", "edge_unresolved")} for a in ARMS}
+        chk("no arm is under-tuned (optimum interior to the ridge grid after automatic extension, or the null model)",
+            not any(s["edge_unresolved"] for s in st.values()), st)
+        for a, s in st.items():
+            tot = sum(s.values())
+            if s["saturated_null"]:
+                notes.append(f"{a}: the validation set preferred the null model (intercept-only = persistence) in {s['saturated_null']} of {tot} "
+                             f"cells: its features carry no usable signal there, so its forecast equals persistence plus the mean residual")
+    else:
+        edge = {a: sorted({r["ridge"] for r in rows if r["arm"] == a} & {min(ridge_grid), max(ridge_grid)}) for a in ARMS}
+        chk("no arm is under-tuned (optimum interior to the ridge grid after automatic extension, or the null model)", not any(edge.values()),
+            {**edge, "note": "rows carry no ridge_status (fitted before 13 Nov 2026): an optimum on the grid edge cannot be told from the null model"})
     chk("training budget: closed-form fit on the same chronological rows", True,
         {"max_train_rows": args.get("max_train_rows"), "max_eval_rows": args.get("max_eval_rows")})
     na.append({"dimension": "synthetic-sample count", "status": "N/A in this study",
@@ -127,4 +153,4 @@ def audit(rows, args: dict, ridge_grid, tol: float = 0.05) -> dict:
                          "src/evaluation/balance_audit.py (synthetic_ratio, eval_samples)"})
     na.append({"dimension": "loss weights", "status": "N/A in this study",
                "reason": "one unweighted squared loss on the residual target in every arm. Generator study: balance_audit checks alpha == mse_weight"})
-    return {"checks": checks, "not_applicable": na, "all_passed": all(c["passed"] for c in checks)}
+    return {"checks": checks, "not_applicable": na, "notes": notes, "all_passed": all(c["passed"] for c in checks)}

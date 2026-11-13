@@ -51,8 +51,10 @@ def test_budget_counts_runs_per_hypothesis():
     n = {s: 10 for s in preregistered_slugs()}
     n["qgan_llm"], n["qgan_llm_no_noise"] = 3, 3
     b = hypothesis_budget(n)
-    assert b["H1"]["remaining_to_be_conclusive"] == 7 and b["H3"]["remaining_to_be_conclusive"] == 14
-    assert b["H5"]["remaining_to_be_conclusive"] == 0 and b["H4"]["remaining_for_full_design"] == 7
+    assert list(b) == ["H1", "H2", "H3", "H4", "H5"]
+    assert b["H1"]["remaining_to_be_conclusive"] == 7 and b["H4"]["remaining_to_be_conclusive"] == 14
+    assert b["H5"]["remaining_to_be_conclusive"] == 14 and b["H2"]["remaining_for_full_design"] == 7
+    assert b["H3"]["remaining_to_be_conclusive"] == 7
     assert "14 remaining before the confirmatory phase" in format_budget(b, study_status(n))
 
 

@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.data.variants import VARIANTS, default_processed_dir  # noqa: E402
 
-PROXY_CONDITIONS = ["QGAN-LLM (12-qubit)", "Classical GAN-LLM (matched)", "Classical GAN-LLM"]
+PROXY_CONDITIONS = ["QGAN-LLM", "Classical GAN-LLM (matched)", "Classical GAN-LLM"]
 CONFIG_DIR = os.path.join("config", "variants")
 
 

@@ -1,5 +1,5 @@
 """
-Deterministic, explained verdicts for the H1-H5 / M2 hypothesis tests.
+Deterministic, explained verdicts for the five hypotheses H1-H5 (Amendment 3, 12 Nov 2026).
 
 WHY THIS EXISTS
     run_hypothesis_tests.py's old "status" only said whether a test could RUN
@@ -31,13 +31,14 @@ WHY THIS EXISTS
     always yields the same output and every conclusion can be traced to a line
     below.
 
-ASSUMPTIONS YOU MUST CONFIRM AGAINST Ch.3 (edit EXPECTED below if they differ):
+HYPOTHESES (see HYPOTHESES_V3.md; edit EXPECTED below if Ch.3 differs):
     H1  QGAN-LLM has LOWER Frechet distance than Classical GAN-LLM (lower = better)
-    H2  more entanglement entropy -> LOWER attack success rate  (r < 0)
-    H3  no-noise poisoning degradation > noisy degradation       (t > 0)
-    H4  QGAN-LLM has LOWER RMSE / ASR than Classical GAN-LLM
-    H5  more entanglement entropy -> HIGHER threat-detection accuracy (r > 0)
-    M2  indirect effect through entanglement is non-zero (bootstrap CI excludes 0)
+    H2  QGAN-LLM has LOWER one-step forecast RMSE than Classical GAN-LLM        (was H4, RMSE half)
+    H3  QGAN-LLM has LOWER adversarial attack success rate (ASR) than Classical (was H4, ASR half)
+    H4  no-noise poisoning degradation > noisy degradation                       (was H3)
+    H5  no-noise adversarial ASR > noisy ASR                                     (new: second half of the old H3 split)
+DROPPED 12 Nov 2026 to save compute: old H2 (entanglement -> ASR), old H5 (entanglement -> detection accuracy), M2
+(mediation by entropy). They survive only as optional exploratory analyses X1-X3 (never in the Holm family).
 """
 from __future__ import annotations
 
@@ -49,15 +50,20 @@ MIN_N_CORRELATION = 10       # correlations: points (configs/runs)
 MIN_N_MEDIATION = 30         # bootstrap mediation: independent runs
 MIN_N_H5 = 30                # Ch.3: H5 stays exploratory unless >= 30 independent runs
 MIN_RUNS_PER_LEVEL = 3       # controlled entanglement sweep: runs in the thinnest level
-EXPECTED = {"H1": -1, "H2": -1, "H3": +1, "H4": -1, "H5": +1}
+EXPECTED = {"H1": -1, "H2": -1, "H3": -1, "H4": +1, "H5": +1, "X1": -1, "X2": +1}
 
 NAMES = {
     "H1_synthetic_data_fidelity": "H1",
-    "H2_adversarial_resilience": "H2",
-    "H3_poisoning_resistance": "H3",
-    "H4_quantum_advantage": "H4",
-    "H5_threat_detection_tomography_correlation": "H5",
-    "M2_DV2_mediation": "M2",
+    "H2_forecast_rmse": "H2",
+    "H3_attack_success_qgan_vs_classical": "H3",
+    "H4_poisoning_resistance_noise": "H4",
+    "H5_noise_attack_success": "H5",
+}
+# Optional exploratory entanglement-sweep analyses (old H2 / H5 / M2). Judged only when present in the results dict.
+EXPLORATORY_NAMES = {
+    "X1_entanglement_vs_asr": "X1",
+    "X2_entanglement_vs_detection": "X2",
+    "X3_entanglement_mediation": "X3",
 }
 
 
@@ -170,9 +176,14 @@ def verdict_h1(res):
     return _two_group(res, "H1", "QGAN-LLM", "Classical GAN-LLM", EXPECTED["H1"], conf, "H1 (QGAN FID lower)")
 
 
-def verdict_h3(res):
-    return _two_group(res, "H3", "no_noise", "noisy", EXPECTED["H3"], res.get("confound_warning"),
-                      "H3 (noise lowers poisoning degradation)")
+def verdict_h4(res):
+    return _two_group(res, "H4", "no_noise", "noisy", EXPECTED["H4"], res.get("confound_warning"),
+                      "H4 (noise lowers poisoning degradation)")
+
+
+def verdict_h5(res):
+    return _two_group(res, "H5", "no_noise", "noisy", EXPECTED["H5"], res.get("confound_warning"),
+                      "H5 (noise lowers adversarial attack success)")
 
 
 def _corr(res, hyp, expected, label, extra_blockers=(), min_n=MIN_N_CORRELATION):
@@ -217,37 +228,39 @@ def _corr(res, hyp, expected, label, extra_blockers=(), min_n=MIN_N_CORRELATION)
                 f"(vary seed AND entanglement setting)." if blockers else "", lean, p_value=p, r=r)
 
 
+def _verdict_advantage(res, hyp, metric):
+    """H2 (RMSE) and H3 (ASR): QGAN-LLM vs Classical GAN-LLM on ONE metric, generator on the forecast path.
+    `res` is the per-metric block of the old combined H4 test (a _compare_two result, or a degenerate/error block)."""
+    if res.get("status") == "degenerate_by_design":
+        return _out("UNTESTABLE", "NONE", "U3_degenerate_by_design",
+                    f"{hyp} ({metric}): UNTESTABLE -- {metric} is identical for QGAN and classical GAN.",
+                    [res.get("reason", ""), "the generator never reaches the forecast"],
+                    ["generator is not on the forecast path -- more seeds cannot change this"],
+                    "Set forecast_path: generator in both GAN config sections, retrain, and re-run.")
+    return _two_group(res, hyp, "QGAN-LLM", "Classical GAN-LLM", EXPECTED[hyp], None,
+                      f"{hyp} (QGAN {metric} lower than classical)")
+
+
 def verdict_h2(res):
-    return _corr(res, "H2", EXPECTED["H2"], "H2 (entanglement vs ASR)")
+    return _verdict_advantage(res, "H2", "RMSE")
 
 
-def verdict_h5(res):
+def verdict_h3(res):
+    return _verdict_advantage(res, "H3", "ASR")
+
+
+def verdict_x1(res):
+    return _corr(res, "X1", EXPECTED["X1"], "X1 (exploratory: entanglement vs ASR)")
+
+
+def verdict_x2(res):
     det = res.get("detector", "")
     extra = ["detector is the interim classical RandomForest, not the LLM detector"] if "classical" in det else ()
-    return _corr(res, "H5", EXPECTED["H5"], "H5 (entanglement vs detection accuracy)", extra, min_n=MIN_N_H5)
+    return _corr(res, "X2", EXPECTED["X2"], "X2 (exploratory: entanglement vs detection accuracy)", extra, min_n=MIN_N_H5)
 
 
-def verdict_h4(res):
-    parts = {k: res.get(k, {}) for k in ("rmse", "asr")}
-    sts = {k: v.get("status") for k, v in parts.items()}
-    if all(s == "degenerate_by_design" for s in sts.values()):
-        return _out("UNTESTABLE", "NONE", "U3_degenerate_by_design",
-                    "H4 (quantum advantage): UNTESTABLE -- RMSE and ASR are identical for QGAN and classical GAN.",
-                    [parts["rmse"].get("reason", ""), parts["asr"].get("reason", ""),
-                     "forecast head is a closed-form linear fit on REAL rows; the generator never reaches the forecast"],
-                    ["generator is not on the forecast path -- more seeds cannot change this"],
-                    "These rows were produced with forecast_path=head_only. Set forecast_path: generator in both GAN "
-                    "config sections (the default in config/default_config.yaml), retrain, and re-run; or restate H4 "
-                    "as a claim about generation quality (H1) only.")
-    sub = [verdict_h4_metric(k, v) for k, v in parts.items() if v.get("status") not in (None, "degenerate_by_design")]
-    if not sub:
-        return _out("UNTESTABLE", "NONE", "U2_test_error", "H4: no testable metric.", [], [], "")
-    order = {"CONTRADICTED": 0, "SUPPORTED": 1, "INCONCLUSIVE": 2, "NOT_SUPPORTED": 3}
-    return sorted(sub, key=lambda d: order.get(d["verdict"], 9))[0]
-
-
-def verdict_h4_metric(k, v):
-    return _two_group(v, f"H4/{k}", "QGAN-LLM", "Classical GAN-LLM", EXPECTED["H4"], None, f"H4 ({k.upper()})")
+def verdict_x3(res):
+    return verdict_m2(res)
 
 
 def verdict_m2(res):
@@ -289,7 +302,8 @@ def verdict_m2(res):
                 "for" if excl else None)
 
 
-_FN = {"H1": verdict_h1, "H2": verdict_h2, "H3": verdict_h3, "H4": verdict_h4, "H5": verdict_h5, "M2": verdict_m2}
+_FN = {"H1": verdict_h1, "H2": verdict_h2, "H3": verdict_h3, "H4": verdict_h4, "H5": verdict_h5,
+       "X1": verdict_x1, "X2": verdict_x2, "X3": verdict_x3}
 
 
 def _equiv_findings(res) -> list:
@@ -402,7 +416,9 @@ def compute_verdicts(out: dict) -> dict:
     """Pure function: results dict (as written by run_hypothesis_tests) -> verdicts dict."""
     v = {}
     status = out.get("study_status")
-    for key, short in NAMES.items():
+    names = dict(NAMES)
+    names.update({k: s for k, s in EXPLORATORY_NAMES.items() if k in out})   # exploratory add-ons only when they were run
+    for key, short in names.items():
         try:
             v[key] = _FN[short](out.get(key, {}))
             dec = out.get(key, {}).get("decidability") if isinstance(out.get(key), dict) else None
@@ -416,7 +432,8 @@ def compute_verdicts(out: dict) -> dict:
             v[key] = _out("UNTESTABLE", "NONE", "U4_verdict_error", f"{short}: verdict failed ({exc})",
                           [repr(exc)], [], "")
     # Holm correction over the confirmatory family only
-    fam = {k: d["p_value"] for k, d in v.items() if d["tier"] == "CONFIRMATORY" and d.get("p_value") is not None}
+    fam = {k: d["p_value"] for k, d in v.items()
+           if k in NAMES and d["tier"] == "CONFIRMATORY" and d.get("p_value") is not None}      # X1-X3 never enter the family
     for k, adj in _holm(fam).items():
         v[k]["p_holm"] = adj
         if v[k]["verdict"] in ("SUPPORTED", "CONTRADICTED") and adj >= ALPHA:

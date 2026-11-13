@@ -102,15 +102,11 @@ ablations:
   n_qubits: 12
   n_layers: 4
   entanglement: linear
-- name: QGAN-LLM (ent-L4 ring-d4)
-  n_qubits: 12
-  n_layers: 4
-  entanglement: ring
-- name: QGAN-LLM (ent-L5 full-d2)
+- name: QGAN-LLM (ent-L4 full-d2)
   n_qubits: 12
   n_layers: 2
   entanglement: full
-- name: QGAN-LLM (ent-L6 full-d4)
+- name: QGAN-LLM (ent-L5 full-d4)
   n_qubits: 12
   n_layers: 4
   entanglement: full

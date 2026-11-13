@@ -33,10 +33,11 @@ MODELS = ["A", "B (x)"]
 
 def test_conditions_default_and_all():
     names = fs.build_conditions(fs.DEFAULT_LEVELS)
-    assert names[:len(fs.PRIMARY)] == fs.PRIMARY and len(names) == len(fs.PRIMARY) + 4
+    assert names == fs.PRIMARY and len(names) == 4        # Amendment 3: no entanglement sweep in the default plan
     assert "Classical GAN-LLM (matched)" in fs.PRIMARY
-    assert "QGAN-LLM (ent-L0 none-d4)" in names
-    assert len(fs.build_conditions("all")) == len(fs.PRIMARY) + 7
+    assert not any("ent-L" in n for n in names)
+    assert "QGAN-LLM (ent-L0 none-d4)" in fs.build_conditions((0,))       # the sweep stays available as an opt-in
+    assert len(fs.build_conditions("all")) == len(fs.PRIMARY) + 6         # six levels after the duplicate L4 was removed
     with pytest.raises(SystemExit):
         fs.build_conditions((9,))
 

@@ -110,8 +110,8 @@ classical_gan_llm:
   # behaviour (head fitted on real rows only, forecast independent of the generator).
   forecast_path: generator
   head_fit_rows: 4000           # train rows used to fit the head (each costs one generator call)
-  generator_input_dims: 20      # only the first 20 of the 32 features reach G, as the 20-qubit circuit encodes only its first n_qubits.
-  # MUST equal qgan_llm.n_qubits (tests enforce it); null would give this generator 32 inputs against the circuit's 20.
+  generator_input_dims: 12      # only the first 12 of the 32 features reach G, as the 12-qubit circuit encodes only its first n_qubits.
+  # MUST equal qgan_llm.n_qubits (tests enforce it); null would give this generator 32 inputs against the circuit's 12.
   forecast_eval_samples: 2000   # test rows scored for RMSE/MAE/ASR (fixed-seed subsample, same rows for both models)
   attack_samples: 50            # rows attacked / threat-scored (gradients go through the generator)
   forecast_chunk: 256
@@ -170,7 +170,7 @@ qgan_llm:
   # fingerprint for the GANs (their head is refitted in closed form, generator untouched); the
   # QLSTM gets its own checkpoint per frame. See src/evaluation/one_step_ahead.py.
   forecast_target: delta
-  n_qubits: 20
+  n_qubits: 12          # 12 for the whole study (was 20, ~35-43 h/run; 12 qubits ~4 h/run) so primary pair and entanglement sweep share one width
   # Number of qubits in the QLSTM generator's variational circuit; drives
   # both the simulated state-vector size (2**n_qubits) and this baseline's
   # OOM/runtime risk.
@@ -225,21 +225,21 @@ qgan_llm:
 classical_ablations:
 # Config-defined variants of classical_gan_llm, merged over it in run_all.py exactly as `ablations` are merged
 # over qgan_llm. The matched generator brackets the capacity confound: the primary classical generator has 87,072
-# parameters against ~912 for the 20-qubit circuit (src/utils/capacity_match.py picks hidden=6 -> 896).
+# parameters against 560 for the 12-qubit circuit (src/utils/capacity_match.py picks hidden=5 -> 572, 2.1% apart).
   - name: "Classical GAN-LLM (matched)"
-    generator_hidden: 6
-    latent_dim: 20
-    generator_input_dims: 20
+    generator_hidden: 5
+    latent_dim: 12
+    generator_input_dims: 12
 
 ablations:
 # Config-defined variants of qgan_llm, expanded in run_all.py's main() via
 # merge_override(cfg["qgan_llm"], ...) — each becomes its own entry in
 # models_to_run alongside the four named baselines, inheriting every
 # qgan_llm setting except the ones listed below it.
-  - name: "QGAN-LLM (12-qubit)"
-    n_qubits: 12
-    # Overrides qgan_llm.n_qubits only, to test whether the primary
-    # 20-qubit result depends on circuit width.
+  - name: "QGAN-LLM (20-qubit)"
+    n_qubits: 20
+    # Overrides qgan_llm.n_qubits only (the primary is now 12 qubits), to test whether the primary
+    # result depends on circuit width. OPTIONAL and expensive (~35-43 h/run): not in the default study.
   - name: "QGAN-LLM (linear topology)"
     entanglement: "linear"
     # Overrides qgan_llm.entanglement only, to isolate the effect of
@@ -271,21 +271,16 @@ ablations:
     n_layers: 4
     entanglement: "linear"
     # level 3: 44 CNOTs
-  - name: "QGAN-LLM (ent-L4 ring-d4)"
-    n_qubits: 12
-    n_layers: 4
-    entanglement: "ring"
-    # level 4: 48 CNOTs
-  - name: "QGAN-LLM (ent-L5 full-d2)"
+  - name: "QGAN-LLM (ent-L4 full-d2)"
     n_qubits: 12
     n_layers: 2
     entanglement: "full"
-    # level 5: 132 CNOTs
-  - name: "QGAN-LLM (ent-L6 full-d4)"
+    # level 4: 132 CNOTs
+  - name: "QGAN-LLM (ent-L5 full-d4)"
     n_qubits: 12
     n_layers: 4
     entanglement: "full"
-    # level 6: 264 CNOTs
+    # level 5: 264 CNOTs
   # <<< entanglement-sweep <<<
 
 qlstm_forecaster:
@@ -297,7 +292,7 @@ qlstm_forecaster:
   # Same quantum architecture as qgan_llm (n_qubits/entanglement/noise_strength)
   # kept identical on purpose -- see src/baselines/qlstm_forecaster.py's
   # module docstring for why an apples-to-apples circuit matters here.
-  n_qubits: 20
+  n_qubits: 12
   # Same value as qgan_llm.n_qubits, kept identical on purpose for an
   # apples-to-apples circuit comparison.
   n_layers: 4

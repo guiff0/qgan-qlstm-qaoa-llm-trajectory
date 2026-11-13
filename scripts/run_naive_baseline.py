@@ -150,8 +150,8 @@ def main(argv=None) -> int:
     ap.add_argument("--max-train-rows", type=int, default=100_000)
     ap.add_argument("--n-qubits", type=int, default=8, help="input width shared by all arms (columns [:n_qubits] feed the maps)")
     ap.add_argument("--n-layers", type=int, default=3)
-    ap.add_argument("--attack-rows", type=int, default=300)
-    ap.add_argument("--attack-eps", type=float, default=0.1)
+    ap.add_argument("--attack-rows", type=int, default=None, help="default: the walk-forward file's value, else 300")
+    ap.add_argument("--attack-eps", type=float, default=None, help="default: the walk-forward file's value, else 0.1")
     ap.add_argument("--threads", type=int, default=1, help="BLAS threads (default 1: leave the cores to the running arms)")
     ap.add_argument("--wait-for-others", action="store_true", help="after fitting Arm 1, re-check until Arms 2 and 3 are complete")
     ap.add_argument("--poll-seconds", type=int, default=300)
@@ -169,14 +169,40 @@ def main(argv=None) -> int:
             a.experiment_id = None
     path = out_path(a.experiment_id)
     other = load_json(a.like)
+    # Arm 1 must be scored by the SAME protocol as Arms 2 and 3: take it from their file when they exist
+    oargs = (other or {}).get("args") or {}
+    if a.attack_rows is None:
+        a.attack_rows = int(oargs.get("attack_rows") or 300)
+    if a.attack_eps is None:
+        a.attack_eps = float(oargs.get("attack_eps") or 0.1)
+    for k in ("n_qubits", "n_layers"):
+        if oargs.get(k) is not None and getattr(a, k) != oargs[k]:
+            print(f"[naive-baseline] {k}={getattr(a, k)} differs from the walk-forward file's {oargs[k]}; using {oargs[k]}")
+            setattr(a, k, int(oargs[k]))
     try:
         windows, seeds, X, y, source = build_plan(a, other)
     except (FileNotFoundError, ValueError) as exc:
         print(f"cannot plan the baseline run: {exc}")
         return 2
     plan = {(int(w["window"]), s) for w in windows for s in seeds}
+    from src.baselines.feature_map_forecaster import DEFAULT_RIDGE_GRID
     saved = load_json(path) or {}
     rows = saved.get("per_run", [])
+    protocol = {"ridge_grid": list(DEFAULT_RIDGE_GRID), "attack_rows": a.attack_rows, "attack_eps": a.attack_eps}
+    why_stale = None
+    if rows and saved.get("ridge_grid") != protocol["ridge_grid"]:
+        why_stale = "it was fitted with a different (or unrecorded) ridge grid"
+    elif rows and saved.get("windows") != windows:
+        why_stale = "its windows differ from the current plan"
+    elif rows and any((saved.get("args") or {}).get(k) != protocol[k] for k in ("attack_rows", "attack_eps")):
+        why_stale = "it was scored with a different attack protocol"
+    elif rows and any(r.get("metric_seed") != r.get("seed") for r in rows):
+        why_stale = "its rows predate the shared metric seed"
+    if why_stale:
+        stale = f"{path}.stale_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+        os.replace(path, stale)
+        print(f"[naive-baseline] existing results are NOT reused: {why_stale}. Moved to {stale}; Arm 1 is refitted on every cell.")
+        rows = []
 
     print(f"[naive-baseline] experiment={a.experiment_id or 'legacy'}  {len(windows)} windows x {len(seeds)} seeds = {len(plan)} cells")
     print(f"[naive-baseline] plan: {source}")
@@ -200,7 +226,7 @@ def main(argv=None) -> int:
     def save():
         atomic_write(path, {"arm": "linear", "role": "naive baseline (inputs only)", "experiment_id": a.experiment_id,
                             "updated_utc": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"), "plan_source": source,
-                            "windows": windows, "seeds": seeds, "args": vars(a), "per_run": rows,
+                            "windows": windows, "seeds": seeds, "args": vars(a), "ridge_grid": protocol["ridge_grid"], "per_run": rows,
                             "deterministic_arm_note": "ridge on x is deterministic: metrics repeat across seeds within a window "
                                                       "(attack/latency subsample aside); windows carry the variance"})
 

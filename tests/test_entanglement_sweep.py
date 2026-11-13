@@ -1,4 +1,5 @@
-"""Controlled entanglement sweep: config generation, level parsing, H2/H5/M2 wiring, verdicts.
+"""Optional exploratory entanglement sweep (old H2/H5/M2, dropped from the confirmatory plan 12 Nov 2026; now X1-X3).
+Config generation, level parsing, wiring, verdicts.
 No training is run; synthetic results rows stand in for results/all_results.csv."""
 import numpy as np
 import pandas as pd
@@ -76,7 +77,7 @@ def test_generated_block_is_valid_yaml_with_fixed_qubits_and_idempotent(tmp_path
     # the original (non-sweep) ablations are untouched and keep their order, whether or not src already had the block
     assert [a["name"] for a in parsed["ablations"] if not is_sweep(a)] == \
            [a["name"] for a in yaml.safe_load(src)["ablations"] if not is_sweep(a)]
-    assert parsed["qlstm_forecaster"]["n_qubits"] == 20      # rest of the file untouched
+    assert parsed["qlstm_forecaster"]["n_qubits"] == 12      # rest of the file untouched (primary width, 12 since 12 Nov)
     # regenerating for another width replaces, not appends
     other = gen.apply_block(once, gen.build_block(8))
     assert sum(1 for a in yaml.safe_load(other)["ablations"] if a["name"].startswith("QGAN-LLM (ent-L")) == len(ed.LEVELS)
@@ -133,43 +134,43 @@ def test_m2_mediation_on_the_sweep_recovers_the_planted_path():
 
 # ---------------------------------------------------------------- verdicts
 def _verdicts(df):
-    out = {"H2_adversarial_resilience": hyp.test_h2_adversarial_resilience(df),
-           "H5_threat_detection_tomography_correlation": hyp.test_h5_tomography_correlation(df),
-           "M2_DV2_mediation": hyp.test_m2_dv2_mediation(df)}
+    out = {"X1_entanglement_vs_asr": hyp.test_h2_adversarial_resilience(df),
+           "X2_entanglement_vs_detection": hyp.test_h5_tomography_correlation(df),
+           "X3_entanglement_mediation": hyp.test_m2_dv2_mediation(df)}
     return compute_verdicts(out)
 
 
 def test_sweep_with_enough_runs_is_confirmatory_and_decisive():
     v = _verdicts(_sweep_df())
-    assert v["H2_adversarial_resilience"]["tier"] == "CONFIRMATORY"
-    assert v["H2_adversarial_resilience"]["verdict"] == "SUPPORTED"          # r < 0 as hypothesised
-    assert v["H5_threat_detection_tomography_correlation"]["verdict"] == "SUPPORTED"
-    assert v["M2_DV2_mediation"]["tier"] == "CONFIRMATORY" and v["M2_DV2_mediation"]["verdict"] == "SUPPORTED"
+    assert v["X1_entanglement_vs_asr"]["tier"] == "CONFIRMATORY"
+    assert v["X1_entanglement_vs_asr"]["verdict"] == "SUPPORTED"          # r < 0 as hypothesised
+    assert v["X2_entanglement_vs_detection"]["verdict"] == "SUPPORTED"
+    assert v["X3_entanglement_mediation"]["tier"] == "CONFIRMATORY" and v["X3_entanglement_mediation"]["verdict"] == "SUPPORTED"
     assert not any("model CONFIG" in b for d in v.values() for b in d["blockers"])
 
 
 def test_h5_on_the_interim_classical_detector_stays_exploratory():
     df = _sweep_df().drop(columns=["llm_threat_accuracy"])
-    d = _verdicts(df)["H5_threat_detection_tomography_correlation"]
+    d = _verdicts(df)["X2_entanglement_vs_detection"]
     assert d["tier"] == "EXPLORATORY" and d["verdict"] == "SUGGESTIVE_FOR"
     assert any("interim classical" in b for b in d["blockers"])
 
 
 def test_a_real_null_becomes_not_supported_not_inconclusive():
     v = _verdicts(_sweep_df(asr_per_entropy=0.0, acc_per_entropy=0.0, seed=3))
-    assert v["H2_adversarial_resilience"]["tier"] == "CONFIRMATORY"
-    assert v["H2_adversarial_resilience"]["verdict"] == "NOT_SUPPORTED"
+    assert v["X1_entanglement_vs_asr"]["tier"] == "CONFIRMATORY"
+    assert v["X1_entanglement_vs_asr"]["verdict"] == "NOT_SUPPORTED"
 
 
 def test_thin_levels_keep_the_verdict_exploratory():
     v = _verdicts(_sweep_df(n_seeds=2))                                        # 12 runs, 2 per level
-    d = v["H2_adversarial_resilience"]
+    d = v["X1_entanglement_vs_asr"]
     assert d["tier"] == "EXPLORATORY" and any("thinnest sweep level" in b for b in d["blockers"])
 
 
 def test_failed_manipulation_check_blocks_a_confirmatory_verdict():
     df = _sweep_df(entropy_slope=0.0, noise=1.0, seed=5)        # level does not move the measured entropy
-    d = _verdicts(df)["H2_adversarial_resilience"]
+    d = _verdicts(df)["X1_entanglement_vs_asr"]
     assert d["tier"] == "EXPLORATORY" and any("manipulation check failed" in b for b in d["blockers"])
 
 
@@ -179,5 +180,5 @@ def test_legacy_pooled_rows_still_get_the_config_blocker():
         rows.append({"run_id": f"{name}_20261031T00000{i}Z", "model_type": "QGAN-LLM", "seed": 42,
                      "entanglement_entropy": float(i), "asr": 10.0 - i + 0.1 * (i % 2), "accuracy": 0.5 + 0.01 * i,
                      "asr_baseline": "last_close"})
-    d = _verdicts(pd.DataFrame(rows))["H2_adversarial_resilience"]
+    d = _verdicts(pd.DataFrame(rows))["X1_entanglement_vs_asr"]
     assert d["tier"] == "EXPLORATORY" and any("one model config" in b for b in d["blockers"])

@@ -148,10 +148,14 @@ def test_run_study_main_stage_does_not_prepare_twice(tmp_path):
     assert "--no-prepare" in d.commands("main")[0]
 
 
-def test_run_full_study_defaults_to_the_reduced_25_run_plan():
+def test_run_full_study_defaults_to_the_methodology_plan():
     from scripts import run_full_study as fs
     assert len(fs.REDUCED_CONDITIONS) * fs.REDUCED_N_RUNS == 16 and fs.FULL_N_RUNS == 10
-    assert len(fs.build_conditions(fs.DEFAULT_LEVELS)) * fs.FULL_N_RUNS == 80
+    # Amendment 3 (12 Nov 2026): 4 conditions x 10 seeds = 40 runs (was 64 with the entanglement sweep, 80 with --full)
+    assert len(fs.build_conditions(fs.DEFAULT_LEVELS)) * fs.FULL_N_RUNS == 40
+    assert len(fs.build_conditions(fs.DEFAULT_LEVELS)) * fs.METHOD_N_RUNS == 40
+    # the default must reach the confirmatory minimum of the two-group tests (10 runs per condition)
+    assert fs.METHOD_N_RUNS >= 10 and not fs.DEFAULT_LEVELS
 
 
 def test_default_plan_resumes_matching_experiment_or_starts_new(monkeypatch):

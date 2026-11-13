@@ -92,13 +92,14 @@ def _results(acc, poison):
     return pd.DataFrame(rows)
 
 
-def test_h3_and_h5_gates_turn_into_not_decidable_verdicts():
+def test_h4_and_x2_gates_turn_into_not_decidable_verdicts():
     rng = np.random.default_rng(3)
     df = _results(rng.binomial(204, 0.5, 10) / 204, np.abs(rng.normal(0, 1e-4, 10)))
-    out = {"H3_poisoning_resistance": rht.test_h3_poisoning_resistance(df),
-           "H5_threat_detection_tomography_correlation": rht.test_h5_tomography_correlation(df)}
-    assert out["H3_poisoning_resistance"]["decidability"]["decidable"] is False
-    assert out["H5_threat_detection_tomography_correlation"]["decidability"]["decidable"] is False
+    # H4 (poisoning, noise) and the optional exploratory X2 (entanglement vs detector accuracy) both carry a decidability gate
+    out = {"H4_poisoning_resistance_noise": rht.test_h4_poisoning_resistance(df),
+           "X2_entanglement_vs_detection": rht.test_h5_tomography_correlation(df)}
+    assert out["H4_poisoning_resistance_noise"]["decidability"]["decidable"] is False
+    assert out["X2_entanglement_vs_detection"]["decidability"]["decidable"] is False
     v = compute_verdicts(out)
     for k in out:
         assert v[k]["verdict"] == "NOT_DECIDABLE" and v[k]["rule"] == "R9_not_decidable_by_design"
@@ -110,12 +111,12 @@ def test_decidable_outcomes_keep_their_normal_verdicts_and_get_paired_evidence()
     rng = np.random.default_rng(4)
     df = _results(rng.binomial(204, 0.75, 10) / 204, np.abs(rng.normal(8, 3, 10)))
     out = {"H1_synthetic_data_fidelity": rht.test_h1_synthetic_data_fidelity(df),
-           "H3_poisoning_resistance": rht.test_h3_poisoning_resistance(df),
-           "H5_threat_detection_tomography_correlation": rht.test_h5_tomography_correlation(df)}
+           "H4_poisoning_resistance_noise": rht.test_h4_poisoning_resistance(df),
+           "X2_entanglement_vs_detection": rht.test_h5_tomography_correlation(df)}
     assert out["H1_synthetic_data_fidelity"]["paired_by_seed"]["n_pairs"] == 10
     v = compute_verdicts(out)
-    assert v["H3_poisoning_resistance"]["verdict"] != "NOT_DECIDABLE"
-    assert v["H5_threat_detection_tomography_correlation"]["verdict"] != "NOT_DECIDABLE"
+    assert v["H4_poisoning_resistance_noise"]["verdict"] != "NOT_DECIDABLE"
+    assert v["X2_entanglement_vs_detection"]["verdict"] != "NOT_DECIDABLE"
     assert any("paired by seed (fid)" in w for w in v["H1_synthetic_data_fidelity"]["why"])
     assert v["H1_synthetic_data_fidelity"]["paired_by_seed"]["fid"]["consistency_rule_met"] is True
 

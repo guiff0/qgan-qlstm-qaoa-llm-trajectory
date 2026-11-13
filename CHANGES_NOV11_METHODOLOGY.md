@@ -42,3 +42,11 @@ Tests: `tests/test_methodology_protocol.py` (10 pass; 11 older tests fail identi
 
 ## 12 Nov addendum - M6 (edge of the ridge grid)
 `DEFAULT_RIDGE_GRID` widened from 1e-8..1e2 (6 values) to 1e-10..1e6 (9 values), shared by all three arms, so no arm can sit on the edge by construction of the old range. Record it as an amendment. Walk-forward results must be rerun.
+
+## 12 Nov addendum 2 - 12 qubits for the whole study
+Primary `qgan_llm.n_qubits` 20 -> 12 (also `qlstm_forecaster`, kept identical on purpose); classical generator input dims 12;
+matched classical generator re-sized by `capacity_match` to hidden=5, latent=12 (572 vs 560 circuit parameters, 2.1 % apart;
+audit passes). The old "QGAN-LLM (12-qubit)" ablation is now the primary, so it became an optional "QGAN-LLM (20-qubit)" width
+check (not in the default study). Primary pair and entanglement sweep now share one width. Record as an amendment:
+"primary circuit 12 qubits (was 20); matched generator hidden 5". Old 20-qubit checkpoints no longer match (new fingerprints).
+Note: sweep level ent-L4 (ring, depth 4) is now configuration-identical to the primary QGAN-LLM.

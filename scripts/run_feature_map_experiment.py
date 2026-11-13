@@ -27,7 +27,27 @@ def _tail(a, n):
     return a if n is None or len(a) <= n else a[-n:]
 
 
-def main() -> int:
+PLAN_KEYS = ("seeds", "n_qubits", "n_layers", "entanglement", "input_scale", "max_train_rows", "max_eval_rows", "processed_dir")
+
+
+def is_current(path: str, a, ridge_grid: list) -> bool:
+    """True only if `path` holds every (arm, seed) cell of THIS plan, fitted with the current ridge grid and the shared metric seed."""
+    try:
+        with open(path, encoding="utf8") as fh:
+            d = json.load(fh)
+    except (OSError, ValueError):
+        return False
+    if d.get("ridge_grid") != ridge_grid or any((d.get("args") or {}).get(k) != getattr(a, k, None) for k in PLAN_KEYS):
+        return False
+    have = {(r.get("arm"), r.get("seed")) for r in d.get("per_run", []) if r.get("metric_seed") == r.get("seed") and "ridge_status" in r}
+    return {(arm, s) for arm in ARMS for s in a.seeds} <= have
+
+
+def main_argv(argv) -> int:
+    return main(argv)
+
+
+def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--processed-dir", default="data/processed")
     ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2, 3, 4])
@@ -38,7 +58,14 @@ def main() -> int:
     ap.add_argument("--max-train-rows", type=int, default=300_000)
     ap.add_argument("--max-eval-rows", type=int, default=200_000)
     ap.add_argument("--out", default="results/feature_map_advantage.json")
-    a = ap.parse_args()
+    ap.add_argument("--skip-if-current", action="store_true",
+                    help="do nothing when --out already holds a COMPLETE run of this exact plan with the current ridge grid "
+                         "(used by run_full_study.ps1 so a relaunch does not refit everything)")
+    a = ap.parse_args(argv)
+    from src.baselines.feature_map_forecaster import DEFAULT_RIDGE_GRID
+    if a.skip_if_current and is_current(a.out, a, list(DEFAULT_RIDGE_GRID)):
+        print(f"[feature-map] {a.out} is complete for this plan and the current ridge grid: nothing to do (delete it to refit)")
+        return 0
 
     ld = lambda n: np.load(os.path.join(a.processed_dir, n))  # noqa: E731
     Xtr, ytr = _tail(ld("X_train.npy"), a.max_train_rows), _tail(ld("y_train.npy"), a.max_train_rows)
@@ -50,7 +77,7 @@ def main() -> int:
         errs = {}
         for arm in ARMS:
             m = FeatureMapForecaster(arm, a.n_qubits, a.n_layers, a.entanglement, a.input_scale, seed)
-            r = m.fit(Xtr, ytr, Xva, yva).evaluate(Xte, yte)
+            r = m.fit(Xtr, ytr, Xva, yva).evaluate(Xte, yte, metric_seed=seed)
             errs[arm] = r.pop("errors")
             r["seed"] = seed
             rows.append(r)
@@ -64,7 +91,7 @@ def main() -> int:
     for arm in ARMS:
         s = np.array([r["skill"] for r in rows if r["arm"] == arm])
         summary[arm] = {"skill_mean": float(s.mean()), "skill_sd": float(s.std(ddof=1)) if len(s) > 1 else None}
-    out = {"args": vars(a), "per_run": rows, "dm_quantum_vs": dm, "summary": summary,
+    out = {"args": vars(a), "ridge_grid": list(DEFAULT_RIDGE_GRID), "per_run": rows, "dm_quantum_vs": dm, "summary": summary,
            "reading": "skill>0 beats persistence. Quantum 'advantage' = DM statistic > 0 (control has larger loss) "
                       "with p<0.05 consistently across seeds AND over classical_rf, not only over linear."}
     from src.utils.run_identity import save_json_timestamped

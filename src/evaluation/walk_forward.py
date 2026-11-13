@@ -120,8 +120,12 @@ def _one_sided_p(d: dict) -> float:
 
 
 def run_windows(X, y, windows, seeds, *, n_qubits=8, n_layers=3, entanglement="ring", input_scale=1.0,
-                arms=ARMS, forecaster=None, dm_fn=None, log=print) -> tuple[list[dict], list[dict]]:
-    """Fit every arm on every window with the same seeds. `forecaster` / `dm_fn` are injectable (tests use cheap stand-ins)."""
+                arms=ARMS, forecaster=None, dm_fn=None, log=print, attack_rows: int = 300, attack_eps: float = 0.1) -> tuple[list[dict], list[dict]]:
+    """Fit every arm on every window with the same seeds. `forecaster` / `dm_fn` are injectable (tests use cheap stand-ins).
+
+    Every arm of one (window, seed) cell is scored with the SAME attack rows and latency rows: metric_seed = the cell's seed (13 Nov
+    2026; before, this call used the default metric_seed=0 while scripts.run_naive_baseline used metric_seed=seed, so for seeds != 0
+    Arm 1 attacked different rows than Arms 2 and 3)."""
     if forecaster is None:
         from src.baselines.feature_map_forecaster import FeatureMapForecaster as forecaster  # noqa: N813
     if dm_fn is None:
@@ -133,7 +137,7 @@ def run_windows(X, y, windows, seeds, *, n_qubits=8, n_layers=3, entanglement="r
             errs = {}
             for arm in arms:
                 m = forecaster(arm, n_qubits, n_layers, entanglement, input_scale, seed)
-                r = m.fit(Xtr, ytr, Xva, yva).evaluate(Xte, yte)
+                r = m.fit(Xtr, ytr, Xva, yva).evaluate(Xte, yte, attack_rows=attack_rows, attack_eps=attack_eps, metric_seed=seed)
                 errs[arm] = r.pop("errors")
                 r.update({"seed": seed, "window": w["window"]})
                 per_run.append(r)

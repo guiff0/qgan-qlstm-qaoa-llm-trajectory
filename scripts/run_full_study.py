@@ -1,25 +1,26 @@
 r"""
 Launch the study once; it stops only when every run is done.
 
-DEFAULT = REDUCED 16-run plan (4 conditions x 4 seeds: QGAN-LLM, Classical GAN-LLM (matched), QGAN-LLM (no noise),
-ent-L0), fully crossed: every condition gets the SAME seeds, so groups are paired and balanced. One sweep level means the
-H2 dose-response is NOT testable on this plan. It is NOT the pre-registered design (lower power): report it as reduced/exploratory. Pass --full for the
-pre-registered 8 conditions x 10 seeds = 80 runs. The hypothesis tests are not run automatically on the reduced plan
-(pass --hypothesis-tests). Relaunching resumes the experiment with the same plan; a plan that differs from the ACTIVE
+DEFAULT = the AMENDMENT 3 plan: 4 conditions x 10 seeds = 40 runs (QGAN-LLM, Classical GAN-LLM, Classical GAN-LLM (matched),
+QGAN-LLM (no noise)), fully crossed (every condition gets the SAME seeds, so groups are paired and balanced). The entanglement
+sweep and its hypotheses (old H2, H5, M2) were dropped on 12 Nov 2026 to save compute: 64 -> 40 runs (80 -> 40 for --full).
+The five hypotheses H1-H5 are in HYPOTHESES_V3.md. The hypothesis tests run automatically at the end. The sweep stays available
+as an optional exploratory add-on: --levels 0,2,4 or --levels all (levels L0-L5, see src/evaluation/entanglement_design.py).
+--quick = the old 4 conditions x 4 seeds smoke test (exploratory; the hypothesis tests are not run automatically on it). Relaunching resumes the experiment with the same plan; a plan that differs from the ACTIVE
 experiment automatically starts (or resumes) its own experiment instead of refusing.
 
-    python -m scripts.run_full_study                       # 8 conditions x 10 seeds, then the hypothesis tests
+    python -m scripts.run_full_study                       # 4 conditions x 10 seeds, then the hypothesis tests
     python -m scripts.run_full_study --status              # what is done / remaining, nothing run
     python -m scripts.run_full_study --dry-run             # the plan, nothing run
-    python -m scripts.run_full_study --n-runs 8 --levels all
+    python -m scripts.run_full_study --n-runs 10 --levels all   # optional exploratory sweep
     .\scripts\run_full_study.ps1                           # same, with the venv's python (Windows)
 
 CONDITIONS (all seeded with the same --base-seed, so groups are paired and balanced)
-    QGAN-LLM                      primary quantum model                 -> H1, H4
-    Classical GAN-LLM             primary classical model               -> H1, H4
-    QGAN-LLM (no noise)           differs from the primary only in noise -> H3
-    QGAN-LLM (ent-L<k> ...)       controlled entanglement sweep levels   -> H2, H5, M2
-                                  (default levels 0,2,4,6: none / linear x2 / ring x4 / full x4)
+    QGAN-LLM                      primary quantum model                 -> H1, H2, H3, H4, H5
+    Classical GAN-LLM             primary classical model               -> H1, H2, H3
+    Classical GAN-LLM (matched)   parameter-matched classical bracket   -> H2, H3 (bracket)
+    QGAN-LLM (no noise)           differs from the primary only in noise -> H4, H5
+    QGAN-LLM (ent-L<k> ...)       OPTIONAL exploratory entanglement sweep (not in the default plan, not in H1-H5)
 
 WHAT "ONLY STOPS WHEN DONE" MEANS
   * It repeats passes of scripts.run_repeated_experiment until every (condition, seed) has a row in
@@ -63,11 +64,11 @@ from scripts.study_diagnose import diagnose_failure, one_line  # noqa: E402
 from src.utils import experiment as exp  # noqa: E402
 
 PRIMARY = ["QGAN-LLM", "Classical GAN-LLM", "Classical GAN-LLM (matched)", "QGAN-LLM (no noise)"]
-DEFAULT_LEVELS = (0, 2, 4, 6)
-# DEFAULT PLAN = the reduced 16-run study: 4 conditions x 4 seeds. `--full` restores the pre-registered 8 x 10 = 80 runs.
-REDUCED_CONDITIONS = ["QGAN-LLM", "Classical GAN-LLM (matched)", "QGAN-LLM (no noise)",
-                      "QGAN-LLM (ent-L0 none-d4)"]
-REDUCED_N_RUNS, FULL_N_RUNS = 4, 10
+DEFAULT_LEVELS = ()          # no entanglement sweep by default (H2/H5/M2 dropped 12 Nov 2026)
+# DEFAULT PLAN = METHOD_N_RUNS (10) seeds x build_conditions(DEFAULT_LEVELS) (4 conditions) = 40 runs. `--full` = same 40.
+# `--quick` = REDUCED_CONDITIONS x REDUCED_N_RUNS = the 16-run smoke test.
+REDUCED_CONDITIONS = ["QGAN-LLM", "Classical GAN-LLM", "Classical GAN-LLM (matched)", "QGAN-LLM (no noise)"]
+REDUCED_N_RUNS, FULL_N_RUNS, METHOD_N_RUNS = 4, 10, 10
 STATUS_FILE = os.path.join("logs", "full_study_status.json")
 DASH: StudyDashboard | None = None      # set in main(); None (e.g. in unit tests) = plain one-line output
 EXPERIMENT: str | None = None           # experiment id of this launch (None = legacy, no id)
@@ -444,14 +445,16 @@ def prepare_study(args) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--n-runs", type=int, default=None,
-                    help="seeds per condition (default 4 = reduced plan; 10 with --full, as pre-registered)")
+                    help="seeds per condition (default 8 = methodology plan; 10 with --full, as pre-registered; 4 with --quick)")
     ap.add_argument("--full", action="store_true",
-                    help="the pre-registered plan: 8 conditions x 10 seeds = 80 runs (default is the reduced 16-run plan)")
+                    help="the pre-registered plan: 8 conditions x 10 seeds = 80 runs (default: 8 conditions x 8 seeds = 64)")
+    ap.add_argument("--quick", action="store_true",
+                    help="smoke test: 4 conditions x 4 seeds = 16 runs (exploratory; H2, H5, M2 cannot be decided)")
     ap.add_argument("--hypothesis-tests", action="store_true",
                     help="run the hypothesis tests when all runs finish (default: only with --full)")
     ap.add_argument("--base-seed", type=int, default=43)
     ap.add_argument("--levels", default=",".join(map(str, DEFAULT_LEVELS)),
-                    help="entanglement-sweep levels to run, e.g. 0,2,4,6 or 'all' (default 0,2,4,6)")
+                    help="OPTIONAL exploratory entanglement-sweep levels, e.g. 0,2,5 or 'all' (default: none)")
     ap.add_argument("--config", default="config/default_config.yaml")
     ap.add_argument("--workers", type=int, default=1,
                     help="runs executed at the same time (default 1); threads per run = logical CPUs // workers. "
@@ -496,14 +499,14 @@ def main() -> None:
     if not (args.status or args.dry_run or args.no_prepare):
         prepare_study(args)       # calibration FIRST: it edits the config, which the experiment manifest hashes
     if args.n_runs is None:
-        args.n_runs = FULL_N_RUNS if args.full else REDUCED_N_RUNS
+        args.n_runs = FULL_N_RUNS if args.full else (REDUCED_N_RUNS if args.quick else METHOD_N_RUNS)
     if args.conditions:
         models = [m.strip() for m in args.conditions.split(",") if m.strip()]
-    elif args.full:
-        models = build_conditions(parse_levels(args.levels))
-    else:
+    elif args.quick and not args.full:
         models = list(REDUCED_CONDITIONS)
-    reduced = not args.full and not args.conditions
+    else:
+        models = build_conditions(parse_levels(args.levels))
+    reduced = args.quick and not args.full and not args.conditions
     if reduced:
         print(f"[plan] REDUCED plan: {len(models)} conditions x {args.n_runs} seeds = {len(models) * args.n_runs} runs "
               f"(not the pre-registered 80; use --full for that)", flush=True)
@@ -587,7 +590,7 @@ def main() -> None:
     print("\n[study] ALL RUNS COMPLETE.", flush=True)
     if reduced and not args.hypothesis_tests:
         print("[study] reduced plan: hypothesis tests not run automatically; add --hypothesis-tests (or run them yourself).", flush=True)
-    if not args.no_hypothesis_tests and (args.full or args.conditions or args.hypothesis_tests):
+    if not args.no_hypothesis_tests and (args.full or not args.quick or args.conditions or args.hypothesis_tests):
         cmd = [sys.executable, "-m", "scripts.run_hypothesis_tests"]
         if EXPERIMENT:
             cmd += ["--experiment-id", EXPERIMENT]

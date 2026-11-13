@@ -27,13 +27,13 @@ def test_h3_is_untestable_without_a_matched_no_noise_run():
     df = pd.DataFrame(_rows("qgan_llm", 2, noise_strength=0.01, poisoning_rmse_degradation_pct=3.0))
     res = rht.test_h3_poisoning_resistance(df)
     assert res["status"] == "insufficient_data" and "matched no-noise" in res["untestable_reason"]
-    v = V.compute_verdicts({"H3_poisoning_resistance": res})["H3_poisoning_resistance"]
+    v = V.compute_verdicts({"H4_poisoning_resistance_noise": res})["H4_poisoning_resistance_noise"]
     assert v["verdict"] == "UNTESTABLE" and v["chapter_label"] == "Untestable"
 
 
 def test_interim_sample_is_never_confirmatory():
     st = study_status({"qgan_llm": 3, "classical_gan_llm": 10})
-    assert not st["complete"] and st["planned_runs"] == 80
+    assert not st["complete"] and st["planned_runs"] == 40
     d = {"verdict": "SUPPORTED", "tier": "CONFIRMATORY", "rule": "R1", "headline": "H1: SUPPORTED (confirmatory)",
          "blockers": [], "why": [], "lean": "for"}
     V.apply_interim_gate(d, st)

@@ -61,28 +61,23 @@ def planned_vs_ran(results: dict) -> dict:
     entry("H1_synthetic_data_fidelity", "Welch on run-level FID (+ ANCOVA when a VIX covariate exists)",
           "ANCOVA" if "f_statistic" in h else "Welch two-sample t" if h.get("status") == "ok" else h.get("status", "not run"),
           h.get("note_covariate") or (h.get("message") if h.get("status") not in (None, "ok") else ""))
-    for k in ("H2_adversarial_resilience", "H5_threat_detection_tomography_correlation", "M2_DV2_mediation"):
+    for k, metric in (("H2_forecast_rmse", "RMSE"), ("H3_attack_success_qgan_vs_classical", "ASR")):
         r = results.get(k, {})
-        mc = r.get("manipulation_check_level_vs_entropy") or {}
-        why = ""
-        if r.get("design") != "controlled_sweep":
-            why = "no controlled sweep in the data: configs pooled (exploratory)"
-        elif mc and (mc.get("p_value", 1) >= 0.05 or mc.get("spearman_rho", 0) <= 0):
-            why = "manipulation check failed"
-        if isinstance(r.get("decidability"), dict) and r["decidability"].get("decidable") is False:
-            why = (why + "; " if why else "") + "decidability gate failed: " + r["decidability"]["gate"]
-        entry(k, "run-level correlation / bootstrap mediation on the controlled sweep",
-              r.get("design", "not run"), why)
-    h3 = results.get("H3_poisoning_resistance", {})
-    why3 = ("decidability gate failed: " + h3["decidability"]["gate"]
-            if isinstance(h3.get("decidability"), dict) and h3["decidability"].get("decidable") is False else "")
-    entry("H3_poisoning_resistance", "Welch no_noise vs noisy on matched configs + TOST",
-          h3.get("design", h3.get("status", "not run")), why3)
-    h4 = results.get("H4_quantum_advantage", {})
-    single = any(isinstance(h4.get(m), dict) and h4[m].get("status") == "exploratory_single_case" for m in ("rmse", "asr"))
-    entry("H4_quantum_advantage", "Welch on run-level RMSE/ASR, paired by seed, row-level DM rule",
-          "Crawford-Howell single case" if single else "Welch two-sample t",
-          "one quantum run: single-case test, exploratory" if single else "")
+        single = r.get("status") == "exploratory_single_case"
+        degenerate = r.get("status") == "degenerate_by_design"
+        entry(k, f"Welch on run-level {metric}, paired by seed, row-level DM rule (RMSE)",
+              "Crawford-Howell single case" if single else "degenerate by design" if degenerate else "Welch two-sample t",
+              "one quantum run: single-case test, exploratory" if single else
+              "generator not on the forecast path (head_only rows)" if degenerate else "")
+    h4 = results.get("H4_poisoning_resistance_noise", {})
+    why4 = ("decidability gate failed: " + h4["decidability"]["gate"]
+            if isinstance(h4.get("decidability"), dict) and h4["decidability"].get("decidable") is False else "")
+    entry("H4_poisoning_resistance_noise", "Welch no_noise vs noisy on matched configs + TOST",
+          h4.get("design", h4.get("status", "not run")), why4)
+    h5 = results.get("H5_noise_attack_success", {})
+    entry("H5_noise_attack_success", "Welch no_noise vs noisy ASR on matched configs + TOST",
+          h5.get("design", h5.get("status", "not run")),
+          "matched pair missing: untestable" if h5.get("design") == "matched_pair_missing" else "")
     return out
 
 

@@ -436,6 +436,71 @@ def test_h4_matched_capacity(df: pd.DataFrame) -> dict:
     return test_h4_quantum_advantage(df, classical_slug=slug)
 
 
+# ===================================================================================================================
+# Amendment 3 (12 Nov 2026): the five hypotheses H1-H5.
+#   H1 FID (above)  | H2 one-step RMSE  | H3 attack success (QGAN vs classical)  | H4 noise -> poisoning  | H5 noise -> ASR
+# H2 and H3 are the two halves of the old H4; H5 is the second half of the old H3 split. The old entanglement tests
+# (test_h2_adversarial_resilience, test_h5_tomography_correlation, test_m2_dv2_mediation) stay below for the OPTIONAL exploratory
+# sweep (--exploratory-entanglement) but are not part of the five hypotheses or of the Holm family.
+# ===================================================================================================================
+def _advantage_block(df: pd.DataFrame, metric: str, classical_slug: str | None = None) -> dict:
+    full = test_h4_quantum_advantage(df, classical_slug)
+    if "error" in full and metric not in full:
+        return full
+    blk = dict(full.get(metric) or {"error": f"no '{metric}' result"})
+    for k in ("forecast_design", "classical_comparator", "n_runs", "note", "caveat"):
+        if k in full:
+            blk[k] = full[k]
+    blk["metric"] = metric
+    return blk
+
+
+def test_h2_forecast_rmse(df: pd.DataFrame, classical_slug: str | None = None) -> dict:
+    """H2: QGAN-LLM has lower one-step forecast RMSE than Classical GAN-LLM (generator on the forecast path)."""
+    return _advantage_block(df, "rmse", classical_slug)
+
+
+def test_h3_attack_success(df: pd.DataFrame, classical_slug: str | None = None) -> dict:
+    """H3: QGAN-LLM has lower adversarial attack success rate than Classical GAN-LLM (generator on the forecast path)."""
+    return _advantage_block(df, "asr", classical_slug)
+
+
+def test_h4_poisoning_resistance(df: pd.DataFrame) -> dict:
+    """H4: no-noise QGAN-LLM degrades more under poisoning than the primary (noisy) QGAN-LLM. (Was H3.)"""
+    return test_h3_poisoning_resistance(df)
+
+
+def test_h5_noise_attack_success(df: pd.DataFrame) -> dict:
+    """H5: no-noise QGAN-LLM has a HIGHER adversarial attack success rate than the primary (noisy) QGAN-LLM.
+
+    Same matched pair as H4 (the two configs differ ONLY in noise_strength, same seeds), different outcome: the evasion attacks
+    (FGSM / PGD / CW) instead of data poisoning. Needs no extra runs: `asr` is already scored for every run."""
+    col = "asr"
+    if col not in df.columns or "noise_strength" not in df.columns or "run_id" not in df.columns:
+        return {"error": "need 'asr', 'noise_strength' and 'run_id' columns"}
+    q = df[(df["model_type"] == QGAN) & df["noise_strength"].notna()]
+    cfg = q["run_id"].map(config_of_run_id)
+    nn_rows = q[(cfg == _NO_NOISE_SLUG) & (q["noise_strength"] == 0)]
+    noisy_rows = q[(cfg == _PRIMARY_SLUG[QGAN]) & (q["noise_strength"] > 0)]
+    fix = REPEAT_CMD.format(model="QGAN-LLM (no noise)", n=2)
+    if not (len(nn_rows) and len(noisy_rows)):
+        result = _insufficient({"no_noise": len(nn_rows), "noisy": len(noisy_rows)}, 1,
+                               "Run the matched 'QGAN-LLM (no noise)' condition in the same design (same seeds).")
+        result["design"] = "matched_pair_missing"
+        return result
+    a, b = nn_rows[col].dropna().to_numpy(), noisy_rows[col].dropna().to_numpy()
+    result = _compare_two(a, b, "no_noise", "noisy", fix)
+    result["design"] = "matched_config_noise_only"
+    result["metric"] = col
+    result["equivalence"] = _equivalence(a, b, "asr")
+    result["n_per_group_used"] = {"no_noise": int(len(a)), "noisy": int(len(b))}
+    result["configs_used"] = {"no_noise": _NO_NOISE_SLUG, "noisy": _PRIMARY_SLUG[QGAN]}
+    result["interpretation"] = "positive t (no_noise ASR > noisy ASR) supports H5: noise injection -> lower attack success"
+    if PAIRED_ENABLED:
+        result["paired_by_seed"] = paired_by_seed(nn_rows, noisy_rows, col)
+    return result
+
+
 def test_h5_tomography_correlation(df: pd.DataFrame) -> dict:
     """Prefers the LLM-based detector (llm_threat_accuracy, from src/llm/llm_pipeline.py via
     threat_scoring.py) when at least 4 configurations have it; otherwise falls back to the interim
@@ -689,13 +754,15 @@ def count_audit(out: dict) -> dict:
     h1 = out.get("H1_synthetic_data_fidelity", {}) or {}
     for g, slug in ((QGAN, "qgan_llm"), (CGAN, "classical_gan_llm")):
         check("H1", g, (h1.get("n_per_group_used") or {}).get(g), slug)
-    for key, slug in (("H4_quantum_advantage", "classical_gan_llm"), ("H4_matched_capacity", "classical_gan_llm_matched")):
+    for key, slug in (("H2_forecast_rmse", "classical_gan_llm"), ("H3_attack_success_qgan_vs_classical", "classical_gan_llm"),
+                      ("H2_matched_capacity", "classical_gan_llm_matched"), ("H3_matched_capacity", "classical_gan_llm_matched")):
         nr = (out.get(key, {}) or {}).get("n_runs") or {}
         check(key, QGAN, nr.get(QGAN), "qgan_llm")
         check(key, CGAN, nr.get(CGAN), slug)
-    h3 = (out.get("H3_poisoning_resistance", {}) or {}).get("n_per_group_used") or {}
-    check("H3", "no_noise", h3.get("no_noise"), "qgan_llm_no_noise")
-    check("H3", "noisy", h3.get("noisy"), "qgan_llm")
+    for hk, hname in (("H4_poisoning_resistance_noise", "H4"), ("H5_noise_attack_success", "H5")):
+        hh = (out.get(hk, {}) or {}).get("n_per_group_used") or {}
+        check(hname, "no_noise", hh.get("no_noise"), "qgan_llm_no_noise")
+        check(hname, "noisy", hh.get("noisy"), "qgan_llm")
     return {"consistent": not issues, "issues": issues}
 
 
@@ -747,10 +814,10 @@ def gate_checks(args, csv_path: str) -> tuple[dict | None, str]:
 
 
 def build_summary(out: dict) -> dict:
-    keys = ["H1_synthetic_data_fidelity", "H2_adversarial_resilience", "H3_poisoning_resistance",
-            "H4_quantum_advantage", "H4_matched_capacity", "H5_threat_detection_tomography_correlation",
-            "M2_DV2_mediation"]
-    return {k: _status_of(out.get(k, {})) for k in keys}
+    keys = ["H1_synthetic_data_fidelity", "H2_forecast_rmse", "H3_attack_success_qgan_vs_classical",
+            "H4_poisoning_resistance_noise", "H5_noise_attack_success", "H2_matched_capacity", "H3_matched_capacity",
+            "X1_entanglement_vs_asr", "X2_entanglement_vs_detection", "X3_entanglement_mediation"]
+    return {k: _status_of(out[k]) for k in keys if k in out}
 
 
 def main():
@@ -772,8 +839,14 @@ def main():
                     help="required for a second confirmatory run on the same data; stored in the output (disclosure)")
     ap.add_argument("--models-dir", default="models", help="where the checkpoints are (for the three-arm ledger)")
     ap.add_argument("--no-ledger", action="store_true", help="skip the three-arm ledger / chronology section")
+    ap.add_argument("--exploratory-entanglement", action="store_true",
+                    help="ALSO run the old entanglement-sweep analyses as exploratory X1-X3 (they were dropped from H1-H5 on "
+                         "12 Nov 2026 to save compute; they need the optional sweep conditions and never enter the Holm family)")
     ap.add_argument("--include-pilot", action="store_true",
                     help="also analyse pilot rows (forecast_path != generator); default: generator-on-path rows only")
+    ap.add_argument("--walk-forward-json", default=os.path.join("results", "walk_forward_q8.json"),
+                    help="walk-forward file of the three arms (scripts.run_walk_forward); the naive baseline file is looked up by "
+                         "experiment id, then in results/naive_baseline/legacy")
     ap.add_argument("--feature-map-json", nargs="*", default=["results/feature_map_advantage.json"],
                     help="three-arm feature-map result file(s) from run_feature_map_experiment (one per qubit count)")
     ap.add_argument("--experiment-id", default=None,
@@ -867,15 +940,20 @@ def main():
         "n_runs_per_config": (df["run_id"].map(config_of_run_id).value_counts().to_dict()
                               if "run_id" in df.columns else {}),
         "H1_synthetic_data_fidelity": _guard(test_h1_synthetic_data_fidelity, df),
-        "H2_adversarial_resilience": _guard(test_h2_adversarial_resilience, df),
-        "H3_poisoning_resistance": _guard(test_h3_poisoning_resistance, df),
-        "H4_quantum_advantage": _guard(test_h4_quantum_advantage, df),
-        "H4_matched_capacity": _guard(test_h4_matched_capacity, df),
-        "H5_threat_detection_tomography_correlation": _guard(test_h5_tomography_correlation, df),
-        "M2_DV2_mediation": _guard(test_m2_dv2_mediation, df),
+        "H2_forecast_rmse": _guard(test_h2_forecast_rmse, df),
+        "H3_attack_success_qgan_vs_classical": _guard(test_h3_attack_success, df),
+        "H4_poisoning_resistance_noise": _guard(test_h4_poisoning_resistance, df),
+        "H5_noise_attack_success": _guard(test_h5_noise_attack_success, df),
+        # bracket against the parameter-matched classical generator (reported beside H2 / H3, not a separate hypothesis)
+        "H2_matched_capacity": _guard(lambda d: test_h2_forecast_rmse(d, "classical_gan_llm_matched"), df),
+        "H3_matched_capacity": _guard(lambda d: test_h3_attack_success(d, "classical_gan_llm_matched"), df),
         "naive_baseline": _guard(test_naive_baseline, df),
         "Q1_three_arm_feature_map": _guard(lambda _df: test_q1_three_arm(args.feature_map_json), df),
     }
+    if args.exploratory_entanglement:       # optional add-on: needs the entanglement sweep conditions (not in the default plan)
+        out["X1_entanglement_vs_asr"] = _guard(test_h2_adversarial_resilience, df)
+        out["X2_entanglement_vs_detection"] = _guard(test_h5_tomography_correlation, df)
+        out["X3_entanglement_mediation"] = _guard(test_m2_dv2_mediation, df)
     out["sample_table"] = sample_table(df)
     out["study_status"] = study_status(out["sample_table"])      # interim vs the pre-registered 80 runs
     out["count_audit"] = count_audit(out)
@@ -886,7 +964,13 @@ def main():
     # paired seeds x walk-forward windows): checked against the files that exist, attached to EVERY verdict
     from src.baselines.feature_map_forecaster import DEFAULT_RIDGE_GRID as _RG
     from src.evaluation import protocol_compliance as pcmp
-    _wf = pcmp.load_json(os.path.join("results", "walk_forward_q8.json"))
+    _wf_path = args.walk_forward_json
+    if not os.path.isfile(_wf_path):          # fall back to the newest un-timestamped walk-forward file (e.g. another width)
+        import glob
+        _cand = [p for p in glob.glob(os.path.join("results", "walk_forward_q*.json")) if "__" not in os.path.basename(p)]
+        _wf_path = max(_cand, key=os.path.getmtime) if _cand else _wf_path
+    _wf = pcmp.load_json(_wf_path)
+    out["walk_forward_file"] = _wf_path if _wf else None
     _checks = pcmp.check_walk_forward(_wf, pcmp.find_naive(out.get("experiment_id")), ridge_grid=_RG)
     _checks += pcmp.check_poisoning_and_detector(df.to_dict("records"))
     out["methodology_compliance"] = pcmp.summarise(_checks)

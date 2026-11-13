@@ -11,13 +11,11 @@ Pure functions, no I/O: the same counts always give the same status.
 """
 from __future__ import annotations
 
-from src.evaluation.entanglement_design import sweep_name, LEVELS
 from src.utils.run_identity import model_slug
 
 PREREG_SEEDS = 10
-PREREG_SWEEP_LEVELS = (0, 2, 4, 6)       # the DEFAULT_LEVELS of scripts/run_full_study.py
-PREREG_NAMES = (["QGAN-LLM", "Classical GAN-LLM", "Classical GAN-LLM (matched)", "QGAN-LLM (no noise)"]
-                + [sweep_name(*lv) for lv in LEVELS if lv[0] in PREREG_SWEEP_LEVELS])
+# Amendment 3 (12 Nov 2026): the entanglement sweep (old H2, H5, M2) was dropped, so the design is 4 conditions x 10 seeds = 40.
+PREREG_NAMES = ["QGAN-LLM", "Classical GAN-LLM", "Classical GAN-LLM (matched)", "QGAN-LLM (no noise)"]
 
 
 def preregistered_slugs() -> dict:
@@ -40,20 +38,16 @@ def study_status(n_per_config: dict, seeds: int = PREREG_SEEDS) -> dict:
 
 
 # ---------------------------------------------------------------- run budget per hypothesis
-from src.evaluation.verdicts import MIN_N_CORRELATION, MIN_N_H5, MIN_N_MEDIATION, MIN_RUNS_PER_LEVEL  # noqa: E402
-
-TWO_GROUP_N = 10        # runs per condition for a two-group test to be CONFIRMATORY (config/analysis_plan.yaml: H1, H3, H4)
-_SWEEP = [model_slug(sweep_name(*lv)) for lv in LEVELS if lv[0] in PREREG_SWEEP_LEVELS]
+TWO_GROUP_N = 10        # runs per condition for a two-group test to be CONFIRMATORY (config/analysis_plan.yaml: H1-H5)
+_FWD = ["qgan_llm", "classical_gan_llm_matched", "classical_gan_llm"]
 
 # hypothesis -> (what is compared, kind, conditions, total runs needed (corr/mediation), per-condition floor)
 _BUDGET = {
     "H1": ("QGAN-LLM vs Classical GAN-LLM (FID)", "two_group", ["qgan_llm", "classical_gan_llm"], None, TWO_GROUP_N),
-    "H2": ("entanglement sweep, entropy vs ASR", "sweep", _SWEEP, MIN_N_CORRELATION, MIN_RUNS_PER_LEVEL),
-    "H3": ("no-noise vs noisy poisoning degradation", "two_group", ["qgan_llm_no_noise", "qgan_llm"], None, TWO_GROUP_N),
-    "H4": ("QGAN-LLM vs matched + large classical (RMSE/ASR)", "two_group",
-           ["qgan_llm", "classical_gan_llm_matched", "classical_gan_llm"], None, TWO_GROUP_N),
-    "H5": ("entanglement sweep, entropy vs threat accuracy", "sweep", _SWEEP, MIN_N_H5, MIN_RUNS_PER_LEVEL),
-    "M2": ("mediation through entropy over the sweep", "sweep", _SWEEP, MIN_N_MEDIATION, MIN_RUNS_PER_LEVEL),
+    "H2": ("QGAN-LLM vs matched + large classical (one-step RMSE)", "two_group", _FWD, None, TWO_GROUP_N),
+    "H3": ("QGAN-LLM vs matched + large classical (attack success rate)", "two_group", _FWD, None, TWO_GROUP_N),
+    "H4": ("no-noise vs noisy poisoning degradation", "two_group", ["qgan_llm_no_noise", "qgan_llm"], None, TWO_GROUP_N),
+    "H5": ("no-noise vs noisy adversarial attack success rate", "two_group", ["qgan_llm_no_noise", "qgan_llm"], None, TWO_GROUP_N),
 }
 
 
@@ -74,7 +68,7 @@ def hypothesis_budget(n_per_config: dict, seeds: int = PREREG_SEEDS) -> dict:
                    "remaining_to_be_conclusive": int(miss), "remaining_for_full_design": int(full),
                    "caveat": ("also needs the manipulation check (designed level raises measured entropy) to pass"
                               if kind == "sweep" else
-                              "also needs the poisoning manipulation to move the outcome (decidability gate)" if h == "H3" else "")}
+                              "also needs the poisoning manipulation to move the outcome (decidability gate)" if h == "H4" else "")}
     return rows
 
 

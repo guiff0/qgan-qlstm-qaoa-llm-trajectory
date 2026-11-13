@@ -272,3 +272,11 @@ would make that tractable is still the top Backlog item.
       clear note, instead of refusing to run at all; automatically
       extends to 2026 with no code change once that year actually
       closes.
+
+## Added 11/12 - Amendment 3 (see HYPOTHESES_V3.md)
+
+- [x] Sweep level L4 (ring-d4) removed: it was the primary QGAN-LLM; levels renumbered L0-L5.
+- [x] Old H2, H5, M2 dropped (entanglement sweep no longer in the default plan: 64 -> 40 runs); kept only as optional exploratory X1-X3.
+- [x] Five hypotheses: H1 FID, H2 RMSE, H3 ASR (old H4 split), H4 poisoning, H5 noise -> ASR (old H3 split).
+- [ ] Record the deviation (`scripts.freeze_preregistration --record-deviation ...`), then launch `scripts.run_full_study --new-experiment --base-seed 53`.
+- [ ] Update Chapter 3/4 labels: H2-H5 now mean different things than before.

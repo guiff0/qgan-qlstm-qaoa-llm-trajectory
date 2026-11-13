@@ -37,7 +37,7 @@ def check_walk_forward(wf: dict | None, naive: dict | None, args_for_audit: dict
         return [_chk(c, c, NA, "no walk-forward / naive-baseline file found", "python -m scripts.run_walk_forward ; python -m scripts.run_naive_baseline")
                 for c in ("M1_chronological_splits", "M2_three_arms_present", "M3_linear_heads", "M4_identical_metrics",
                           "M5_paired_seeds_windows", "M6_matched_budget", "M7_circuit_on_inference_path")]
-    rows = list((wf or {}).get("per_run", [])) + [r for r in (naive or {}).get("per_run", []) if r.get("arm") == "linear"]
+    rows = [r for r in (naive or {}).get("per_run", []) if r.get("arm") == "linear"] + list((wf or {}).get("per_run", []))
     # a row of the SAME (arm, window, seed) can appear in both files; the baseline file is the authority for arm 1
     seen, uniq = set(), []
     for r in rows:
@@ -86,6 +86,29 @@ def check_walk_forward(wf: dict | None, naive: dict | None, args_for_audit: dict
                     if not bad else f"missing metrics: {bad}",
                     "" if not bad else "re-run the arms with the current src/baselines/feature_map_forecaster.py (it now records ASR, fidelity, latency)"))
 
+    # M4b: every (window, seed) cell scored all three arms on the SAME rows by the SAME protocol
+    cells = {}
+    for r in rows:
+        if r.get("arm") in ARMS and r.get("window") is not None and r.get("seed") is not None:
+            cells.setdefault((int(r["window"]), int(r["seed"])), {})[r["arm"]] = r
+    full = {c: v for c, v in cells.items() if set(v) == set(ARMS)}
+    diff = []
+    for c, v in sorted(full.items()):
+        for k in ("n_test", "asr_n", "asr_eps", "metric_seed"):
+            vals = {x.get(k) for x in v.values()}
+            if len(vals) > 1:
+                diff.append(f"window {c[0]} seed {c[1]}: {k} differs across arms {sorted(map(str, vals))}")
+        if any(x.get("metric_seed") is not None and x.get("metric_seed") != c[1] for x in v.values()):
+            diff.append(f"window {c[0]} seed {c[1]}: metric_seed is not the cell's seed")
+    no_ms = sum(1 for v in full.values() for x in v.values() if x.get("metric_seed") is None)
+    st4b = FAIL if diff else (NA if (not full or no_ms) else PASS)
+    out.append(_chk("M4b_per_cell_identical_protocol", "Every iteration (window x seed): same test rows, same attack rows, same metric seed",
+                    st4b, (f"{len(full)} complete cells; " + ("; ".join(diff[:3]) + (f" (+{len(diff) - 3} more)" if len(diff) > 3 else "")
+                                                                if diff else "all arms share n_test, asr_n, asr_eps and metric_seed in every cell")
+                           if full else "no cell holds all three arms"),
+                    "" if st4b == PASS else "re-run python -m scripts.run_walk_forward and python -m scripts.run_naive_baseline with the current code "
+                                           "(rows must carry metric_seed; Arm 1 and Arms 2/3 must use the same attack rows)"))
+
     # M5
     seeds = {a: _seeds(rows, a) for a in ARMS}
     wins = {a: sorted({int(r["window"]) for r in rows if r.get("arm") == a and r.get("window") is not None}) for a in ARMS}
@@ -104,7 +127,8 @@ def check_walk_forward(wf: dict | None, naive: dict | None, args_for_audit: dict
         au = three_arm.audit([r for r in rows if r.get("arm") in ARMS], wf["args"], ridge_grid)
         failed = [c["check"] for c in au["checks"] if not c["passed"]]
         out.append(_chk("M6_matched_budget", "Equal training budget, matched capacity, same tuning protocol", PASS if au["all_passed"] else FAIL,
-                        f"{len(au['checks'])} balance checks, failed: {failed or 'none'}", "" if au["all_passed"] else "fix the failed balance checks before reading any arm difference"))
+                        f"{len(au['checks'])} balance checks, failed: {failed or 'none'}" + ("; " + " | ".join(au["notes"]) if au.get("notes") else ""),
+                        "" if au["all_passed"] else "fix the failed balance checks before reading any arm difference"))
     else:
         out.append(_chk("M6_matched_budget", "Equal training budget, matched capacity, same tuning protocol", NA, "no walk-forward args to audit"))
 
@@ -185,4 +209,11 @@ def load_json(path: str):
 
 
 def find_naive(experiment_id: str | None, root: str = "results") -> dict | None:
-    return load_json(os.path.join(root, "naive_baseline", experiment_id or "legacy", "naive_baseline.json"))
+    """The naive-baseline file of this experiment, else the shared 'legacy' one. Arm 1 is a deterministic ridge on the processed data:
+    it does not depend on any GAN run, so one file serves every experiment (it is NOT taken from another experiment's folder)."""
+    for folder in ([experiment_id] if experiment_id else []) + ["legacy"]:
+        d = load_json(os.path.join(root, "naive_baseline", folder, "naive_baseline.json"))
+        if d:
+            d.setdefault("found_in", folder)
+            return d
+    return None

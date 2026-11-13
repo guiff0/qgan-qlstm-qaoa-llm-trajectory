@@ -1,8 +1,8 @@
 # tests/research_questions/ — one file per Research Question
 
 Five files, `test_rq1_*.py` through `test_rq5_*.py`, each exercising the
-*real* statistical/ML machinery Ch.3's methodology names for that RQ's
-hypothesis (H1–H5) — on small synthetic data, in seconds, no GPU or real
+*real* statistical/ML machinery Ch.3's methodology names for a research question's
+hypothesis (H1–H5, as renumbered by Amendment 3 - see the table below) — on small synthetic data, in seconds, no GPU or real
 data required. Shared fixtures (a tiny synthetic dataset, tiny QGAN/attack
 configs) live in `conftest.py` so each RQ file only contains what's
 actually specific to that research question.
@@ -41,13 +41,15 @@ logs from `python -m src.experiments.run_all`, can speak to that.
 pytest tests/research_questions/ -v
 ```
 
-| File | RQ | Hypothesis | What it checks |
+| File | RQ | Hypothesis (Amendment 3, see HYPOTHESES_V3.md) | What it checks |
 |---|---|---|---|
-| `test_rq1_synthetic_fidelity.py` | RQ1 | H1 | FID/MMD/Wasserstein correctly rank distributional similarity; QGAN-vs-Classical fidelity comparison pipeline runs end-to-end |
-| `test_rq2_adversarial_resilience.py` | RQ2 | H2 | FGSM/PGD/CW attacks produce valid ASR in [0,100]; chi-square test on attack outcomes behaves correctly |
-| `test_rq3_noise_robustness.py` | RQ3 | H3 | Noise-injected vs. no-noise ANCOVA on ΔRMSE under poisoning isolates the noise effect correctly |
-| `test_rq4_quantum_advantage.py` | RQ4 | H4 | Head-to-head RMSE/ASR comparison runs under identical conditions; ANCOVA isolates the group effect from the VIX covariate; `results_collector` → `verify_chapter4.compare_value()` pipeline checked with known-match and known-mismatch cases |
-| `test_rq5_entanglement_correlation.py` | RQ5 | H5 | Entanglement entropy responds to real circuit structure (zero for no entangling gates, increasing with more); Pearson correlation with CI recovers a constructed relationship and stays null for independent variables |
+| `test_rq1_synthetic_fidelity.py` | RQ1 | H1 fidelity (FID) | FID/MMD/Wasserstein correctly rank distributional similarity; QGAN-vs-Classical fidelity comparison pipeline runs end-to-end |
+| `test_rq4_quantum_advantage.py` | RQ2 | H2 forecast RMSE (and the pipeline for H3) | Head-to-head RMSE comparison under identical conditions; ANCOVA isolates the group effect from VIX; `results_collector` -> `verify_chapter4.compare_value()` |
+| `test_rq2_adversarial_resilience.py` | RQ3 | H3 attack success, QGAN vs classical | FGSM/PGD/CW attacks produce valid ASR in [0,100]; chi-square test on attack outcomes |
+| `test_rq3_noise_robustness.py` | RQ4 / RQ5 | H4 noise -> poisoning, H5 noise -> ASR | Noise-injected vs no-noise comparison on poisoning degradation (H4) and on ASR (H5) isolates the noise effect |
+| `test_rq5_entanglement_correlation.py` | (dropped) | none: old H5, now exploratory X2 | Entanglement entropy responds to circuit structure; kept as a check of the optional sweep, not a research question |
+
+(The test file names still carry the old numbers; they were not renamed so that git history and imports stay intact.)
 
 Each file's own docstring states exactly what is and is not tested — read
 that before citing a passing test suite as evidence for anything beyond

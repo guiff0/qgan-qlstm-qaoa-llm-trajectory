@@ -21,8 +21,10 @@ The sweep names are chosen so the slug carries the design:
 
 LEVEL ORDER (low -> high entangling-gate count per forward pass)
     n_qubits = n:  linear = n-1 CNOTs/layer, ring = n, full = n(n-1)/2.
-    L0 none x4 (no entangling gates) | L1 linear x1 layer | L2 linear x2 | L3 linear x4 | L4 ring x4 | L5 full x2 | L6 full x4
-At n = 12 that is 0, 11, 22, 44, 48, 132, 264 CNOTs. The ORDER is a design assumption;
+    L0 none x4 (no entangling gates) | L1 linear x1 layer | L2 linear x2 | L3 linear x4 | L4 full x2 | L5 full x4
+At n = 12 that is 0, 11, 22, 44, 132, 264 CNOTs.
+(12 Nov 2026: the former L4 "ring x4" was removed. At n = 12 the primary QGAN-LLM IS ring, depth 4, noise 0.01, so that level
+was the primary condition run twice under two names. Levels were renumbered; old rows and checkpoints do not carry over.) The ORDER is a design assumption;
 the manipulation check reported by the hypothesis script (does the level really move the
 MEASURED entanglement entropy?) is what tells you whether it held.
 
@@ -37,13 +39,12 @@ from typing import Optional
 
 # (level, topology, n_layers)
 LEVELS: list[tuple[int, str, int]] = [
-    (0, "none", 4),      # zero-entanglement control: no CNOTs; same depth/params as L3 and L4
+    (0, "none", 4),      # zero-entanglement control: no CNOTs; same depth/params as L3 and L5
     (1, "linear", 1),
     (2, "linear", 2),
     (3, "linear", 4),
-    (4, "ring", 4),
-    (5, "full", 2),
-    (6, "full", 4),
+    (4, "full", 2),
+    (5, "full", 4),
 ]
 
 DEFAULT_N_QUBITS = 12          # same width as the existing "QGAN-LLM (12-qubit)" ablation; 20 is impractical x36 runs
