@@ -119,6 +119,11 @@ def _one_sided_p(d: dict) -> float:
     return p / 2.0 if d["statistic"] > 0 else 1.0 - p / 2.0
 
 
+def _ts() -> str:
+    from datetime import datetime
+    return datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+
+
 def run_windows(X, y, windows, seeds, *, n_qubits=8, n_layers=3, entanglement="ring", input_scale=1.0,
                 arms=ARMS, forecaster=None, dm_fn=None, log=print, attack_rows: int = 300, attack_eps: float = 0.1) -> tuple[list[dict], list[dict]]:
     """Fit every arm on every window with the same seeds. `forecaster` / `dm_fn` are injectable (tests use cheap stand-ins).
@@ -135,13 +140,14 @@ def run_windows(X, y, windows, seeds, *, n_qubits=8, n_layers=3, entanglement="r
         Xtr, ytr, Xva, yva, Xte, yte = slice_window(X, y, w)
         for seed in seeds:
             errs = {}
+            log(f"{_ts()} START window {w['window']} seed {seed}")
             for arm in arms:
                 m = forecaster(arm, n_qubits, n_layers, entanglement, input_scale, seed)
                 r = m.fit(Xtr, ytr, Xva, yva).evaluate(Xte, yte, attack_rows=attack_rows, attack_eps=attack_eps, metric_seed=seed)
                 errs[arm] = r.pop("errors")
                 r.update({"seed": seed, "window": w["window"]})
                 per_run.append(r)
-                log(f"window {w['window']} seed {seed} {arm:13s} skill={r['skill']:+.5f} rmse={r['rmse']:.6g} "
+                log(f"{_ts()} window {w['window']} seed {seed} {arm:13s} skill={r['skill']:+.5f} rmse={r['rmse']:.6g} "
                     f"persistence={r['persistence_rmse']:.6g}")
             for other in ("linear", "classical_rf"):
                 if other in errs and "quantum" in errs:

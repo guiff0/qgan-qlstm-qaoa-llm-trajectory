@@ -844,9 +844,10 @@ def main():
                          "12 Nov 2026 to save compute; they need the optional sweep conditions and never enter the Holm family)")
     ap.add_argument("--include-pilot", action="store_true",
                     help="also analyse pilot rows (forecast_path != generator); default: generator-on-path rows only")
-    ap.add_argument("--walk-forward-json", default=os.path.join("results", "walk_forward_q8.json"),
-                    help="walk-forward file of the three arms (scripts.run_walk_forward); the naive baseline file is looked up by "
-                         "experiment id, then in results/naive_baseline/legacy")
+    ap.add_argument("--walk-forward-json", nargs="*",
+                    default=[os.path.join("results", "walk_forward_q8.json"), os.path.join("results", "walk_forward_q12.json")],
+                    help="walk-forward file(s) of the three arms (scripts.run_walk_forward), one per qubit width. The matching naive "
+                         "baseline is looked up by experiment id then 'legacy' (8 qubits) or '<id>_q12' then 'legacy_q12' (12 qubits)")
     ap.add_argument("--feature-map-json", nargs="*", default=["results/feature_map_advantage.json", "results/feature_map_advantage_q12.json"],
                     help="three-arm feature-map result file(s) from run_feature_map_experiment (one per qubit count)")
     ap.add_argument("--experiment-id", default=None,
@@ -964,25 +965,33 @@ def main():
     # paired seeds x walk-forward windows): checked against the files that exist, attached to EVERY verdict
     from src.baselines.feature_map_forecaster import DEFAULT_RIDGE_GRID as _RG
     from src.evaluation import protocol_compliance as pcmp
-    _wf_path = args.walk_forward_json
-    if not os.path.isfile(_wf_path):          # fall back to the newest un-timestamped walk-forward file (e.g. another width)
+    _paths = [p for p in args.walk_forward_json if os.path.isfile(p)]
+    if not _paths:                            # fall back to the newest un-timestamped walk-forward file (e.g. another width)
         import glob
         _cand = [p for p in glob.glob(os.path.join("results", "walk_forward_q*.json")) if "__" not in os.path.basename(p)]
-        _wf_path = max(_cand, key=os.path.getmtime) if _cand else _wf_path
-    _wf = pcmp.load_json(_wf_path)
-    out["walk_forward_file"] = _wf_path if _wf else None
+        _paths = [max(_cand, key=os.path.getmtime)] if _cand else []
     # The three-arm study (run_walk_forward, run_naive_baseline, run_feature_map_experiment) has no generator, LLM or QAOA on its path, so
-    # its compliance (M1-M7) is summarised and attached to ITS OWN result (Q1) only. The generator-side checks (M8 poisoning positive
-    # control -> H4, M9 detector -> exploratory X2) are summarised separately and attached to the hypothesis they test.
-    _three = pcmp.check_walk_forward(_wf, pcmp.find_naive(out.get("experiment_id")), ridge_grid=_RG)
-    out["methodology_compliance"] = pcmp.summarise(_three)                      # three-arm only
+    # its compliance (M1-M7) is summarised PER QUBIT WIDTH and attached to ITS OWN Q1 result only. The generator-side checks (M8 poisoning
+    # positive control -> H4, M9 detector -> exploratory X2) are summarised separately and attached to the hypothesis they test.
+    _by_width, _files = {}, {}
+    for _p in _paths:
+        _wf = pcmp.load_json(_p)
+        _w = int(((_wf or {}).get("args") or {}).get("n_qubits") or 8)
+        _by_width[_w] = pcmp.summarise(pcmp.check_walk_forward(_wf, pcmp.find_naive(out.get("experiment_id"), n_qubits=_w), ridge_grid=_RG))
+        _files[_w] = _p
+    if not _by_width:
+        _by_width[8] = pcmp.summarise(pcmp.check_walk_forward(None, pcmp.find_naive(out.get("experiment_id")), ridge_grid=_RG))
+    out["walk_forward_files"] = _files or None
+    out["walk_forward_file"] = _files.get(8) or (next(iter(_files.values())) if _files else None)
+    out["methodology_compliance_by_width"] = {f"{w}_qubits": v for w, v in _by_width.items()}
+    out["methodology_compliance"] = _by_width.get(8) or next(iter(_by_width.values()))     # headline: 8 qubits (the launcher default)
     _gen = pcmp.check_poisoning_and_detector(df.to_dict("records"))
     out["generator_study_checks"] = pcmp.summarise(_gen) if _gen else None
     for _c in _gen:
         _target = {"M8": "H4_poisoning_resistance_noise", "M9": "X2_entanglement_vs_detection"}.get(_c["id"][:2])
         if _target in out["verdicts"]:
             pcmp.annotate_verdicts(out["verdicts"], pcmp.summarise([_c]), only=(_target,))
-    pcmp.annotate_three_arm(out.get("Q1_three_arm_feature_map"), out["methodology_compliance"])
+    pcmp.annotate_three_arm(out.get("Q1_three_arm_feature_map"), out["methodology_compliance"], _by_width)
 
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
     from src.utils.run_identity import pipeline_run_id, save_json_timestamped, utc_stamp
@@ -1022,10 +1031,10 @@ def main():
           f"{out['n_rows_excluded_other_design']} row(s) of other designs excluded)")
     print("  n per condition:", out["sample_table"])
     print("  count audit:", "consistent" if out["count_audit"]["consistent"] else "MISMATCH -> " + "; ".join(out["count_audit"]["issues"]))
-    mc = out["methodology_compliance"]
-    print(f"\nTHREE-ARM METHODOLOGY (M1-M7; independent of the generator comparison): {mc['label']}")
-    for c in mc["checks"]:
-        print(f"  [{c['status']:<14}] {c['id']:<32} {c['detail']}" + (f"\n{'':19}fix: {c['fix']}" if c["fix"] else ""))
+    for _wname, mc in out["methodology_compliance_by_width"].items():
+        print(f"\nTHREE-ARM METHODOLOGY, {_wname} (M1-M7; independent of the generator comparison): {mc['label']}")
+        for c in mc["checks"]:
+            print(f"  [{c['status']:<14}] {c['id']:<32} {c['detail']}" + (f"\n{'':19}fix: {c['fix']}" if c["fix"] else ""))
     if out.get("generator_study_checks"):
         print(f"\nGENERATOR-STUDY CHECKS (M8 / M9): {out['generator_study_checks']['label']}")
         for c in out["generator_study_checks"]["checks"]:

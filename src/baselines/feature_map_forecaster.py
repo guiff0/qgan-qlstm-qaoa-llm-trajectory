@@ -76,6 +76,21 @@ class FeatureMapForecaster:
         for s in range(0, len(X), self.chunk):
             yield s, self._design(X[s:s + self.chunk])
 
+    # 13 Nov 2026: fit() needs the TRAIN design twice (column statistics, then the normal equations). The circuit is the expensive part
+    # (about 15 ms per row at 12 qubits), so the first pass keeps the chunks and the second pass reuses them. The arrays are the same
+    # objects, so every number is bit-identical to recomputing them; only the number of circuit evaluations changes (train rows: 2 -> 1).
+    # Skipped when the train design would exceed CACHE_MAX_BYTES (then it is recomputed, exactly as before).
+    CACHE_MAX_BYTES = 3 * 1024 ** 3
+    cache_design = True
+
+    def _train_design_chunks(self, Xt: np.ndarray):
+        est = len(Xt) * (Xt.shape[1] + (self.fmap.n_outputs if self.fmap is not None and hasattr(self.fmap, "n_outputs") else 0)) * 8
+        if not self.cache_design or est > self.CACHE_MAX_BYTES:
+            self.design_cached_ = False
+            return None
+        self.design_cached_ = True
+        return [(s, D) for s, D in self._design_chunked(Xt)]
+
     # -- fitting ---------------------------------------------------------------
     @staticmethod
     def _residual_pairs(X, y):
@@ -98,7 +113,8 @@ class FeatureMapForecaster:
         d = None
         n = 0
         s1 = s2 = None
-        for _, D in self._design_chunked(Xt):
+        _chunks = self._train_design_chunks(Xt)          # None = recompute on the second pass (memory guard)
+        for _, D in (_chunks if _chunks is not None else self._design_chunked(Xt)):
             if d is None:
                 d = D.shape[1]
                 s1, s2 = np.zeros(d), np.zeros(d)
@@ -111,7 +127,7 @@ class FeatureMapForecaster:
 
         A = np.zeros((d, d))
         b = np.zeros(d)
-        for s, D in self._design_chunked(Xt):
+        for s, D in (_chunks if _chunks is not None else self._design_chunked(Xt)):
             Dz = (D - self.col_mu_) / self.col_sd_
             A += Dz.T @ Dz
             b += Dz.T @ (r_t[s:s + len(D)] - self.r_mu_)
@@ -146,6 +162,7 @@ class FeatureMapForecaster:
                 self.ridge_status_ = "saturated_null"   # more shrinkage cannot change anything: the head is already ~ intercept-only
         self.val_mse_, self.ridge_, self.w_ = best
         self.val_mse_null_ = null_mse
+        del _chunks
         self.n_features_ = d
         self._fitted = True
         return self

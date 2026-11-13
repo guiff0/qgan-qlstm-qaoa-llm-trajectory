@@ -231,7 +231,10 @@ def main(argv=None) -> int:
                                                       "(attack/latency subsample aside); windows carry the variance"})
 
     t0 = time.time()
+    from datetime import datetime as _dt
+    _ts = lambda: _dt.now().strftime("[%Y-%m-%d %H:%M:%S]")  # noqa: E731
     for k, (w, seed) in enumerate(todo, 1):
+        print(f"{_ts()} START cell {k}/{len(todo)} window {w['window']} seed {seed}", flush=True)
         Xtr, ytr, Xva, yva, Xte, yte = wf.slice_window(X, y, w)
         m = FeatureMapForecaster("linear", a.n_qubits, a.n_layers, "ring", 1.0, seed)
         r = m.fit(Xtr, ytr, Xva, yva).evaluate(Xte, yte, attack_rows=a.attack_rows, attack_eps=a.attack_eps, metric_seed=seed)
@@ -239,7 +242,7 @@ def main(argv=None) -> int:
         r.update({"seed": seed, "window": int(w["window"])})
         rows.append(r)
         save()
-        print(f"[naive-baseline] cell {k}/{len(todo)} window {w['window']} seed {seed}: skill={r['skill']:+.5f} rmse={r['rmse']:.6g} "
+        print(f"{_ts()} [naive-baseline] cell {k}/{len(todo)} window {w['window']} seed {seed}: skill={r['skill']:+.5f} rmse={r['rmse']:.6g} "
               f"asr={r['asr']:.1f}% fidelity={r['fidelity']:.3f} latency={r['latency_ms']:.4f}ms  [{time.time() - t0:.0f}s]", flush=True)
     save()
     while True:

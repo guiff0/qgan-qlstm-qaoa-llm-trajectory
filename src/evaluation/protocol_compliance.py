@@ -86,6 +86,16 @@ def check_walk_forward(wf: dict | None, naive: dict | None, args_for_audit: dict
                     if not bad else f"missing metrics: {bad}",
                     "" if not bad else "re-run the arms with the current src/baselines/feature_map_forecaster.py (it now records ASR, fidelity, latency)"))
 
+    # M4c: Arm 1 (naive baseline file) and Arms 2/3 (walk-forward file) were fitted at the SAME width, depth and ridge grid
+    wa, na = (wf or {}).get("args") or {}, (naive or {}).get("args") or {}
+    if wf and naive and wa and na:
+        bad = [f"{k}: walk-forward {wa.get(k)} vs baseline {na.get(k)}" for k in ("n_qubits", "n_layers") if wa.get(k) != na.get(k)]
+        if (wf.get("ridge_grid") or None) != (naive.get("ridge_grid") or None):
+            bad.append("ridge grids differ")
+        out.append(_chk("M4c_same_width_depth_grid", "Arm 1 and Arms 2/3 fitted at the same width, depth and ridge grid",
+                        FAIL if bad else PASS, "; ".join(bad) if bad else f"{wa.get('n_qubits')} qubits, {wa.get('n_layers')} layers, same grid",
+                        "re-run run_naive_baseline with --like pointing at THIS walk-forward file" if bad else ""))
+
     # M4b: every (window, seed) cell scored all three arms on the SAME rows by the SAME protocol
     cells = {}
     for r in rows:
@@ -205,10 +215,15 @@ def annotate_verdicts(verdicts: dict, summary: dict, only=None) -> dict:
     return verdicts
 
 
-def annotate_three_arm(q1: dict | None, summary: dict) -> dict | None:
-    """Attach the three-arm methodology status (M1-M7) to the Q1 result(s) it describes, and nowhere else."""
-    for r in (q1 or {}).values():
+def annotate_three_arm(q1: dict | None, summary: dict, by_width: dict | None = None) -> dict | None:
+    """Attach the three-arm methodology status (M1-M7) to the Q1 result(s) it describes, and nowhere else.
+    `by_width` = {n_qubits: summary}: a Q1 result named "<n>_qubits (...)" gets the summary of ITS width when there is one."""
+    import re
+    for k, r in (q1 or {}).items():
         if isinstance(r, dict) and "verdict" in r:
+            m = re.match(r"(\d+)_qubits", str(k))
+            if by_width and m and int(m.group(1)) in by_width:
+                summary = by_width[int(m.group(1))]
             r["methodology"] = {"conforms": summary["conforms"], "failed": summary["failed"], "not_assessable": summary["not_assessable"]}
             if not summary["conforms"]:
                 r.setdefault("notes", []).append(caveat(summary))
@@ -224,10 +239,12 @@ def load_json(path: str):
         return None
 
 
-def find_naive(experiment_id: str | None, root: str = "results") -> dict | None:
+def find_naive(experiment_id: str | None, root: str = "results", n_qubits: int | None = None) -> dict | None:
     """The naive-baseline file of this experiment, else the shared 'legacy' one. Arm 1 is a deterministic ridge on the processed data:
     it does not depend on any GAN run, so one file serves every experiment (it is NOT taken from another experiment's folder)."""
-    for folder in ([experiment_id] if experiment_id else []) + ["legacy"]:
+    # width other than the default 8: its own folders (<id>_q12, legacy_q12), so a 12-qubit walk-forward is never paired with an 8-qubit Arm 1
+    sfx = f"_q{int(n_qubits)}" if n_qubits and int(n_qubits) != 8 else ""
+    for folder in ([experiment_id + sfx] if experiment_id else []) + ["legacy" + sfx]:
         d = load_json(os.path.join(root, "naive_baseline", folder, "naive_baseline.json"))
         if d:
             d.setdefault("found_in", folder)

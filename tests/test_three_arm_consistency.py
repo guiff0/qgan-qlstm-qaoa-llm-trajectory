@@ -206,3 +206,63 @@ def test_the_three_scripts_import_no_generator_llm_qaoa_or_torch_even_when_they_
     new = {m for m in set(sys.modules) - before}
     bad = sorted(m for m in new if any(m == f or m.startswith(f + ".") for f in FORBIDDEN))
     assert not bad, f"the three-arm path pulled in generator/LLM/QAOA code: {bad}"
+
+
+# ---- two widths: a 12-qubit walk-forward is paired only with its own 12-qubit Arm 1 (width 4 stands in for 12 here: same code path) ----
+def test_non_default_width_uses_its_own_naive_folder_and_a_mismatch_is_caught(tiny_data):
+    import scripts.run_naive_baseline as nb
+    import scripts.run_walk_forward as rwf
+    a = ["--windows", "2", "--test-len", "400", "--min-train", "800", "--seeds", "0", "1", "--n-layers", "2"]
+    assert rwf.main(a + ["--n-qubits", "4", "--out", "results/walk_forward_q4.json"]) == 0
+    assert rwf.main(a + ["--n-qubits", "6", "--out", "results/walk_forward_q6.json"]) == 0
+    assert nb.main(["--like", "results/walk_forward_q4.json", "--n-qubits", "4", "--n-layers", "2", "--experiment-id", "legacy_q4"]) == 0
+    assert nb.main(["--like", "results/walk_forward_q6.json", "--n-qubits", "6", "--n-layers", "2", "--experiment-id", "legacy_q6"]) == 0
+    w4, w6 = json.load(open("results/walk_forward_q4.json")), json.load(open("results/walk_forward_q6.json"))
+    n4, n6 = pc.find_naive("EXP-x", "results", n_qubits=4), pc.find_naive("EXP-x", "results", n_qubits=6)
+    assert n4["found_in"] == "legacy_q4" and n6["found_in"] == "legacy_q6" and n4["args"]["n_qubits"] == 4 and n6["args"]["n_qubits"] == 6
+    assert _status(pc.check_walk_forward(w4, n4), "M4c_same_width_depth_grid") == pc.PASS
+    assert _status(pc.check_walk_forward(w6, n6), "M4c_same_width_depth_grid") == pc.PASS
+    assert _status(pc.check_walk_forward(w6, n4), "M4c_same_width_depth_grid") == pc.FAIL      # 6-qubit arms vs a 4-qubit Arm 1
+    assert pc.find_naive("EXP-x", "results") is None                                          # width 8 does not fall back to another width
+
+
+def test_q1_result_gets_the_methodology_of_its_own_width():
+    ok = pc.summarise([pc._chk("M1", "x", pc.PASS, "d")])
+    bad = pc.summarise([pc._chk("M2", "x", pc.FAIL, "d")])
+    q1 = pc.annotate_three_arm({"8_qubits (a.json)": {"verdict": "X", "notes": []}, "12_qubits (b.json)": {"verdict": "Y", "notes": []}},
+                               ok, {8: ok, 12: bad})
+    assert q1["8_qubits (a.json)"]["methodology"]["conforms"] and q1["12_qubits (b.json)"]["methodology"]["failed"] == ["M2"]
+
+
+# ---- circuit-evaluation cache: train rows go through the circuit once in fit(), and nothing numerical changes ---------------------------
+def _fit_counting(arm, cache, seed=0):
+    from src.baselines.feature_map_forecaster import FeatureMapForecaster
+    rng = np.random.default_rng(3)
+    n = 2400
+    X = rng.normal(size=(n, 6))
+    y = 1.1 + np.cumsum(1e-4 * X[:, 0] + rng.normal(0, 1e-5, n))
+    m = FeatureMapForecaster(arm, 4, 2, "ring", 1.0, seed, chunk=500)
+    m.cache_design = cache
+    calls = {"rows": 0}
+    orig = m.fmap.transform
+    m.fmap.transform = lambda A: (calls.__setitem__("rows", calls["rows"] + len(A)), orig(A))[1]
+    m.fit(X[:1400], y[:1400], X[1400:1900], y[1400:1900])
+    return m, calls["rows"]
+
+
+@pytest.mark.parametrize("arm", ["quantum", "classical_rf"])
+def test_design_cache_is_bit_identical_and_halves_the_train_circuit_passes(arm):
+    on, rows_on = _fit_counting(arm, True)
+    off, rows_off = _fit_counting(arm, False)
+    assert on.design_cached_ and not off.design_cached_
+    assert np.array_equal(on.w_, off.w_) and on.ridge_ == off.ridge_ and on.val_mse_ == off.val_mse_
+    n_train, n_val = 1399, 499                  # one row is lost to the one-step shift in each split
+    assert rows_off == 2 * n_train + n_val      # old behaviour: train twice
+    assert rows_on == n_train + n_val           # now: train once
+
+
+def test_design_cache_is_skipped_when_it_would_not_fit_in_memory():
+    from src.baselines.feature_map_forecaster import FeatureMapForecaster
+    m = FeatureMapForecaster("quantum", 4, 2, "ring", 1.0, 0)
+    m.CACHE_MAX_BYTES = 10
+    assert m._train_design_chunks(np.zeros((100, 6))) is None and m.design_cached_ is False

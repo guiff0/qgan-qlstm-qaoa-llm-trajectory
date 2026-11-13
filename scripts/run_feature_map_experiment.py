@@ -43,6 +43,11 @@ def is_current(path: str, a, ridge_grid: list) -> bool:
     return {(arm, s) for arm in ARMS for s in a.seeds} <= have
 
 
+def _ts() -> str:
+    from datetime import datetime
+    return datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
+
+
 def main_argv(argv) -> int:
     return main(argv)
 
@@ -93,13 +98,14 @@ def main(argv=None) -> int:
     rows, dm = [], []
     for seed in a.seeds:
         errs = {}
+        print(f"{_ts()} START seed {seed}", flush=True)
         for arm in ARMS:
             m = FeatureMapForecaster(arm, a.n_qubits, a.n_layers, a.entanglement, a.input_scale, seed)
             r = m.fit(Xtr, ytr, Xva, yva).evaluate(Xte, yte, metric_seed=seed)
             errs[arm] = r.pop("errors")
             r["seed"] = seed
             rows.append(r)
-            print(f"seed {seed} {arm:13s} skill={r['skill']:+.5f} rmse={r['rmse']:.6g} "
+            print(f"{_ts()} seed {seed} {arm:13s} skill={r['skill']:+.5f} rmse={r['rmse']:.6g} "
                   f"persistence={r['persistence_rmse']:.6g}", flush=True)
         for other in ("linear", "classical_rf"):
             d = diebold_mariano(errs[other], errs["quantum"])
