@@ -38,7 +38,7 @@ The sweep is optional now: `--levels 0,2,4` or `--levels all` on the launcher, a
 
 ## Three-arm steps in the launcher (13 Nov 2026)
 `scripts\run_full_study.ps1` now runs `python -m scripts.run_walk_forward` and `python -m scripts.run_naive_baseline --experiment-id legacy`
-before the study (skip both with `--skip-three-arm`, refit both with `--redo-three-arm`). They feed the methodology-compliance table (M1-M7,
+before the study (they always run; `--three-arm-min` cuts them to 2 windows x 3 seeds and a smaller Q1 row cap; `--redo-three-arm` refits all). They feed the methodology-compliance table (M1-M7,
 new M4b) and the three-arm ledger that `scripts.run_hypothesis_tests` prints. They do NOT feed the five verdicts H1-H5, and they do not feed
 the Q1 three-arm verdict either: that one reads `results/feature_map_advantage.json` (`scripts.run_feature_map_experiment`).
 Fixes: Arm 1 and Arms 2/3 now attack the same rows in every (window, seed) cell; a naive-baseline or walk-forward file fitted with another

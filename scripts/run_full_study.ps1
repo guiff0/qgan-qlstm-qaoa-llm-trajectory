@@ -6,8 +6,10 @@
 .EXAMPLE   .\scripts\run_full_study.ps1 --full --workers 4   # same 40 runs (the sweep was dropped)
 .EXAMPLE   .\scripts\run_full_study.ps1 --n-runs 10 --levels all   # optional exploratory sweep
 .EXAMPLE   .\scripts\run_full_study.ps1 --status
-.EXAMPLE   .\scripts\run_full_study.ps1 --skip-three-arm --workers 4   # study only: do not (re)run the two three-arm steps below
+.EXAMPLE   .\scripts\run_full_study.ps1 --three-arm-min --n-runs 3 --workers 4   # MINIMUM cost: 2 walk-forward windows x 3 seeds, Q1 on fewer rows
+           (the three-arm steps always run; there is no way to skip them)
 .EXAMPLE   .\scripts\run_full_study.ps1 --with-12q --workers 4          # Q1 at 12 qubits too, as PREREGISTRATION.md names (about 20x the cost of 8)
+.EXAMPLE   .\scripts\run_full_study.ps1 --refreeze --new-experiment --base-seed 53 --workers 4   # new frozen record when files changed since the old one
 .EXAMPLE   .\scripts\run_full_study.ps1 --skip-freeze --workers 4        # do not freeze / check the pre-registration first
 .EXAMPLE   .\scripts\run_full_study.ps1 --redo-three-arm --workers 4   # refit the walk-forward file and the naive baseline from scratch
 
@@ -39,12 +41,34 @@ function Invoke-Stamped {
 }
 
 # --- three-arm steps (own switches are removed before the rest is passed to run_full_study) -------------------------------------
-$skipThree = $args -contains '--skip-three-arm'
+if ($args -contains '--skip-three-arm') {
+    Write-Error 'The three-arm steps cannot be skipped. For the cheapest valid version use --three-arm-min (2 windows x 3 seeds, Q1 on 100000 train / 50000 evaluation rows).'
+    exit 2
+}
+$threeMin = $args -contains '--three-arm-min'
+$refreeze = $args -contains '--refreeze'
+# minimum-cost presets (a deviation to record): the walk-forward needs >= 2 windows with the same seeds in every arm (check M5); the Q1
+# feature map keeps its 10 seeds (fewer gives UNDERPOWERED) and only its row caps are lowered
+$wfExtra = if ($threeMin) { @('--windows', '2', '--seeds', '0', '1', '2') } else { @() }
+$fmExtra = if ($threeMin) { @('--max-train-rows', '100000', '--max-eval-rows', '50000') } else { @() }
 $redoThree = $args -contains '--redo-three-arm'
 $with12 = $args -contains '--with-12q'
 $skipFreeze = $args -contains '--skip-freeze'
-$studyArgs = @($args | Where-Object { $_ -ne '--skip-three-arm' -and $_ -ne '--redo-three-arm' -and $_ -ne '--with-12q' -and $_ -ne '--skip-freeze' })
+$studyArgs = @($args | Where-Object { $_ -ne '--skip-three-arm' -and $_ -ne '--redo-three-arm' -and $_ -ne '--with-12q' -and $_ -ne '--skip-freeze' -and $_ -ne '--three-arm-min' -and $_ -ne '--refreeze' })
 $noRun = @('--status', '--dry-run', '--help', '-h', '--quick') | Where-Object { $studyArgs -contains $_ }
+
+# --- argument preflight (seconds): the study's own parser checks every flag BEFORE the freeze and before hours of three-arm work.
+# (13 Nov 2026: an unknown flag used to be found only after the three-arm steps had finished, ~3 h later.) Side-effect free:
+# --dry-run creates no experiment, --no-prepare skips calibration and the freeze.
+if (-not $noRun) {
+    $pre = Invoke-Stamped scripts.run_full_study @studyArgs --dry-run --no-prepare
+    if ($LASTEXITCODE -ne 0) {
+        $pre | ForEach-Object { Write-Host $_ }
+        Write-Error "The study arguments are not valid (exit $LASTEXITCODE); nothing was run."
+        exit $LASTEXITCODE
+    }
+    Write-Stamp '[preflight] study arguments are valid'
+}
 
 # --- pre-registration freeze: BEFORE any run, so margins and decision rules cannot drift (skipped with --skip-freeze) ------------
 if (-not $skipFreeze -and -not $noRun) {
@@ -57,10 +81,16 @@ if (-not $skipFreeze -and -not $noRun) {
         # a record exists: never overwrite it; list what changed since (record intended changes with --record-deviation)
         Write-Stamp '[freeze] frozen record exists; checking for changes since the freeze (python -m scripts.freeze_preregistration --check)'
         Invoke-Stamped scripts.freeze_preregistration --check
+        if ($LASTEXITCODE -ne 0 -and $refreeze) {
+            # --refreeze: take a NEW record (the old one is kept, never overwritten) so the current files become the frozen baseline
+            Write-Stamp '[freeze] --refreeze: taking a new frozen record (python -m scripts.freeze_preregistration)'
+            Invoke-Stamped scripts.freeze_preregistration
+            if ($LASTEXITCODE -ne 0) { Write-Error "freeze_preregistration failed (exit $LASTEXITCODE); nothing was run."; exit $LASTEXITCODE }
+        }
         if ($LASTEXITCODE -ne 0) { Write-Stamp 'WARNING: changes since the freeze are listed above. They are reported as deviations; add --record-deviation "<reason>" for an intended one.' 'Yellow' }
     }
 }
-if (-not $skipThree -and -not $noRun) {
+if (-not $noRun) {
     if ($redoThree) {
         Remove-Item -ErrorAction SilentlyContinue (Join-Path $root 'results\walk_forward_q8.json')
         Remove-Item -ErrorAction SilentlyContinue -Recurse (Join-Path $root 'results\naive_baseline\legacy')
@@ -74,18 +104,18 @@ if (-not $skipThree -and -not $noRun) {
     }
     # preflight (seconds): a plan that cannot run fails here, not after hours of simulation
     Write-Stamp '[three-arm] preflight: windows and data of all three steps'
-    Invoke-Stamped scripts.run_walk_forward --dry-run
+    Invoke-Stamped scripts.run_walk_forward @wfExtra --dry-run
     if ($LASTEXITCODE -ne 0) { Write-Error "preflight: the walk-forward plan is not valid (exit $LASTEXITCODE); nothing was run."; exit $LASTEXITCODE }
-    Invoke-Stamped scripts.run_feature_map_experiment --seeds 0 1 2 3 4 5 6 7 8 9 --n-qubits 8 --dry-run
+    Invoke-Stamped scripts.run_feature_map_experiment --seeds 0 1 2 3 4 5 6 7 8 9 --n-qubits 8 @fmExtra --dry-run
     if ($LASTEXITCODE -ne 0) { Write-Error "preflight: the feature-map plan is not valid (exit $LASTEXITCODE); nothing was run."; exit $LASTEXITCODE }
     if ($with12) {
-        Invoke-Stamped scripts.run_walk_forward --n-qubits 12 --dry-run
+        Invoke-Stamped scripts.run_walk_forward --n-qubits 12 @wfExtra --dry-run
         if ($LASTEXITCODE -ne 0) { Write-Error "preflight: the 12-qubit walk-forward plan is not valid (exit $LASTEXITCODE); nothing was run."; exit $LASTEXITCODE }
-        Invoke-Stamped scripts.run_feature_map_experiment --seeds 0 1 2 3 4 5 6 7 8 9 --n-qubits 12 --dry-run
+        Invoke-Stamped scripts.run_feature_map_experiment --seeds 0 1 2 3 4 5 6 7 8 9 --n-qubits 12 @fmExtra --dry-run
         if ($LASTEXITCODE -ne 0) { Write-Error "preflight: the 12-qubit feature-map plan is not valid (exit $LASTEXITCODE); nothing was run."; exit $LASTEXITCODE }
     }
     Write-Stamp '[three-arm] 1/3  python -m scripts.run_walk_forward'
-    Invoke-Stamped scripts.run_walk_forward --skip-if-current
+    Invoke-Stamped scripts.run_walk_forward @wfExtra --skip-if-current
     if ($LASTEXITCODE -ne 0) { Write-Error "run_walk_forward failed (exit $LASTEXITCODE); the study was not started."; exit $LASTEXITCODE }
     Write-Stamp '[three-arm] 2/3  python -m scripts.run_naive_baseline'
     # --experiment-id legacy: Arm 1 is a deterministic ridge on the processed data, so ONE file serves every experiment; the
@@ -93,14 +123,14 @@ if (-not $skipThree -and -not $noRun) {
     Invoke-Stamped scripts.run_naive_baseline --experiment-id legacy
     if ($LASTEXITCODE -ne 0) { Write-Error "run_naive_baseline failed (exit $LASTEXITCODE); the study was not started."; exit $LASTEXITCODE }
     Write-Stamp '[three-arm] 3/3  python -m scripts.run_feature_map_experiment   (Q1: 10 paired seeds, 8 qubits)'
-    Invoke-Stamped scripts.run_feature_map_experiment --seeds 0 1 2 3 4 5 6 7 8 9 --n-qubits 8 --skip-if-current
+    Invoke-Stamped scripts.run_feature_map_experiment --seeds 0 1 2 3 4 5 6 7 8 9 --n-qubits 8 @fmExtra --skip-if-current
     if ($LASTEXITCODE -ne 0) { Write-Error "run_feature_map_experiment failed (exit $LASTEXITCODE); the study was not started."; exit $LASTEXITCODE }
     if ($with12) {
         Write-Stamp '[three-arm] 3b   python -m scripts.run_feature_map_experiment --n-qubits 12   (Q1, 12 qubits)'
-        Invoke-Stamped scripts.run_feature_map_experiment --seeds 0 1 2 3 4 5 6 7 8 9 --n-qubits 12 --out results/feature_map_advantage_q12.json --skip-if-current
+        Invoke-Stamped scripts.run_feature_map_experiment --seeds 0 1 2 3 4 5 6 7 8 9 --n-qubits 12 --out results/feature_map_advantage_q12.json @fmExtra --skip-if-current
         if ($LASTEXITCODE -ne 0) { Write-Error "run_feature_map_experiment (12 qubits) failed (exit $LASTEXITCODE); the study was not started."; exit $LASTEXITCODE }
         Write-Stamp '[three-arm] 1b   python -m scripts.run_walk_forward --n-qubits 12   (about 12 h: 25 quantum fits)'
-        Invoke-Stamped scripts.run_walk_forward --n-qubits 12 --skip-if-current
+        Invoke-Stamped scripts.run_walk_forward --n-qubits 12 @wfExtra --skip-if-current
         if ($LASTEXITCODE -ne 0) { Write-Error "run_walk_forward (12 qubits) failed (exit $LASTEXITCODE); the study was not started."; exit $LASTEXITCODE }
         Write-Stamp '[three-arm] 2b   python -m scripts.run_naive_baseline --n-qubits 12   (own folder legacy_q12)'
         Invoke-Stamped scripts.run_naive_baseline --like results/walk_forward_q12.json --n-qubits 12 --experiment-id legacy_q12
