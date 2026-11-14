@@ -412,6 +412,34 @@ def default_plan_experiment(models, seeds) -> tuple[str | None, bool]:
     return None, bool(active)
 
 
+def mark_stage(stage: str, status: str, rc=None, note: str = "", commands=None, seconds: float = 0.0,
+               path: str | None = None) -> None:
+    """Record a stage outcome in results/study_driver_state.json (same record shape as scripts.run_study writes), so the
+    dashboard's `stages:` line is true when the study is launched through run_full_study(.ps1) and not scripts.run_study.
+    Before this, `main` stayed `pending` for the whole study and `hypothesis` showed whatever an older study had left.
+    Never raises: a bookkeeping problem must not stop a study."""
+    from datetime import datetime, timezone
+    path = path or os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "results", "study_driver_state.json")
+    try:
+        try:
+            with open(path, encoding="utf8") as fh:
+                state = json.load(fh)
+            if not isinstance(state, dict):
+                state = {}
+        except (OSError, ValueError):
+            state = {}
+        state[stage] = {"status": status, "rc": rc, "utc": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
+                        "seconds": round(seconds, 1), "commands": commands or [], "note": note,
+                        "experiment_id": EXPERIMENT}
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf8") as fh:
+            json.dump(state, fh, indent=2)
+        os.replace(tmp, path)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[study] note: could not record stage {stage}={status} ({type(exc).__name__}: {exc})", flush=True)
+
+
 def prepare_study(args) -> None:
     """Calibrate H3 (scripts.run_study --only calibrate --apply-calibration), then check the pre-registration freeze.
     Calibration failing stops the launch; an unrecorded freeze drift only WARNS here (the strict gate is
@@ -583,8 +611,17 @@ def main() -> None:
                               interval=args.status_interval, experiment_id=EXPERIMENT)
         DASH.header()
         DASH.start_monitor()
+    own_stages = not args.no_prepare          # scripts.run_study passes --no-prepare and records the stages itself
+    t_main = time.time()
+    if own_stages:
+        mark_stage("main", "running", note=f"{len(models)} conditions x {args.n_runs} seeds")
     rc = run_study(models, args.n_runs, args.base_seed, args.config, args.max_stalled_passes, args.retry_wait,
                    run_pass=pass_fn)
+    if DASH is not None:
+        DASH.stop()
+    if own_stages:
+        mark_stage("main", "ok" if rc == 0 else "failed", rc, seconds=time.time() - t_main,
+                   note=f"{len(models)} conditions x {args.n_runs} seeds")
     if rc != 0:
         sys.exit(rc)
     print("\n[study] ALL RUNS COMPLETE.", flush=True)
@@ -594,7 +631,14 @@ def main() -> None:
         cmd = [sys.executable, "-m", "scripts.run_hypothesis_tests"]
         if EXPERIMENT:
             cmd += ["--experiment-id", EXPERIMENT]
+        t_h = time.time()
+        if own_stages:
+            mark_stage("hypothesis", "running", commands=[" ".join(cmd)])
         rc = subprocess.run(cmd).returncode
+        if own_stages:
+            mark_stage("hypothesis", "ok" if rc == 0 else ("stopped_at_gate" if rc == 3 else "failed"), rc,
+                       commands=[" ".join(cmd)], seconds=time.time() - t_h,
+                       note="stopped at the confirmatory gate (by design)" if rc == 3 else "")
         if rc == 3:       # scripts.run_hypothesis_tests GATE_RC: deliberate stop at the confirmatory gate, not a failure
             print("\n[study] STOPPED AT THE CONFIRMATORY GATE (by design). Do the gate by hand (steps printed above), "
                   "then: python -m scripts.run_hypothesis_tests --run-confirmatory", flush=True)

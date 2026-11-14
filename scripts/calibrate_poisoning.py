@@ -39,6 +39,9 @@ def main() -> int:
                     help="seeds the study uses; the pilot seeds must not overlap them")
     ap.add_argument("--fraction", type=float, default=float(cfg.get("fraction", 0.2)))
     ap.add_argument("--target", type=float, default=float(cfg.get("pc_target_pct", 10.0)))
+    ap.add_argument("--floor", type=float, default=float(cfg.get("pc_floor_pct", 5.0)),
+                    help="EVERY pilot seed's positive control must degrade at least this much (the floor check M8 applies to "
+                         "every run of the study); default poisoning.pc_floor_pct")
     ap.add_argument("--max-rows", type=int, default=int(cfg.get("pc_max_rows", 100000)))
     ap.add_argument("--escalate-fractions", type=float, nargs="*", default=None,
                     help="fractions tried in increasing order if the configured one cannot reach the target (default 0.3 0.4)")
@@ -65,7 +68,7 @@ def main() -> int:
     out = None
     for fr in fractions:        # raise `fraction` only when no shift in the grid reaches the target at the smaller one
         out = calibrate_shift(Xtr, ytr, Xev, yev, seeds=args.seeds, fraction=fr, target_pct=args.target,
-                              ridge=float(cfg.get("ridge", 1.0)))
+                              ridge=float(cfg.get("ridge", 1.0)), floor_pct=args.floor)
         out["chosen_fraction"] = fr if out["chosen_shift_sd"] is not None else None
         if out["chosen_shift_sd"] is not None:
             break
@@ -77,9 +80,11 @@ def main() -> int:
     path = os.path.join(ROOT, "results", f"poisoning_calibration_{out['generated_utc']}.json")
     with open(path, "w", encoding="utf8") as fh:
         json.dump(out, fh, indent=2)
-    print(f"{'shift_sd':>9} {'median %':>10} {'min %':>9}")
+    print(f"criterion: {out['criterion']} (target {args.target:g} %, floor {args.floor:g} %)")
+    print(f"{'shift_sd':>9} {'median %':>10} {'min %':>9}   ok")
     for r in out["curve"]:
-        print(f"{r['shift_sd']:9.2f} {r['median_degradation_pct']:10.2f} {r['min_degradation_pct']:9.2f}")
+        print(f"{r['shift_sd']:9.2f} {r['median_degradation_pct']:10.2f} {r['min_degradation_pct']:9.2f}   "
+              f"{'yes' if r['meets_criterion'] else 'no'}")
     print(f"\n{out['note']}\nwritten: {path}")
     if out["chosen_shift_sd"] is not None:
         print(f"\nconfig/default_config.yaml ->  poisoning:\n    shift_sd: {out['chosen_shift_sd']}\n    fraction: {out['chosen_fraction']}\n    calibrated: true")

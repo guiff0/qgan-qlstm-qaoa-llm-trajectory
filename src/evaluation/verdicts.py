@@ -386,8 +386,12 @@ def apply_interim_gate(d: dict, status: dict) -> None:
     d["blockers"].append(f"interim analysis: {status['label']}; confirmatory status needs every pre-registered "
                          f"condition at {status['seeds_per_condition']} seeds")
     if d["verdict"] in _DOWNGRADE:
-        d["verdict"], d["rule"] = _DOWNGRADE[d["verdict"]]
-        d["headline"] = d["headline"].replace("(confirmatory)", "(exploratory, interim)")
+        old = d["verdict"]
+        d["verdict"], d["rule"] = _DOWNGRADE[old]
+        # the headline was written for the confirmatory verdict; it must say the same word as the verdict table
+        # (it used to keep "CONTRADICTED" / "NOT_SUPPORTED" under a table row reading SUGGESTIVE_AGAINST / INCONCLUSIVE)
+        d["headline"] = d["headline"].replace(f": {old} (confirmatory)", f": {d['verdict']} (exploratory, interim)", 1)
+    d["headline"] = d["headline"].replace("(confirmatory)", "(exploratory, interim)")
     d["interim"] = True
 
 

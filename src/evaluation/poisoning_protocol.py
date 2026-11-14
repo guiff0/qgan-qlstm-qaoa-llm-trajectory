@@ -101,18 +101,49 @@ def run_protocol(X_mixed, y_train, X_eval, y_eval, *, X_real_train=None, seed: i
 
 
 def calibrate_shift(X_train, y_train, X_eval, y_eval, *, seeds, fraction: float = 0.2, grid=DEFAULT_GRID,
-                    target_pct: float = 10.0, ridge: float = 1.0) -> dict:
-    """Smallest shift_sd whose REAL-ONLY positive control degrades by >= target_pct in the median pilot seed.
+                    target_pct: float = 10.0, ridge: float = 1.0, floor_pct: float | None = DEFAULTS["pc_floor_pct"]) -> dict:
+    """Smallest shift_sd at which the REAL-ONLY positive control (a) degrades by >= target_pct in the median pilot seed AND
+    (b) degrades by >= floor_pct in EVERY pilot seed, with (a) and (b) also holding at every larger shift in the grid.
+
+    (b) is the criterion the study is later judged by: check M8 fails a study when ANY run's positive control is under the
+    floor. The old rule looked at the median only, so it accepted a strength at which the control's sign depended on the
+    seed (the attack direction is random per seed): the 14 Nov study was "calibrated" and still logged a positive control of
+    -15.8 %. A shift that passes only by chance at one grid point is not accepted either (the "every larger shift" clause).
+    Pass floor_pct=None for the old median-only rule.
+
     Pilot seeds must lie outside the confirmatory seed list. Uses no generator and no condition, so it cannot favour
     the noisy or the un-noised arm. Returns the chosen value and the whole curve (so the choice can be audited)."""
     curve = []
     for s in grid:
         d = [degradation(X_train, y_train, X_eval, y_eval, fraction=fraction, shift_sd=float(s), seed=int(sd),
                          ridge=ridge)["degradation_pct"] for sd in seeds]
-        curve.append({"shift_sd": float(s), "median_degradation_pct": float(np.nanmedian(d)),
-                      "min_degradation_pct": float(np.nanmin(d)), "per_seed": [float(x) for x in d]})
-    chosen = next((r["shift_sd"] for r in curve if r["median_degradation_pct"] >= target_pct), None)
-    return {"chosen_shift_sd": chosen, "target_pct": target_pct, "fraction": fraction, "pilot_seeds": [int(s) for s in seeds],
-            "curve": curve,
-            "note": ("no shift in the grid reaches the target: the head has no usable structure to damage on these "
-                     "features; H3 stays not decidable" if chosen is None else "frozen value; record it in the amendment")}
+        med, mn = float(np.nanmedian(d)), float(np.nanmin(d))
+        ok = bool(np.all(np.isfinite(d))) and med >= target_pct and (floor_pct is None or mn >= floor_pct)
+        curve.append({"shift_sd": float(s), "median_degradation_pct": med, "min_degradation_pct": mn,
+                      "per_seed": [float(x) for x in d], "meets_criterion": ok})
+    chosen = None
+    for i in sorted(range(len(curve)), key=lambda j: curve[j]["shift_sd"]):
+        larger = [r for r in curve if r["shift_sd"] >= curve[i]["shift_sd"]]
+        if all(r["meets_criterion"] for r in larger):
+            chosen = curve[i]["shift_sd"]
+            break
+    median_only = [r["shift_sd"] for r in curve if r["median_degradation_pct"] >= target_pct]
+    if chosen is not None:
+        note = "frozen value; record it in the amendment"
+    elif median_only and floor_pct is not None:
+        worst = min(curve, key=lambda r: r["min_degradation_pct"])
+        note = (f"the median reaches {target_pct:g} % at shift_sd {min(median_only):g}, but not every pilot seed stays above the "
+                f"{floor_pct:g} % floor at that shift and all larger ones (worst: {worst['min_degradation_pct']:.3g} % at shift_sd "
+                f"{worst['shift_sd']:g}). The positive control is UNSTABLE: whether poisoning hurts or helps the real-only head "
+                "depends on the seed's attack direction, which means that head's clean error is dominated by something other than "
+                "the poison (compare poisoning_pc_control_rmse with persistence_rmse: a control head worse than persistence is "
+                "extrapolating). No strength is frozen; H3/H4 stay not decidable until the control is stable "
+                "(python -m scripts.diagnose_poisoning_gap)")
+    else:
+        note = ("no shift in the grid reaches the target: the head has no usable structure to damage on these "
+                "features; H3 stays not decidable")
+    return {"chosen_shift_sd": chosen, "target_pct": target_pct, "floor_pct": floor_pct, "fraction": fraction,
+            "pilot_seeds": [int(s) for s in seeds], "curve": curve,
+            "criterion": ("median >= target and every pilot seed >= floor, at this shift and every larger one"
+                          if floor_pct is not None else "median >= target"),
+            "note": note}
