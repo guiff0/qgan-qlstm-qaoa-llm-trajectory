@@ -214,7 +214,10 @@ def _run_one(model: str, seed: int, config, env: dict, lock) -> bool:
     if config:
         cmd += ["--config", config]
     if DASH:
-        DASH.run_started(model, seed, log)
+        try:
+            DASH.run_started(model, seed, log)
+        except Exception as exc:  # noqa: BLE001  -- the display must never stop a run
+            print(f"[dashboard] display error at the start of {model!r} seed {seed} (ignored): {exc!r}", flush=True)
     else:
         print(f"[worker] start  {model!r} seed {seed}  (log: {log})", flush=True)
     t0 = time.time()
@@ -254,7 +257,11 @@ def _run_one(model: str, seed: int, config, env: dict, lock) -> bool:
         except Exception as exc:  # noqa: BLE001  -- bookkeeping must never stop a multi-day study
             print(f"[experiment] could not register run: {exc!r}", flush=True)
     if DASH:
-        DASH.run_finished(model, seed, ok, rc, log, why)
+        try:
+            DASH.run_finished(model, seed, ok, rc, log, why)
+        except Exception as exc:  # noqa: BLE001  -- 14 Nov 2026: a display error here ended a 23-hour study at run 31 of 40
+            print(f"[dashboard] display error after {model!r} seed {seed} (ignored; the run itself "
+                  f"{'was recorded' if ok else 'failed'}, exit {rc}): {exc!r}", flush=True)
     else:
         print(f"[worker] {'OK   ' if ok else 'FAIL '} {model!r} seed {seed} exit {rc} in {minutes:.1f} min"
               + (f"\n         {why}" if why else ""), flush=True)

@@ -89,3 +89,23 @@ bit-identical to the uploads, X_val/X_test within 1e-6):
 table -> poisoning recalibration under the new rule -> `run_full_study.ps1 --refreeze --new-experiment --base-seed 53 --workers 4
 --record-deviation "..."`. Switches: `-SkipPilots`, `-PilotsOnly`, `-AllowUncalibrated`, `-NoRefreeze`. Not executed on Windows
 by the assistant (no PowerShell available there); read the first lines it prints.
+
+## Addendum 4 - selector comparison (exploratory; no LLM call; not the three-arm methodology)
+`python -m scripts.qaoa_selector_comparison` (about 10 minutes, CPU only): the same 16 candidates and the same head, with the
+selector swapped: QAOA (10 seeds), top-8 by correlation, and the exact QUBO optimum found by listing all 65,536 answers.
+Run in the assistant's sandbox on the uploaded data, seeds 42-51:
+- QAOA found the exact optimum in 7 of 10 seeds (ranks 1, 2,566 and 3,694 of 65,536); all 10 returned exactly 8 features.
+- Forecast error is the same for every selector to five decimals: RMSE / persistence between 0.999995 and 1.000022.
+  The classical top-8 set was rejected by the validation gate (its head is the no-change forecast, ratio exactly 1).
+It reads and writes nothing of `run_walk_forward`, `run_naive_baseline` or the feature-map experiment; those files are unchanged.
+
+## Addendum 5 - study driver stopped at run 31 of 40 (EXP-20261113-DESKTOPK9L37-0a2a, 14 Nov 15:34)
+Cause: after `QGAN-LLM seed 58` finished, the dashboard re-read the per-condition progress file
+(`logs\experiments\<id>\repeated_experiment_*.json`) at the moment a worker was replacing it, got half a file, and the
+JSONDecodeError went up through `DASH.run_finished` and ended the driver. No run failed; the 31 rows are in the results CSV.
+- `run_repeated_experiment._load_state` never raises: it retries, then treats an unreadable file as empty with one warning
+  (completed seeds also come from the results CSV, so nothing is rerun). `_save_state` uses a temp file unique to the process
+  and thread and retries the replace while a reader holds the file open (Windows).
+- `run_full_study._run_one`: a dashboard error is printed and ignored; it can no longer stop a study.
+Resume: relaunch with the SAME arguments as the original launch, WITHOUT `--new-experiment` and without `--refreeze`.
+Do not run `run_nov14.ps1` on that machine until this experiment is finished: it resets the calibration and starts a new study.

@@ -8,6 +8,7 @@
 5. "-0.0000" in the walk-forward table.
 """
 import json
+import os
 
 import numpy as np
 
@@ -111,3 +112,44 @@ def test_calibration_choice_holds_for_every_pilot_seed_and_every_larger_shift():
 def test_walk_forward_skill_has_no_negative_zero():
     assert _sk(-0.00001).strip() == "0.0000" and _sk(0.00002).strip() == "0.0000"
     assert _sk(0.0003) == "+0.0003" and _sk(-0.0002) == "-0.0002" and _sk(None).strip() == "n/a"
+
+
+# ---- 14 Nov, 15:34: the study driver died at run 31 of 40 on a half-read progress file ------------------------------------
+
+def test_progress_file_that_is_half_written_never_raises(tmp_path, monkeypatch, capsys):
+    from scripts import run_repeated_experiment as rre
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(rre, "EXPERIMENT_ID", "EXP-T")
+    monkeypatch.setattr(rre, "_STATE_WARNED", set())
+    rre._save_state("QGAN-LLM", {"completed_seeds": [53, 54], "failed_seeds": []})
+    assert rre._load_state("QGAN-LLM")["completed_seeds"] == [53, 54]
+    path = rre._state_path("QGAN-LLM")
+    assert not [f for f in os.listdir(os.path.dirname(path)) if f.endswith(".tmp")]          # no temp file left behind
+    with open(path, "w") as fh:
+        fh.write("{\n")                                                                       # what the dashboard read
+    st = rre._load_state("QGAN-LLM", retries=2, wait=0.0)
+    assert st == {"completed_seeds": [], "failed_seeds": []} and "could not be read" in capsys.readouterr().out
+    rre._load_state("QGAN-LLM", retries=1, wait=0.0)
+    assert capsys.readouterr().out == ""                                                      # warned once, not every second
+    with open(path, "w") as fh:
+        json.dump({"completed_seeds": [58]}, fh)                                              # older file without failed_seeds
+    assert rre._load_state("QGAN-LLM") == {"completed_seeds": [58], "failed_seeds": []}
+
+
+def test_a_dashboard_error_does_not_stop_the_run_bookkeeping(tmp_path, monkeypatch, capsys):
+    from scripts import run_full_study as rfs
+    import threading
+
+    class Boom:
+        def run_started(self, *a): raise ValueError("half-read file")
+        def run_finished(self, *a): raise ValueError("half-read file")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(rfs, "DASH", Boom())
+    monkeypatch.setattr(rfs, "EXPERIMENT", None)
+    monkeypatch.setattr(rfs, "_study_dir", lambda: str(tmp_path / "logs" / "study"))
+    monkeypatch.setattr(rfs, "_log_path", lambda m, s: str(tmp_path / "logs" / "study" / "x.log"))
+    monkeypatch.setattr(rfs.subprocess, "run", lambda *a, **k: type("R", (), {"returncode": 0})())
+    monkeypatch.setattr(rfs.rre, "_csv_seeds", lambda model, *a, **k: {58})
+    assert rfs._run_one("QGAN-LLM", 58, None, {}, threading.Lock()) is True
+    out = capsys.readouterr().out
+    assert "display error after 'QGAN-LLM' seed 58 (ignored; the run itself was recorded" in out
