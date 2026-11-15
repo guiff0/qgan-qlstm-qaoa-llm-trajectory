@@ -109,3 +109,24 @@ JSONDecodeError went up through `DASH.run_finished` and ended the driver. No run
 - `run_full_study._run_one`: a dashboard error is printed and ignored; it can no longer stop a study.
 Resume: relaunch with the SAME arguments as the original launch, WITHOUT `--new-experiment` and without `--refreeze`.
 Do not run `run_nov14.ps1` on that machine until this experiment is finished: it resets the calibration and starts a new study.
+
+## Addendum 6 (15 Nov) - H2/H3 headline after the Holm correction; M8 positive control for FUTURE studies
+**H2/H3 text.** `verdicts.compute_verdicts`: when the Holm correction downgrades a verdict to INCONCLUSIVE, the headline now says
+so ("INCONCLUSIVE (leans for) ... Holm-adjusted p=0.126, not significant after correction") instead of keeping "SUPPORTED" /
+"CONTRADICTED". Replayed on the saved confirmatory results of EXP-20261113-DESKTOPK9L37-0a2a: every verdict, rule, tier and
+adjusted p is unchanged; only those two lines of text differ. `verdicts.py` is a frozen file: record the deviation. Do not
+rerun the confirmatory tests for this.
+
+**M8, cause.** The positive-control head trained on the OLDEST 100,000 rows of the training half. On the test split the price
+level moves from about 1.085 there to about 1.130 in the scored rows; the clean head's error on the scored rows is 133x the
+no-change error (0.42x the spread of the scored prices), so it had failed before any poison was added and its reaction to the
+poison changed sign with the seed.
+
+**M8, fix for the next study only.** `poisoning.pc_max_rows: null` (or "all") = the control trains on the whole training half,
+the same rows as the main head. A number behaves exactly as before, so nothing changes until the config is changed.
+    python -m scripts.set_positive_control --rows all --apply     # writes pc_max_rows: null and calibrated: false (+ backup)
+The next launch then recalibrates. On the uploaded test data: clean head error 0.005x the spread; calibration picks
+shift_sd 0.1 (pilot seeds: median 100 %, worst 6.7 %; at 0.2 the worst is 124 %). `calibrate_poisoning` now prints the clean
+head's error and warns when it is above 0.1. Rows record `poisoning_pc_rows`.
+
+**This experiment.** H4 of EXP-20261113-DESKTOPK9L37-0a2a stays as it is: not decidable, because the positive control failed.

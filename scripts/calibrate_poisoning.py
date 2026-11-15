@@ -42,7 +42,9 @@ def main() -> int:
     ap.add_argument("--floor", type=float, default=float(cfg.get("pc_floor_pct", 5.0)),
                     help="EVERY pilot seed's positive control must degrade at least this much (the floor check M8 applies to "
                          "every run of the study); default poisoning.pc_floor_pct")
-    ap.add_argument("--max-rows", type=int, default=int(cfg.get("pc_max_rows", 100000)))
+    ap.add_argument("--max-rows", default=cfg.get("pc_max_rows", 100000),
+                    help="rows the positive-control head trains on: a number (the first N training rows) or 'all' "
+                         "(the whole training half; what `pc_max_rows: null` in the config means)")
     ap.add_argument("--escalate-fractions", type=float, nargs="*", default=None,
                     help="fractions tried in increasing order if the configured one cannot reach the target (default 0.3 0.4)")
     args = ap.parse_args()
@@ -74,12 +76,24 @@ def main() -> int:
             break
     out["recipe"] = "chronological_split (same function as the in-run protocol)"
     half = len(Xtr)
+    # Is the CLEAN control head sound on the scored rows? If it is not, its reaction to the poison is noise (M8, 15 Nov 2026).
+    from src.evaluation.poisoning_protocol import fit_ridge, predict, rmse
+    _clean = rmse(predict(fit_ridge(Xtr, ytr, float(cfg.get("ridge", 1.0))), Xev), yev)
+    out["clean_control_rmse"] = _clean
+    out["clean_control_rmse_over_eval_sd"] = _clean / float(np.std(yev)) if float(np.std(yev)) > 0 else None
+    out["pc_rows"] = int(len(Xtr))
     out["generated_utc"] = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out["n_rows_train"], out["n_rows_eval"] = int(len(Xtr)), int(len(Xev))
     os.makedirs(os.path.join(ROOT, "results"), exist_ok=True)
     path = os.path.join(ROOT, "results", f"poisoning_calibration_{out['generated_utc']}.json")
     with open(path, "w", encoding="utf8") as fh:
         json.dump(out, fh, indent=2)
+    r_ = out["clean_control_rmse_over_eval_sd"]
+    print(f"positive-control head: {len(Xtr):,} training rows; clean error on the scored rows = {r_:.3f} x their spread"
+          + ("" if r_ is None or r_ <= 0.1 else
+             "\n  WARNING: the clean head is already poor on the scored rows (above 0.1), so its reaction to the poison is\n"
+             "  unreliable and M8 can fail whatever strength is chosen. Train it on the whole training half:\n"
+             "      python -m scripts.set_positive_control --rows all --apply"))
     print(f"criterion: {out['criterion']} (target {args.target:g} %, floor {args.floor:g} %)")
     print(f"{'shift_sd':>9} {'median %':>10} {'min %':>9}   ok")
     for r in out["curve"]:

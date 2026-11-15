@@ -3,7 +3,9 @@
 
            1. checks that fix_nov14.zip was unzipped over the repo and runs its tests            (about 1 minute)
            2. runs the two pilot models on seed 42 and writes the pilot table                    (LSTM: 15-75 minutes; QAOA: about 3)
-           3. recalibrates the poisoning strength under the new rule (every pilot seed must clear the floor)
+           3. switches the poisoning positive control to the whole training half (the M8 fix:
+              python -m scripts.set_positive_control --rows all --apply), then recalibrates the strength against it
+              under the new rule (every pilot seed must clear the floor)
            4. launches the full study:  .\scripts\run_full_study.ps1 --refreeze --new-experiment --base-seed 53 --workers 4
 
            Pilots run BEFORE the study, not beside it: both append to results\all_results.csv, and 4 workers already use the machine.
@@ -14,19 +16,22 @@
 .EXAMPLE   .\scripts\run_nov14.ps1 -PilotsOnly                    # pilots and table only, no calibration, no study
 .EXAMPLE   .\scripts\run_nov14.ps1 -AllowUncalibrated             # if step 3 finds no stable strength: run anyway, H4/H5 rows are flagged
 .EXAMPLE   .\scripts\run_nov14.ps1 -NoRefreeze                    # keep the old frozen record; changed files are then listed as deviations
+.EXAMPLE   .\scripts\run_nov14.ps1 -KeepOldPositiveControl        # leave pc_max_rows as it is (the control that failed M8)
 .EXAMPLE   .\scripts\run_nov14.ps1 -BaseSeed 53 -Workers 4 -Deviation "my own wording"
 
+           It starts a NEW study, so it refuses to run while a study run is alive on this machine.
            Everything printed is also written to logs\run_nov14_<UTC>.log (pilots: logs\pilot_*_<UTC>.log).
 #>
 param(
     [int]$BaseSeed = 53,
     [int]$Workers = 4,
     [int]$PilotSeed = 42,
-    [string]$Deviation = 'Amendment 3: dropped entanglement hypotheses, H4 split into H2/H3, H3 split into H4/H5, duplicate sweep level removed; 14 Nov: report fixes, poisoning calibration requires every pilot seed above the floor',
+    [string]$Deviation = 'Amendment 3: dropped entanglement hypotheses, H4 split into H2/H3, H3 split into H4/H5, duplicate sweep level removed; 14-15 Nov: report fixes, poisoning calibration requires every pilot seed above the floor, positive control trains on the whole training half (M8)',
     [switch]$SkipPilots,
     [switch]$PilotsOnly,
     [switch]$AllowUncalibrated,
-    [switch]$NoRefreeze
+    [switch]$NoRefreeze,
+    [switch]$KeepOldPositiveControl
 )
 # 'Continue', not 'Stop': under Windows PowerShell 5.1 'Stop' turns any line python writes to stderr into a terminating error.
 # Every step below checks its exit code explicitly instead.
@@ -50,11 +55,21 @@ function Stop-Run([string]$msg, [int]$code = 1) {
     exit $code
 }
 
+# A new study must not start beside a running one: both would write the same config, results file and checkpoints.
+if (-not $PilotsOnly) {
+    $alive = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+               Where-Object { $_.Name -like 'python*' -and $_.CommandLine -match 'src\.experiments\.run_all|scripts\.run_full_study' })
+    if ($alive.Count -gt 0) {
+        $alive | ForEach-Object { Write-Host ('  PID {0}: {1}' -f $_.ProcessId, $_.CommandLine) -ForegroundColor Yellow }
+        Stop-Run 'a study is still running on this machine (processes above). Let it finish, or use -PilotsOnly.' 4
+    }
+}
+
 Say "python: $py"
 Say "log: $mainLog"
 
 # ---- 1. the patch is in place and its tests pass -------------------------------------------------------------------------------
-$needed = @('scripts\pilot_table.py', 'scripts\qaoa_solution_audit.py', 'tests\test_nov14_report_fixes.py',
+$needed = @('scripts\pilot_table.py', 'scripts\qaoa_solution_audit.py', 'scripts\set_positive_control.py', 'tests\test_nov14_report_fixes.py',
             'tests\test_pilot_table.py', 'tests\test_delta_pilot_models.py')
 $missing = @($needed | Where-Object { -not (Test-Path (Join-Path $root $_)) })
 if ($missing.Count -gt 0) { Stop-Run ("fix_nov14.zip is not unzipped over this repo; missing: " + ($missing -join ', ')) 2 }
@@ -101,6 +116,16 @@ if ($PilotsOnly) { Say 'done (-PilotsOnly): no calibration, no study.'; exit 0 }
 # The 00:46 calibration accepted a strength on the MEDIAN pilot seed and the study then logged a positive control of -15.8 %
 # (check M8). The config still says calibrated: true, so a new study would reuse that strength. Reset the flag (inside the
 # `poisoning:` block only, line endings kept) and let the calibrate stage choose again.
+# M8 fix first: the positive control trains on the whole training half (it used to see only the oldest 100,000 rows and had
+# failed on the scored rows before any poison was added). The setter writes pc_max_rows: null and calibrated: false, with its
+# own backup; the calibration below then chooses the strength against the new control.
+if (-not $KeepOldPositiveControl) {
+    Say '[3/4] positive control -> whole training half:  python -m scripts.set_positive_control --rows all --apply'
+    & $py -m scripts.set_positive_control --rows all --apply 2>&1 | Tee-Object -FilePath $mainLog -Append | ForEach-Object { Write-Host $_ }
+    if ($LASTEXITCODE -ne 0) { Stop-Run "set_positive_control failed (exit $LASTEXITCODE); the config was not changed by this script" $LASTEXITCODE }
+} else {
+    Say '[3/4] positive control left as configured (-KeepOldPositiveControl): M8 can fail again' 'Yellow'
+}
 Say '[3/4] poisoning calibration (new rule: every pilot seed above the floor, at the chosen strength and every larger one)'
 $cfgPath = Join-Path $root 'config\default_config.yaml'
 $text = [IO.File]::ReadAllText($cfgPath)

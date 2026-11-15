@@ -441,8 +441,18 @@ def compute_verdicts(out: dict) -> dict:
     for k, adj in _holm(fam).items():
         v[k]["p_holm"] = adj
         if v[k]["verdict"] in ("SUPPORTED", "CONTRADICTED") and adj >= ALPHA:
+            old = v[k]["verdict"]
             v[k].update(verdict="INCONCLUSIVE", rule="R8_fails_holm_correction")
             v[k]["why"].append(f"Holm-adjusted p = {adj:.3f} >= {ALPHA}")
+            # The headline was written before the correction. It used to keep "SUPPORTED" / "CONTRADICTED" under a table
+            # row reading INCONCLUSIVE (15 Nov 2026 confirmatory output, H2 and H3): same word in both places now.
+            lean = v[k].get("lean")
+            word = "INCONCLUSIVE" + (f" (leans {lean})" if lean else "")
+            hl = v[k].get("headline") or ""
+            if f": {old} (" in hl:
+                hl = hl.replace(f": {old} (", f": {word} (", 1).rstrip()
+                hl = (hl[:-1] if hl.endswith(".") else hl) + f"; Holm-adjusted p={adj:.3f}, not significant after correction."
+                v[k]["headline"] = hl
     for d in v.values():
         d["chapter_label"] = chapter_label(d)
     return v

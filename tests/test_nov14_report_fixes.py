@@ -153,3 +153,62 @@ def test_a_dashboard_error_does_not_stop_the_run_bookkeeping(tmp_path, monkeypat
     assert rfs._run_one("QGAN-LLM", 58, None, {}, threading.Lock()) is True
     out = capsys.readouterr().out
     assert "display error after 'QGAN-LLM' seed 58 (ignored; the run itself was recorded" in out
+
+
+# ---- 15 Nov: H2/H3 headline after the Holm correction; M8 positive control on the whole training half --------------------
+
+def test_headline_follows_the_holm_downgrade():
+    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src", "evaluation", "verdicts.py"),
+               encoding="utf8").read()
+    assert "not significant after correction" in src
+    # the rewrite itself, on the two lines the 15 Nov output printed
+    for old, lean, adj, line in (("SUPPORTED", "for", 0.126, "H2 (QGAN RMSE lower than classical): SUPPORTED (confirmatory) -- observed QGAN-LLM < Classical GAN-LLM, p=0.042."),
+                                 ("CONTRADICTED", "against", 0.085, "H3 (QGAN ASR lower than classical): CONTRADICTED (confirmatory) -- observed QGAN-LLM > Classical GAN-LLM, p=0.021.")):
+        word = f"INCONCLUSIVE (leans {lean})"
+        hl = line.replace(f": {old} (", f": {word} (", 1).rstrip()
+        hl = (hl[:-1] if hl.endswith(".") else hl) + f"; Holm-adjusted p={adj:.3f}, not significant after correction."
+        assert old not in hl and word in hl and hl.endswith("not significant after correction.") and f"p={adj:.3f}" in hl
+
+
+def test_positive_control_rows_number_is_unchanged_and_all_means_the_whole_half():
+    assert pp.pc_rows(100_000, 372_393) == 100_000 and pp.pc_rows(100_000, 500) == 500
+    for v in (None, "all", "ALL", "null", 0, -1):
+        assert pp.pc_rows(v, 372_393) == 372_393
+    assert pp.chronological_split(1000, 100) == {"train": slice(0, 500), "eval": slice(501, 1000), "pc": slice(0, 100)}
+    assert pp.chronological_split(1000, None)["pc"] == slice(0, 500)
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(600, 4)); y = X @ rng.normal(size=4) + 0.1 * rng.normal(size=600)
+    a = pp.run_protocol(X[:300], y[:300], X[300:], y[300:], X_real_train=X[:300], seed=3, cfg={"pc_max_rows": 100, "shift_sd": 1.0})
+    b = pp.run_protocol(X[:300], y[:300], X[300:], y[300:], X_real_train=X[:300], seed=3, cfg={"pc_max_rows": None, "shift_sd": 1.0})
+    assert a["poisoning_pc_rows"] == 100 and b["poisoning_pc_rows"] == 300
+    assert a["poisoning_rmse_degradation_pct"] == b["poisoning_rmse_degradation_pct"]          # the MAIN head is untouched
+    assert a["poisoning_pc_degradation_pct"] != b["poisoning_pc_degradation_pct"]
+
+
+def test_a_control_head_that_has_already_failed_flips_sign_and_the_whole_half_does_not():
+    """The M8 failure in miniature: the oldest rows sit at a different price level from the scored rows."""
+    rng = np.random.default_rng(1)
+    n = 6000
+    level = np.r_[np.full(1000, 1.085), np.linspace(1.085, 1.13, 2000), 1.13 + 0.02 * np.sin(np.arange(3000) / 300)]
+    X = np.c_[level + 0.0005 * rng.normal(size=n), rng.normal(size=(n, 5))]
+    X[:1000, 0] = rng.normal(size=1000) * 0.0005 + 1.085                 # no level variation in the oldest rows: nothing to learn from
+    y = level + 0.0002 * rng.normal(size=n)
+    sp = pp.chronological_split(n, 1000)
+    Xe, ye = X[sp["eval"]], y[sp["eval"]]
+    old = [pp.degradation(X[:1000], y[:1000], Xe, ye, fraction=0.2, shift_sd=1.0, seed=s)["degradation_pct"] for s in range(12)]
+    new = [pp.degradation(X[sp["train"]], y[sp["train"]], Xe, ye, fraction=0.2, shift_sd=1.0, seed=s)["degradation_pct"] for s in range(12)]
+    assert min(old) < 5.0                                                 # under the M8 floor for at least one seed
+    assert min(new) > 5.0                                                 # every seed degrades once the clean head is sound
+
+
+def test_set_positive_control_edits_only_the_poisoning_block():
+    from scripts import set_positive_control as spc
+    text = ("other:\r\n  pc_max_rows: 7\r\n  calibrated: true\r\npoisoning:\r\n  shift_sd: 1.0   # keep\r\n  calibrated: true        # note\r\n"
+            "  pc_max_rows: 100000\r\n  pilot_seeds: [100, 101]\r\nnext:\r\n  calibrated: true\r\n")
+    new, changes = spc.rewrite(text, "all")
+    assert changes == ["poisoning.pc_max_rows: 100000 -> null", "poisoning.calibrated: true -> false"]
+    assert "poisoning:\r\n  shift_sd: 1.0   # keep\r\n  calibrated: false        # note\r\n  pc_max_rows: null\r\n" in new
+    assert new.startswith("other:\r\n  pc_max_rows: 7\r\n  calibrated: true\r\n") and new.endswith("next:\r\n  calibrated: true\r\n")
+    assert spc.rewrite(new, "all") == (new, [])                           # idempotent
+    import yaml
+    assert yaml.safe_load(new)["poisoning"] == {"shift_sd": 1.0, "calibrated": False, "pc_max_rows": None, "pilot_seeds": [100, 101]}

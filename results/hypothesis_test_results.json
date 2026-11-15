@@ -5042,7 +5042,7 @@
       "tier": "EXPLORATORY",
       "rule": "R2i_sig_opposite_direction_interim",
       "lean": "against",
-      "headline": "H1 (QGAN FID lower): CONTRADICTED (exploratory, interim) -- observed QGAN-LLM > Classical GAN-LLM, p=<0.001.",
+      "headline": "H1 (QGAN FID lower): SUGGESTIVE_AGAINST (exploratory, interim) -- observed QGAN-LLM > Classical GAN-LLM, p=<0.001.",
       "why": [
         "observed direction: QGAN-LLM > Classical GAN-LLM; hypothesis expects: QGAN-LLM < Classical GAN-LLM",
         "p < 0.001, alpha = 0.05",
@@ -5076,7 +5076,7 @@
       "tier": "EXPLORATORY",
       "rule": "R1i_sig_expected_direction_interim",
       "lean": "for",
-      "headline": "H2 (QGAN RMSE lower than classical): SUPPORTED (exploratory, interim) -- observed QGAN-LLM < Classical GAN-LLM, p=0.022.",
+      "headline": "H2 (QGAN RMSE lower than classical): SUGGESTIVE_FOR (exploratory, interim) -- observed QGAN-LLM < Classical GAN-LLM, p=0.022.",
       "why": [
         "observed direction: QGAN-LLM < Classical GAN-LLM; hypothesis expects: QGAN-LLM < Classical GAN-LLM",
         "p = 0.022, alpha = 0.05",
@@ -5110,7 +5110,7 @@
       "tier": "EXPLORATORY",
       "rule": "R2i_sig_opposite_direction_interim",
       "lean": "against",
-      "headline": "H3 (QGAN ASR lower than classical): CONTRADICTED (exploratory, interim) -- observed QGAN-LLM > Classical GAN-LLM, p=0.004.",
+      "headline": "H3 (QGAN ASR lower than classical): SUGGESTIVE_AGAINST (exploratory, interim) -- observed QGAN-LLM > Classical GAN-LLM, p=0.004.",
       "why": [
         "observed direction: QGAN-LLM > Classical GAN-LLM; hypothesis expects: QGAN-LLM < Classical GAN-LLM",
         "p = 0.004, alpha = 0.05",
@@ -5172,7 +5172,7 @@
       "tier": "EXPLORATORY",
       "rule": "R4i_not_significant_interim",
       "lean": "for",
-      "headline": "H5 (noise lowers adversarial attack success): NOT_SUPPORTED (exploratory, interim) -- observed no_noise > noisy, p=0.882.",
+      "headline": "H5 (noise lowers adversarial attack success): INCONCLUSIVE (exploratory, interim) -- observed no_noise > noisy, p=0.882.",
       "why": [
         "observed direction: no_noise > noisy; hypothesis expects: no_noise > noisy",
         "p = 0.882, alpha = 0.05",
@@ -5383,6 +5383,6 @@
       }
     ]
   },
-  "pipeline_run_id": "P20261113T212435Z-c9e60fb",
-  "generated_utc": "20261113T212435Z"
+  "pipeline_run_id": "P20261115T133355Z-24dc44c",
+  "generated_utc": "20261115T133355Z"
 }
