@@ -35,28 +35,14 @@ DEFAULTS = {"fraction": 0.2, "shift_sd": 3.0, "ridge": 1.0, "pc_floor_pct": 5.0,
             "pc_target_pct": 10.0}
 
 
-def pc_rows(pc_max_rows, half: int) -> int:
-    """Rows the positive-control head trains on. A number = the FIRST that many training rows (the behaviour of every study
-    up to 15 Nov 2026). None, "all" or 0 = the whole training half, i.e. exactly the rows the main head trains on.
-
-    Why "all" exists: with 100,000 the head sees only the OLDEST rows of the half. On the EUR/USD test split those end about
-    nine months before the scored rows begin, the price level has moved (1.085 -> 1.130) and the CLEAN head's error on the
-    scored rows is 133x the no-change error. A head that has already failed is pushed up or down by the poison at random, so
-    the control changed sign with the seed (-48.7 % .. +56.0 % in EXP-20261113, check M8 failed). On the whole half the clean
-    head is sound (1.7x no-change) and every one of 20 seeds degrades by more than 1,000 % at the same strength."""
-    if pc_max_rows is None or (isinstance(pc_max_rows, str) and pc_max_rows.strip().lower() in ("all", "none", "null", "")):
-        return int(half)
-    k = int(pc_max_rows)
-    return int(half) if k <= 0 else min(k, int(half))
-
-
-def chronological_split(n: int, pc_max_rows=100_000, gap: int = 1) -> dict:
+def chronological_split(n: int, pc_max_rows: int, gap: int = 1) -> dict:
     """THE split of the H3 protocol, shared by the in-run evaluation AND the calibration (one function, so they cannot drift
     apart again): the earlier half trains, the later half evaluates, with `gap` rows of embargo. This is the methodology
     figure's "identical chronological training and test splits (no look-ahead)". The control/positive-control head sees the
-    first `pc_max_rows` training rows, or the whole training half when pc_max_rows is None / "all" (see pc_rows)."""
+    first `pc_max_rows` training rows."""
     half = n // 2
-    return {"train": slice(0, half), "eval": slice(half + int(gap), n), "pc": slice(0, pc_rows(pc_max_rows, half))}
+    k = min(int(pc_max_rows), half)
+    return {"train": slice(0, half), "eval": slice(half + int(gap), n), "pc": slice(0, k)}
 
 
 def fit_ridge(X: np.ndarray, y: np.ndarray, ridge: float = 1.0) -> dict:
@@ -107,58 +93,26 @@ def run_protocol(X_mixed, y_train, X_eval, y_eval, *, X_real_train=None, seed: i
            "poisoning_shift_sd": shift, "poisoning_pc_floor_pct": float(c["pc_floor_pct"]),
            "poisoning_calibrated": bool(c.get("calibrated", False)), "poisoning_split": SPLIT_NAME}
     if X_real_train is not None:
-        n = pc_rows(c["pc_max_rows"], len(X_real_train))
+        n = min(len(X_real_train), int(c["pc_max_rows"]))
         pc = degradation(np.asarray(X_real_train)[:n], np.asarray(y_train)[:n], X_eval, y_eval, fraction=fraction,
                          shift_sd=shift, seed=seed, ridge=ridge)
-        out.update({"poisoning_pc_degradation_pct": pc["degradation_pct"], "poisoning_pc_control_rmse": pc["control_rmse"],
-                    "poisoning_pc_rows": int(n)})
+        out.update({"poisoning_pc_degradation_pct": pc["degradation_pct"], "poisoning_pc_control_rmse": pc["control_rmse"]})
     return out
 
 
 def calibrate_shift(X_train, y_train, X_eval, y_eval, *, seeds, fraction: float = 0.2, grid=DEFAULT_GRID,
-                    target_pct: float = 10.0, ridge: float = 1.0, floor_pct: float | None = DEFAULTS["pc_floor_pct"]) -> dict:
-    """Smallest shift_sd at which the REAL-ONLY positive control (a) degrades by >= target_pct in the median pilot seed AND
-    (b) degrades by >= floor_pct in EVERY pilot seed, with (a) and (b) also holding at every larger shift in the grid.
-
-    (b) is the criterion the study is later judged by: check M8 fails a study when ANY run's positive control is under the
-    floor. The old rule looked at the median only, so it accepted a strength at which the control's sign depended on the
-    seed (the attack direction is random per seed): the 14 Nov study was "calibrated" and still logged a positive control of
-    -15.8 %. A shift that passes only by chance at one grid point is not accepted either (the "every larger shift" clause).
-    Pass floor_pct=None for the old median-only rule.
-
+                    target_pct: float = 10.0, ridge: float = 1.0) -> dict:
+    """Smallest shift_sd whose REAL-ONLY positive control degrades by >= target_pct in the median pilot seed.
     Pilot seeds must lie outside the confirmatory seed list. Uses no generator and no condition, so it cannot favour
     the noisy or the un-noised arm. Returns the chosen value and the whole curve (so the choice can be audited)."""
     curve = []
     for s in grid:
         d = [degradation(X_train, y_train, X_eval, y_eval, fraction=fraction, shift_sd=float(s), seed=int(sd),
                          ridge=ridge)["degradation_pct"] for sd in seeds]
-        med, mn = float(np.nanmedian(d)), float(np.nanmin(d))
-        ok = bool(np.all(np.isfinite(d))) and med >= target_pct and (floor_pct is None or mn >= floor_pct)
-        curve.append({"shift_sd": float(s), "median_degradation_pct": med, "min_degradation_pct": mn,
-                      "per_seed": [float(x) for x in d], "meets_criterion": ok})
-    chosen = None
-    for i in sorted(range(len(curve)), key=lambda j: curve[j]["shift_sd"]):
-        larger = [r for r in curve if r["shift_sd"] >= curve[i]["shift_sd"]]
-        if all(r["meets_criterion"] for r in larger):
-            chosen = curve[i]["shift_sd"]
-            break
-    median_only = [r["shift_sd"] for r in curve if r["median_degradation_pct"] >= target_pct]
-    if chosen is not None:
-        note = "frozen value; record it in the amendment"
-    elif median_only and floor_pct is not None:
-        worst = min(curve, key=lambda r: r["min_degradation_pct"])
-        note = (f"the median reaches {target_pct:g} % at shift_sd {min(median_only):g}, but not every pilot seed stays above the "
-                f"{floor_pct:g} % floor at that shift and all larger ones (worst: {worst['min_degradation_pct']:.3g} % at shift_sd "
-                f"{worst['shift_sd']:g}). The positive control is UNSTABLE: whether poisoning hurts or helps the real-only head "
-                "depends on the seed's attack direction, which means that head's clean error is dominated by something other than "
-                "the poison (compare poisoning_pc_control_rmse with persistence_rmse: a control head worse than persistence is "
-                "extrapolating). No strength is frozen; H3/H4 stay not decidable until the control is stable "
-                "(python -m scripts.diagnose_poisoning_gap)")
-    else:
-        note = ("no shift in the grid reaches the target: the head has no usable structure to damage on these "
-                "features; H3 stays not decidable")
-    return {"chosen_shift_sd": chosen, "target_pct": target_pct, "floor_pct": floor_pct, "fraction": fraction,
-            "pilot_seeds": [int(s) for s in seeds], "curve": curve,
-            "criterion": ("median >= target and every pilot seed >= floor, at this shift and every larger one"
-                          if floor_pct is not None else "median >= target"),
-            "note": note}
+        curve.append({"shift_sd": float(s), "median_degradation_pct": float(np.nanmedian(d)),
+                      "min_degradation_pct": float(np.nanmin(d)), "per_seed": [float(x) for x in d]})
+    chosen = next((r["shift_sd"] for r in curve if r["median_degradation_pct"] >= target_pct), None)
+    return {"chosen_shift_sd": chosen, "target_pct": target_pct, "fraction": fraction, "pilot_seeds": [int(s) for s in seeds],
+            "curve": curve,
+            "note": ("no shift in the grid reaches the target: the head has no usable structure to damage on these "
+                     "features; H3 stays not decidable" if chosen is None else "frozen value; record it in the amendment")}

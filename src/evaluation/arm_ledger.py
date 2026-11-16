@@ -205,10 +205,7 @@ def build_ledger(df, models_dir="models", results_dir="results", feature_map_pat
 
 
 def _sk(v):
-    if v is None:
-        return "   n/a "
-    s = f"{v:+.4f}"
-    return " 0.0000" if s in ("-0.0000", "+0.0000") else s      # |v| < 5e-5: no sign to report at this precision
+    return "   n/a " if v is None else f"{v:+.4f}"
 
 
 def format_walk_forward(led: dict) -> list[str]:

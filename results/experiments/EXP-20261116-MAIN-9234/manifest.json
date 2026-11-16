@@ -1,0 +1,55 @@
+{
+  "schema": 1,
+  "experiment_id": "EXP-20261116-MAIN-9234",
+  "label": "",
+  "parent_experiment": null,
+  "created_utc": "20261116T211851Z",
+  "machine": {
+    "name": "main",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "python": "3.11.9"
+  },
+  "git": {
+    "commit": "59e77e2325164a20838fd8bc18a6a50ecafb7d55",
+    "dirty": true
+  },
+  "conditions": [
+    "QGAN-LLM",
+    "Classical GAN-LLM",
+    "Classical GAN-LLM (matched)",
+    "QGAN-LLM (no noise)"
+  ],
+  "seeds": [
+    53,
+    54,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62
+  ],
+  "base_seed": 53,
+  "n_runs": 10,
+  "planned_runs": 40,
+  "config_path": "config/default_config.yaml",
+  "config_sha256": "585bea011c7e51b8fe0781b75bad8b9feffb78b7f5b1bedb96b6f9a931f71023",
+  "plan_hash": "f74689a755c36f01",
+  "code_sha256": {
+    "config/default_config.yaml": "585bea011c7e51b8fe0781b75bad8b9feffb78b7f5b1bedb96b6f9a931f71023",
+    "PREREGISTRATION.md": "e9925bac6f4a4770aea3f3846bf52854c7ce09523c356d4a6578cf9d89601b9d",
+    "scripts/run_hypothesis_tests.py": "14fd258b24cdf2ca568f4d34b8c94faf8cab16f9cf83be6662debb837ead474f",
+    "src/utils/generator_path.py": "28d25dac5efdc1bd4ecf1cfc44772158d347e4a4342b14cfb6e162e9ada97f78",
+    "src/utils/capacity_match.py": "a613d8feefdcebb4aa009dd6a87f3bee23ebb61c45b3fb5b2d4f1a3f087b51f6",
+    "src/baselines/qgan_llm.py": "c1a69730f850044c2bc8213776b53935fc41abd85264f1f2a0c02acce446b789",
+    "src/baselines/classical_gan_llm.py": "53886f1c0543dbd5ced97b223bf1f3c46c255550c3ec53531a3bccd7e31d9567",
+    "src/experiments/run_all.py": "ce5cfd3db646ee035a9d3fe43ebb64f502a5b24364b1351d0a41890f09d19672",
+    "src/utils/logging_utils.py": "eeac080e888adbe56e4c4b292deae03deb384a003b504e84610420dcf7bda3d3"
+  },
+  "preregistration_record": {
+    "file": "preregistration_20261116T182029Z.json",
+    "sha256": "11c3772983d584c66abb92b16aa7828db138c1f783117df22d56a7ce0bf56938"
+  }
+}

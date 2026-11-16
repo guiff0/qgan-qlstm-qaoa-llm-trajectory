@@ -1,0 +1,168 @@
+{
+  "chosen_shift_sd": 0.1,
+  "target_pct": 10.0,
+  "floor_pct": 5.0,
+  "fraction": 0.2,
+  "pilot_seeds": [
+    100,
+    101,
+    102,
+    103,
+    104
+  ],
+  "curve": [
+    {
+      "shift_sd": 0.05,
+      "median_degradation_pct": 43.487135849723,
+      "min_degradation_pct": -22.58085631877624,
+      "per_seed": [
+        -22.58085631877624,
+        27.005771674502437,
+        89.19478448791872,
+        43.487135849723,
+        148.0892369334906
+      ],
+      "meets_criterion": false
+    },
+    {
+      "shift_sd": 0.1,
+      "median_degradation_pct": 100.00343532919935,
+      "min_degradation_pct": 6.665778770062075,
+      "per_seed": [
+        6.665778770062075,
+        69.75974401684485,
+        184.87279281496672,
+        100.00343532919935,
+        299.38558316431886
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 0.2,
+      "median_degradation_pct": 224.49927523258478,
+      "min_degradation_pct": 124.31170209524018,
+      "per_seed": [
+        124.31170209524018,
+        171.78391384129512,
+        380.1642601220241,
+        224.49927523258478,
+        603.3256062325328
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 0.3,
+      "median_degradation_pct": 353.75678116127375,
+      "min_degradation_pct": 256.1101711676757,
+      "per_seed": [
+        256.1101711676757,
+        280.97818231910196,
+        576.916262056494,
+        353.75678116127375,
+        907.7073945476261
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 0.5,
+      "median_degradation_pct": 616.2242554640036,
+      "min_degradation_pct": 505.30108037293917,
+      "per_seed": [
+        526.4930738333275,
+        505.30108037293917,
+        971.5827292801799,
+        616.2242554640036,
+        1516.7982011440056
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 1.0,
+      "median_degradation_pct": 1277.8171691937446,
+      "min_degradation_pct": 1074.1050451071692,
+      "per_seed": [
+        1209.198692910309,
+        1074.1050451071692,
+        1959.829265869662,
+        1277.8171691937446,
+        3039.952763020565
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 2.0,
+      "median_degradation_pct": 2604.896197163023,
+      "min_degradation_pct": 2217.3305242172682,
+      "per_seed": [
+        2578.4433413118572,
+        2217.3305242172682,
+        3937.4575244417683,
+        2604.896197163023,
+        6086.56033173825
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 3.0,
+      "median_degradation_pct": 3948.477805954216,
+      "min_degradation_pct": 3361.862837342149,
+      "per_seed": [
+        3948.477805954216,
+        3361.862837342149,
+        5915.3553487237095,
+        3932.89596408257,
+        9133.237576966007
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 4.0,
+      "median_degradation_pct": 5318.703041833368,
+      "min_degradation_pct": 4506.7280465913045,
+      "per_seed": [
+        5318.703041833368,
+        4506.7280465913045,
+        7893.322634159565,
+        5261.132288124898,
+        12179.932638145634
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 6.0,
+      "median_degradation_pct": 8059.341380826196,
+      "min_degradation_pct": 6796.794009563215,
+      "per_seed": [
+        8059.341380826196,
+        6796.794009563215,
+        11849.327613562897,
+        7917.844343714998,
+        18273.340757126345
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 8.0,
+      "median_degradation_pct": 10800.072755376603,
+      "min_degradation_pct": 9087.028556815789,
+      "per_seed": [
+        10800.072755376603,
+        9087.028556815789,
+        15805.368097254173,
+        10574.676995826334,
+        24366.757931497425
+      ],
+      "meets_criterion": true
+    }
+  ],
+  "criterion": "median >= target and every pilot seed >= floor, at this shift and every larger one",
+  "note": "frozen value; record it in the amendment",
+  "chosen_fraction": 0.2,
+  "recipe": "chronological_split (same function as the in-run protocol)",
+  "clean_control_rmse": 0.00026031045589654624,
+  "clean_control_rmse_over_eval_sd": 0.005324723519959936,
+  "pc_rows": 372393,
+  "generated_utc": "20261116T182028Z",
+  "n_rows_train": 372393,
+  "n_rows_eval": 372392
+}

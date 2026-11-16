@@ -106,48 +106,25 @@ def read_run_id(path: str, nbytes: int = 262144) -> str | None:
     return m[-1] if m else None
 
 
-def feature_map_files(root: str = ROOT) -> list[str]:
-    """Latest three-arm feature-map files: feature_map_advantage.json (what run_full_study.ps1 writes for 8 qubits) and
-    feature_map_advantage_q<N>.json (what scripts.run_study writes). Timestamped copies (`__<UTC>`) are history, not listed."""
-    found = glob.glob(os.path.join(root, "results", "feature_map_advantage.json"))
-    found += glob.glob(os.path.join(root, "results", "feature_map_advantage_q*.json"))
-    return sorted(f for f in found if "__" not in os.path.basename(f))
-
-
-def stage_marks(state: dict, experiment_id: str | None = None, root: str = ROOT) -> list[str]:
-    """One `stage=status` mark per pipeline stage. A record written for ANOTHER experiment says nothing about this one
-    (a `hypothesis=failed` left by last week's study used to be shown for the whole of the next study), so it reads
-    `pending`. A stage with no record of its own is `ok` when its output file is on disk (the .ps1 launcher runs the
-    feature-map step itself and records nothing)."""
-    marks = []
-    for st in PIPELINE_STAGES:
-        rec = state.get(st) or {}
-        s = rec.get("status")
-        if s and experiment_id and rec.get("experiment_id") not in (None, experiment_id):
-            s = None
-        if not s and st == "feature_map" and feature_map_files(root):
-            s = "ok (file on disk)"
-        if not s and st == "matrix" and os.path.isfile(os.path.join(root, "results", "three_arm_matrix.json")):
-            s = "ok (file on disk)"
-        marks.append(f"{st}={s or 'pending'}")
-    return marks
-
-
-def pipeline_lines(root: str = ROOT, experiment_id: str | None = None) -> list[str]:
+def pipeline_lines(root: str = ROOT) -> list[str]:
     """Where the study is in its stages, and the three-arm feature-map / matrix results found on disk.
-    The three-arm stages are run by scripts.run_study (stages feature_map and matrix) or by run_full_study.ps1."""
+    The three-arm stages are run by scripts.run_study (stages feature_map and matrix), AFTER the main runs."""
     out = []
     try:
         with open(os.path.join(root, "results", "study_driver_state.json"), encoding="utf8") as fh:
             state = json.load(fh)
     except (OSError, ValueError):
         state = {}
-    out.append("  stages: " + "  ".join(stage_marks(state if isinstance(state, dict) else {}, experiment_id, root)))
-    files = feature_map_files(root)
+    marks = []
+    for st in PIPELINE_STAGES:
+        s = (state.get(st) or {}).get("status")
+        marks.append(f"{st}={'ok' if s == 'ok' else s or 'pending'}")
+    out.append("  stages: " + "  ".join(marks))
+    files = sorted(glob.glob(os.path.join(root, "results", "feature_map_advantage_q*.json")))
     if not files:
-        out.append("  three-arm feature-map (linear / classical RF / quantum): not run yet (stage feature_map)")
+        out.append("  three-arm feature-map (linear / classical RF / quantum): not run yet (stage feature_map, after the main runs)")
     for fp in files:
-        label = os.path.basename(fp)[len("feature_map_advantage_"):-len(".json")] or "q8 (feature_map_advantage.json)"
+        label = os.path.basename(fp)[len("feature_map_advantage_"):-len(".json")]
         try:
             with open(fp, encoding="utf8") as fh:
                 rows = json.load(fh).get("per_run", [])
@@ -177,8 +154,7 @@ class StudyDashboard:
     def __init__(self, models, seeds, remaining_fn, log_path_fn, interval: float = 120.0, experiment_id=None,
                  extra_lines_fn=None):
         self.experiment_id = experiment_id
-        self.extra_lines_fn = (extra_lines_fn if extra_lines_fn is not None
-                               else (lambda: pipeline_lines(experiment_id=experiment_id)))
+        self.extra_lines_fn = extra_lines_fn if extra_lines_fn is not None else pipeline_lines
         self.models, self.seeds = list(models), list(seeds)
         self.remaining_fn, self.log_path_fn = remaining_fn, log_path_fn
         self.interval, self.t0 = interval, time.time()
@@ -195,12 +171,7 @@ class StudyDashboard:
         done = total - len(todo)
         done_now = self.n_start - len(todo)
         elapsed = time.time() - self.t0
-        if not todo:
-            eta = "all runs done"
-        elif done_now > 0:
-            eta = f"ETA {fmt_dur(elapsed / done_now * len(todo))}"
-        else:
-            eta = "ETA n/a (no run finished yet)"
+        eta = f"ETA {fmt_dur(elapsed / done_now * len(todo))}" if done_now > 0 and todo else "ETA n/a (no run finished yet)"
         with self._lock:
             n_running = len(self.active)
         lines = [f"[experiment] {self.experiment_id or 'legacy (no experiment id)'}",

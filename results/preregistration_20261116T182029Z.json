@@ -1,0 +1,82 @@
+{
+  "frozen_utc": "20261116T182029Z",
+  "git_commit": "59e77e2325164a20838fd8bc18a6a50ecafb7d55",
+  "equivalence": {
+    "alpha": 0.05,
+    "margins": {
+      "fid": [
+        "rel_ref",
+        0.1
+      ],
+      "rmse": [
+        "rel_persistence",
+        0.02
+      ],
+      "asr": [
+        "abs",
+        5.0
+      ],
+      "poisoning": [
+        "abs",
+        5.0
+      ],
+      "r0": [
+        "abs",
+        0.3
+      ]
+    }
+  },
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "feature_map_runs": [
+    {
+      "n_qubits": 8,
+      "n_layers": 3
+    },
+    {
+      "n_qubits": 12,
+      "n_layers": 3
+    }
+  ],
+  "file_sha256": {
+    "config/default_config.yaml": "b12236822167ae359f0185f591901053d6090db73502f489106cb40ac54c6fba",
+    "PREREGISTRATION.md": "e9925bac6f4a4770aea3f3846bf52854c7ce09523c356d4a6578cf9d89601b9d",
+    "scripts/run_hypothesis_tests.py": "03215132c7a95c9a0f49352c009820e9e1db3a3b3d8de7816a37b45b2521c67a",
+    "scripts/run_feature_map_experiment.py": "65dc98c090b5f9bb423e54d2dfb7721bdb061ff5e1cd91ca90b0650ccb4c5405",
+    "src/baselines/feature_map_forecaster.py": "ab9e5a4a124bb3d8fda20ab7734e8c7842cd38e2e2b0392de433d7c9e9fafbe2",
+    "src/quantum/feature_map.py": "3a1e09f763728c44c0aa3eaae9c2fbfc0d51e40e36acf0f8c0b5affa9fea2ee6",
+    "src/utils/generator_path.py": "28d25dac5efdc1bd4ecf1cfc44772158d347e4a4342b14cfb6e162e9ada97f78",
+    "src/utils/capacity_match.py": "ffd9813ccda092f406d54a2787767dd9578597fc36044cb69f4225e5f3790582",
+    "src/baselines/qgan_llm.py": "c1a69730f850044c2bc8213776b53935fc41abd85264f1f2a0c02acce446b789",
+    "src/baselines/classical_gan_llm.py": "53886f1c0543dbd5ced97b223bf1f3c46c255550c3ec53531a3bccd7e31d9567",
+    "src/evaluation/verdicts.py": "d563b3dab05074ac32b8a4757b9c844c923848a7e102d9ab939e244b1fb0dbed",
+    "src/evaluation/paired_tests.py": "5505fa8fdb40bd0c5bb4ef732c63af42a70496958d5df8937b183ed235f43cb6",
+    "src/evaluation/study_status.py": "7b41f5b46492ba14efeef73bfee38dee5d76387624e97c888e687516bb7c3fd6",
+    "config/analysis_plan.yaml": "d4322f6d53c589f576c22b11cc08cadc41866c6b5481ab51be978de0070449dd",
+    "PREREGISTRATION_V2.md": "5b592ca02f93cd6699a1cbc0d74c3fb5c3cab685452c8ccbd1d91b8626ae6bbe",
+    "PREREGISTRATION_ADDENDUM.md": "32ff07759d11a4ff412a5fad857cc4b3749cac7b6220be1e0bd2c489b6f0eb03",
+    "PREREGISTRATION_AMENDMENT_2.md": "e876bb14a74de25de58b5180f8ef4b08cde185ce14d654b903230c667ea8936f",
+    "scripts/snapshot_results.py": "a9c1d20ded22042b9805fb68af45f09fe2927bf3a356169882f7982469eccf36",
+    "src/evaluation/three_arm.py": "76429dd9f96d78893078c4e9011862f77d64e4b70ca90ee8bad025b7f5febe0e",
+    "src/evaluation/walk_forward.py": "89d4a5cd1f565d3d2d0a07e5a862c7394c353aec06f6091af7decc491a99de3f",
+    "src/evaluation/arm_metrics.py": "96391cbf3bca29ded6a6cd297fa4b2ee5638bfb32adb7214fc473575c4e142d2",
+    "src/evaluation/protocol_compliance.py": "4d78fea629bcbbbd24e2a8f2cdb0f06ae940f2ae47366280c0cfa87c017a188f",
+    "src/evaluation/advantage_diagnostics.py": "6bd718a08bf0a6a4b8bbfe91851be4e07de7090014f38a5d7bd3703af2656d97",
+    "scripts/run_walk_forward.py": "3e7a61fdcb90e799d1e8658ac1dc1526dacf216a22870747c7c9fb0524ab740c",
+    "scripts/run_naive_baseline.py": "273727dfecbfeae10bfbfecc48f29890d57c37b0db9e9200d95d1d72e5beb3a0",
+    "scripts/run_full_study.py": "92866a1ff45300cbdd7bf5618d35537ce55653c2fb671a7855d104350247fb9e",
+    "scripts/run_full_study.ps1": "fa64c9fb8f27d2296d300e1b9f1e7199928eb0bd5a458cb7daa95f41f629c9e0",
+    "PREREGISTRATION_AMENDMENT_3.md": "a015b92d20bad17a69961354a4045c15e18d9bf0a2e278ab0512f372cbab3804",
+    "HYPOTHESES_V3.md": "b33643e59f1de2310a3f90d5b4ecdeffda3564ad8b9e76454998e130bd702b68"
+  }
+}

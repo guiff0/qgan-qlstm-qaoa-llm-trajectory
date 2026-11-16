@@ -386,12 +386,8 @@ def apply_interim_gate(d: dict, status: dict) -> None:
     d["blockers"].append(f"interim analysis: {status['label']}; confirmatory status needs every pre-registered "
                          f"condition at {status['seeds_per_condition']} seeds")
     if d["verdict"] in _DOWNGRADE:
-        old = d["verdict"]
-        d["verdict"], d["rule"] = _DOWNGRADE[old]
-        # the headline was written for the confirmatory verdict; it must say the same word as the verdict table
-        # (it used to keep "CONTRADICTED" / "NOT_SUPPORTED" under a table row reading SUGGESTIVE_AGAINST / INCONCLUSIVE)
-        d["headline"] = d["headline"].replace(f": {old} (confirmatory)", f": {d['verdict']} (exploratory, interim)", 1)
-    d["headline"] = d["headline"].replace("(confirmatory)", "(exploratory, interim)")
+        d["verdict"], d["rule"] = _DOWNGRADE[d["verdict"]]
+        d["headline"] = d["headline"].replace("(confirmatory)", "(exploratory, interim)")
     d["interim"] = True
 
 
@@ -441,18 +437,8 @@ def compute_verdicts(out: dict) -> dict:
     for k, adj in _holm(fam).items():
         v[k]["p_holm"] = adj
         if v[k]["verdict"] in ("SUPPORTED", "CONTRADICTED") and adj >= ALPHA:
-            old = v[k]["verdict"]
             v[k].update(verdict="INCONCLUSIVE", rule="R8_fails_holm_correction")
             v[k]["why"].append(f"Holm-adjusted p = {adj:.3f} >= {ALPHA}")
-            # The headline was written before the correction. It used to keep "SUPPORTED" / "CONTRADICTED" under a table
-            # row reading INCONCLUSIVE (15 Nov 2026 confirmatory output, H2 and H3): same word in both places now.
-            lean = v[k].get("lean")
-            word = "INCONCLUSIVE" + (f" (leans {lean})" if lean else "")
-            hl = v[k].get("headline") or ""
-            if f": {old} (" in hl:
-                hl = hl.replace(f": {old} (", f": {word} (", 1).rstrip()
-                hl = (hl[:-1] if hl.endswith(".") else hl) + f"; Holm-adjusted p={adj:.3f}, not significant after correction."
-                v[k]["headline"] = hl
     for d in v.values():
         d["chapter_label"] = chapter_label(d)
     return v

@@ -839,8 +839,6 @@ def main():
                     help="required for a second confirmatory run on the same data; stored in the output (disclosure)")
     ap.add_argument("--models-dir", default="models", help="where the checkpoints are (for the three-arm ledger)")
     ap.add_argument("--no-ledger", action="store_true", help="skip the three-arm ledger / chronology section")
-    ap.add_argument("--print-json", action="store_true",
-                    help="also print the full JSON record to the console (default: only its path; the record is always saved)")
     ap.add_argument("--exploratory-entanglement", action="store_true",
                     help="ALSO run the old entanglement-sweep analyses as exploratory X1-X3 (they were dropped from H1-H5 on "
                          "12 Nov 2026 to save compute; they need the optional sweep conditions and never enter the Holm family)")
@@ -1009,11 +1007,7 @@ def main():
             json.dump(_confirm_log() + [{"utc": stamp, "csv_sha256": gate["csv_sha256"], "snapshot": gate["snapshot"],
                                          "output": saved["versioned"], "rerun": gate["rerun"],
                                          "rerun_reason": gate["rerun_reason"]}], fh, indent=2)
-    if args.print_json:
-        print(json.dumps(out, indent=2, default=str))
-    else:       # the full record is on disk; the console gets the readable report only
-        print(f"\n[results] full JSON record: {saved['versioned']} (latest copy: {args.out}); --print-json prints it here",
-              flush=True)
+    print(json.dumps(out, indent=2, default=str))
     print("\nHYPOTHESIS TEST STATUS (execution):")
     for k, v in out["summary"].items():
         print(f"  {k:<46} {v}")

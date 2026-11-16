@@ -67,60 +67,20 @@ def _state_path(tag: str) -> str:
     return os.path.join("logs", f"repeated_experiment_{tag}.json")
 
 
-_STATE_WARNED: set = set()
-
-
-def _load_state(tag: str, retries: int = 6, wait: float = 0.25) -> dict:
-    """The per-condition progress file. NEVER raises: on 14 Nov 2026 a 23-hour study stopped at run 31 of 40 because the
-    dashboard read this file at the instant a worker was replacing it and got half a file (JSONDecodeError). A file that
-    cannot be read is retried, then treated as empty with one warning; the results CSV still says which seeds are done
-    (run_full_study.done_seeds unions the two), so nothing is rerun or lost."""
-    import time as _time
+def _load_state(tag: str) -> dict:
     path = _state_path(tag)
-    empty = {"completed_seeds": [], "failed_seeds": []}
-    if not os.path.exists(path):
-        return empty
-    err = None
-    for i in range(max(1, retries)):
-        try:
-            with open(path) as f:
-                st = json.load(f)
-            if isinstance(st, dict):
-                st.setdefault("completed_seeds", [])
-                st.setdefault("failed_seeds", [])
-                return st
-            err = ValueError("not a JSON object")
-        except (ValueError, OSError) as exc:          # JSONDecodeError is a ValueError; PermissionError on Windows is an OSError
-            err = exc
-        if i + 1 < retries:
-            _time.sleep(wait)
-    if path not in _STATE_WARNED:
-        _STATE_WARNED.add(path)
-        print(f"[state] WARNING: {path} could not be read ({type(err).__name__}: {err}); treating it as empty. "
-              f"Completed seeds are still taken from the results CSV.", flush=True)
-    return empty
+    if os.path.exists(path):
+        with open(path) as f:
+            return json.load(f)
+    return {"completed_seeds": [], "failed_seeds": []}
 
 
-def _save_state(tag: str, state: dict, retries: int = 20, wait: float = 0.1) -> None:
-    """Write-then-replace, with a temp name unique to this process and thread (two writers can never share one temp file)
-    and a retry on the replace: on Windows os.replace fails with PermissionError while a reader has the target open."""
-    import threading as _threading
-    import time as _time
-    path = _state_path(tag)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = f"{path}.{os.getpid()}.{_threading.get_ident()}.tmp"
+def _save_state(tag: str, state: dict) -> None:
+    os.makedirs(os.path.dirname(_state_path(tag)), exist_ok=True)
+    tmp = _state_path(tag) + ".tmp"
     with open(tmp, "w") as f:
         json.dump(state, f, indent=2)
-        f.flush()
-        os.fsync(f.fileno())
-    for i in range(max(1, retries)):
-        try:
-            os.replace(tmp, path)              # atomic: an interrupt can't corrupt the state file
-            return
-        except PermissionError:
-            if i + 1 == retries:
-                raise
-            _time.sleep(wait)
+    os.replace(tmp, _state_path(tag))          # atomic: an interrupt can't corrupt the state file
 
 
 def _default_tag(model: str) -> str:

@@ -242,7 +242,7 @@ def main(argv=None) -> int:
     ap.add_argument("--pilot-seeds", type=int, nargs="+", default=cfg.get("pilot_seeds", [100, 101, 102, 103, 104]))
     ap.add_argument("--fraction", type=float, default=float(cfg.get("fraction", 0.2)))
     ap.add_argument("--ridge", type=float, default=float(cfg.get("ridge", 1.0)))
-    ap.add_argument("--pc-max-rows", type=int, default=int(cfg.get("pc_max_rows") or 10**9))      # null in the config = the whole half
+    ap.add_argument("--pc-max-rows", type=int, default=int(cfg.get("pc_max_rows", 100000)))
     ap.add_argument("--shift", type=float, default=float(cfg.get("shift_sd", 0.5)), help="configured shift_sd to attribute at")
     ap.add_argument("--floor", type=float, default=float(cfg.get("pc_floor_pct", 5.0)))
     ap.add_argument("--target", type=float, default=float(cfg.get("pc_target_pct", 10.0)))

@@ -112,7 +112,7 @@ def evaluate_poisoning_resistance(model, X_test: np.ndarray, y_test: np.ndarray,
         # v2: CHRONOLOGICAL split (earlier half trains, later half evaluates, 1-row embargo), the same function the calibration
         # uses. The old random permutation let the head train on rows later than rows it was scored on (look-ahead).
         from .poisoning_protocol import chronological_split
-        sp = chronological_split(n, (pcfg or {}).get("pc_max_rows", 100_000))      # None / "all" = the whole training half
+        sp = chronological_split(n, int((pcfg or {}).get("pc_max_rows", 100_000)))
         train_idx, eval_idx = np.arange(n)[sp["train"]], np.arange(n)[sp["eval"]]
     else:
         perm = rng.permutation(n)
@@ -122,10 +122,10 @@ def evaluate_poisoning_resistance(model, X_test: np.ndarray, y_test: np.ndarray,
     X_eval_diag, y_eval_diag = X_test[eval_idx], y_test[eval_idx]
     X_mixed = X_test[train_idx]            # fancy indexing already copies; mutated in place below
     # v2 positive control needs the REAL features of the same rows, before the synthetic rows overwrite them.
-    X_real_pc = X_mixed[sp["pc"]].copy() if pcfg else None      # same rows as before for a number; all of them for "all"
+    X_real_pc = X_mixed[: int((pcfg or {}).get("pc_max_rows", 100_000))].copy() if pcfg else None
     del X_test, train_idx, eval_idx
 
-    synthetic_ratio = float(getattr(model, "config", {}).get("synthetic_ratio", 0.0) or 0.0)
+    synthetic_ratio = float((getattr(model, "config", None) or {}).get("synthetic_ratio", 0.0) or 0.0)
     n_synth = int(len(X_mixed) * synthetic_ratio)
     if n_synth > 0 and hasattr(model, "generate_synthetic_data"):
         # Cap generated rows and resample up to n_synth (a quantum generator costs

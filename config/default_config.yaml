@@ -113,7 +113,7 @@ classical_gan_llm:
   generator_input_dims: 12      # only the first 12 of the 32 features reach G, as the 12-qubit circuit encodes only its first n_qubits.
   # MUST equal qgan_llm.n_qubits (tests enforce it); null would give this generator 32 inputs against the circuit's 12.
   forecast_eval_samples: 2000   # test rows scored for RMSE/MAE/ASR (fixed-seed subsample, same rows for both models)
-  attack_samples: 50            # rows attacked / threat-scored (gradients go through the generator)
+  attack_samples: 200            # rows attacked / threat-scored (gradients go through the generator)
   forecast_chunk: 256
   # What the forecast head / circuit predicts. "delta" = next-close CHANGE (a model that learns nothing
   # scores exactly persistence); "level" = the old raw close level. Not part of the checkpoint
@@ -135,7 +135,7 @@ classical_gan_llm:
   epochs: 30
   # Fixed number of training epochs — no early stopping for this baseline,
   # unlike classical_lstm.
-  synthetic_ratio: 0.4
+  synthetic_ratio: 1.0
   # Fraction of the LLM fine-tuning dataset meant to be filled with
   # generator-produced synthetic rows (60% real / 40% synthetic).
   n_critic: 2
@@ -163,7 +163,7 @@ qgan_llm:
   forecast_path: generator
   head_fit_rows: 4000           # train rows used to fit the head (each costs one generator call)
   forecast_eval_samples: 2000   # test rows scored for RMSE/MAE/ASR (fixed-seed subsample, same rows for both models)
-  attack_samples: 50            # rows attacked / threat-scored (gradients go through the generator)
+  attack_samples: 200            # rows attacked / threat-scored (gradients go through the generator)
   forecast_chunk: 256
   # What the forecast head / circuit predicts. "delta" = next-close CHANGE (a model that learns nothing
   # scores exactly persistence); "level" = the old raw close level. Not part of the checkpoint
@@ -196,7 +196,7 @@ qgan_llm:
   # determines the quantum circuit's per-step simulation cost.
   epochs: 30
   # Fixed number of adversarial training epochs.
-  synthetic_ratio: 0.4
+  synthetic_ratio: 1.0
   # Same 60/40 real/synthetic mixing ratio as classical_gan_llm, for
   # comparability between the two baselines.
   n_critic: 2
@@ -428,11 +428,11 @@ poisoning:
   # runs and so could not test H3. Amendment 2 (PREREGISTRATION_AMENDMENT_2.md) explains the change.
   protocol: "v2_triggered_shift"
   fraction: 0.2            # share of training rows whose target is shifted
-  shift_sd: 0.5            # shift = shift_sd x sd(y) x sign(projection on a fixed random direction).
+  shift_sd: 1.0            # shift = shift_sd x sd(y) x sign(projection on a fixed random direction).
                            # PROVISIONAL (from a simulation, not from your data). Run
                            #   python -m scripts.calibrate_poisoning
                            # on the pilot seeds, paste the value it prints here, and set calibrated: true BEFORE the rerun.
-  calibrated: false        # reset 11 Nov 2026: the earlier 0.5 came from a different split than the in-run protocol (see CHANGES_NOV11_METHODOLOGY.md); the launcher recalibrates
+  calibrated: true        # reset 11 Nov 2026: the earlier 0.5 came from a different split than the in-run protocol (see CHANGES_NOV11_METHODOLOGY.md); the launcher recalibrates
   ridge: 1.0               # closed-form ridge head (deterministic)
   pc_floor_pct: 5.0        # positive control (same attack, real-only head) must degrade at least this much (= H3 margin)
   pc_target_pct: 10.0      # what the calibration aims for on the positive control

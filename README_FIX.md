@@ -22,22 +22,6 @@ Yes, full is 40 runs and minimum is 12 runs.
 
 
 
-
-
-.EXAMPLE   .\\scripts\\run\_nov14.ps1
-
-.EXAMPLE   .\\scripts\\run\_nov14.ps1 -SkipPilots                    # study only
-
-.EXAMPLE   .\\scripts\\run\_nov14.ps1 -PilotsOnly                    # pilots and table only, no calibration, no study
-
-.EXAMPLE   .\\scripts\\run\_nov14.ps1 -AllowUncalibrated             # if step 3 finds no stable strength: run anyway, H4/H5 rows are flagged
-
-.EXAMPLE   .\\scripts\\run\_nov14.ps1 -NoRefreeze                    # keep the old frozen record; changed files are then listed as deviations
-
-.EXAMPLE   .\\scripts\\run\_nov14.ps1 -BaseSeed 53 -Workers 4 -Deviation "my own wording"
-
-.\\scripts\\resume\_study.ps1
-
 &#x09;Runs	GAN seeds	Command
 
 Full	40	10 (53–62)	.\\scripts\\run\_full\_study.ps1 --new-experiment --base-seed 53 --workers 4 --record-deviation "..."
