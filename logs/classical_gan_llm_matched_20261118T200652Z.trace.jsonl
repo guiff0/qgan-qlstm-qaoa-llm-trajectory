@@ -1,0 +1,1 @@
+{"run_id": "classical_gan_llm_matched_20261118T200652Z", "timestamp_utc": "2026-11-18T20:06:55Z", "phase": "TRAIN", "step_id": 1, "execution_time_ms": 2349.659, "memory_usage_mb": 1247.23, "metrics": {"reused_checkpoint": true, "n_train_rows": 3715921}, "severity": "INFO", "message": "Resumed Classical GAN-LLM (matched) from a completed checkpoint (no training run)"}

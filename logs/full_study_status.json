@@ -1,6 +1,6 @@
 {
   "state": "running",
-  "updated_utc": "2026-11-18T19:49:14Z",
+  "updated_utc": "2026-11-18T20:22:13Z",
   "models": [
     "QGAN-LLM",
     "Classical GAN-LLM",
@@ -184,5 +184,5 @@
     }
   ],
   "pass": 1,
-  "experiment_id": "EXP-20261118-MAIN-234e"
+  "experiment_id": "EXP-20261118-MAIN-908e"
 }
