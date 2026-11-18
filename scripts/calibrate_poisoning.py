@@ -39,7 +39,7 @@ def main() -> int:
                     help="seeds the study uses; the pilot seeds must not overlap them")
     ap.add_argument("--fraction", type=float, default=float(cfg.get("fraction", 0.2)))
     ap.add_argument("--target", type=float, default=float(cfg.get("pc_target_pct", 10.0)))
-    ap.add_argument("--max-rows", type=int, default=int(cfg.get("pc_max_rows", 100000)))
+    ap.add_argument("--max-rows", type=int, default=int(cfg.get("pc_max_rows") or 100000))
     ap.add_argument("--escalate-fractions", type=float, nargs="*", default=None,
                     help="fractions tried in increasing order if the configured one cannot reach the target (default 0.3 0.4)")
     args = ap.parse_args()
