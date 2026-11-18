@@ -391,11 +391,16 @@ class ClassicalLSTM(BaseForecastingModel):
                 "best_epoch": self._best_epoch,
             }
         else:
+            # level frame: also compute persistence_rmse so callers can compare
+            y_test_full2 = np.asarray(y_test).flatten()
+            diffs2 = np.diff(y_test_full2)
+            level_persistence_rmse = float(np.sqrt(np.mean(diffs2[seq_len - 1:] ** 2))) if len(diffs2) > seq_len - 1 else float("nan")
             self.results = {
                 "rmse": rmse_fn(y_test_arr, predictions_arr),
                 "mae": mae_fn(y_test_arr, predictions_arr),
                 "model_type": "Classical LSTM",
                 "target_frame": self.target_frame,
+                "persistence_rmse": level_persistence_rmse,
             }
 
         if attack_cfg is not None:

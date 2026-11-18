@@ -70,7 +70,10 @@ class QAOALLM(BaseForecastingModel):
             "batch_size": 64,
             "epochs": 30,
         }
-        cfg = {**default_config, **(config or {})}
+        cfg = {**default_config, "ridge": "auto", **(config or {})}
+        # feature_frame default: "diff" for delta forecasting, "level" for level forecasting
+        if "feature_frame" not in cfg:
+            cfg["feature_frame"] = "diff" if cfg.get("forecast_target", "delta") == "delta" else "level"
         # Validate feature_frame + forecast_target combination
         if cfg.get("feature_frame", "diff") == "diff" and cfg.get("forecast_target", "delta") == "level":
             raise ValueError(
@@ -122,12 +125,15 @@ class QAOALLM(BaseForecastingModel):
             )
         return result
 
-    def _apply_feature_frame(self, X):
-        """Apply feature_frame transform. 'diff': (X[1:]-X[:-1])[:-1] giving n-2 rows.
-        'level': return X unchanged."""
+    def _apply_feature_frame(self, X, trim_for_delta: bool = False):
+        """Apply feature_frame transform.
+        'diff': (X[1:]-X[:-1])[:-1] giving n-2 rows.
+        'level': return X unchanged, or X[:-1] when trim_for_delta=True (aligns with np.diff(y))."""
         X = np.asarray(X, dtype=np.float64)
         if self.feature_frame == "diff":
-            return (X[1:] - X[:-1])[:-1]
+            return (X[1:] - X[:-1])[:-1]   # n-2 rows
+        if trim_for_delta:
+            return X[:-1]   # n-1 rows, aligned with np.diff(y)
         return X
 
     def _solve_ridge(self, X_aug, y, lam: float) -> np.ndarray:
@@ -156,14 +162,14 @@ class QAOALLM(BaseForecastingModel):
             # For feature_frame='diff': X_train input to selector = (X[1:]-X[:-1])[:-1]  (n-2 rows)
             # targets = diff(y)[1:] / scale = y[2:]-y[1:-1] / scale  aligned with n-2 rows
             # For feature_frame='level': X_train input = X_train[:-1], targets = diff(y) / scale
-            X_sel_input = self._apply_feature_frame(X_train)
+            X_sel_input = self._apply_feature_frame(X_train, trim_for_delta=(self.feature_frame == "level"))
             if self.feature_frame == "diff":
                 y_sel_input = diffs[1:] / self.target_scale          # y[2:]-y[1:-1]
             else:
                 y_sel_input = diffs / self.target_scale               # y[1:]-y[:-1], n-1 rows
             if X_val is not None:
                 y_val_arr = np.asarray(y_val, dtype=np.float64)
-                X_val_sel = self._apply_feature_frame(X_val)
+                X_val_sel = self._apply_feature_frame(X_val, trim_for_delta=(self.feature_frame == "level"))
                 if self.feature_frame == "diff":
                     y_val_sel = np.diff(y_val_arr)[1:] / self.target_scale
                 else:
@@ -336,7 +342,7 @@ class QAOALLM(BaseForecastingModel):
 
         if self.target_frame == "delta":
             # Apply feature_frame transform to test features
-            X_eval = self._apply_feature_frame(np.asarray(X_test, dtype=np.float32))
+            X_eval = self._apply_feature_frame(np.asarray(X_test, dtype=np.float32), trim_for_delta=(self.feature_frame == "level"))
             # Align targets: actual bar changes
             diffs_test = np.diff(y_test_arr)
             if self.feature_frame == "diff":
@@ -382,7 +388,7 @@ class QAOALLM(BaseForecastingModel):
                 y_att_t = torch.tensor(actual_changes[:n_att] / self.target_scale, dtype=torch.float32)
                 lp_t = torch.tensor(np.asarray(last_input_prices, dtype=np.float32).flatten()[:n_att], dtype=torch.float32)
                 asr_report = compute_attack_success_rate(
-                    self.forecast_head, X_att_t, y_att_t, lp_t,
+                    self._forecast_model, X_att_t, y_att_t, lp_t,
                     attack_cfg, attacks=attack_cfg.get("attacks", ["fgsm", "pgd", "cw"]),
                 )
                 self.results["asr"] = asr_report["overall_asr"]
