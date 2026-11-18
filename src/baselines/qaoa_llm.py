@@ -207,8 +207,8 @@ class QAOALLM(BaseForecastingModel):
         head_fit = self.head_fit
         ridge_cfg = self.config.get("ridge", "auto")
 
-        if head_fit == "ridge":
-            # Closed-form ridge
+        if head_fit == "ridge" and ridge_cfg != "auto":
+            # Closed-form ridge with a fixed penalty
             lam = 1.0 if isinstance(ridge_cfg, str) else float(ridge_cfg)
             self._fit_ridge_head(X_sel_np, y_sel_input, lam=lam)
             self.head_info = {"mode": "fixed", "penalty": lam, "no_change": False}
