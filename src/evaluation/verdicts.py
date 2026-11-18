@@ -123,9 +123,14 @@ def _holm(pvals: dict) -> dict:
 
 
 # ------------------------------------------------------------ per-hypothesis
-def _two_group(res, key, a_name, b_name, exp_sign, confound=None, hyp_label=""):
+def _two_group(res, key, a_name, b_name, exp_sign, confound=None, hyp_label="",
+               paired_p=None):
     """res is a _compare_two() result where group a is `a_name`, b is `b_name`.
-    exp_sign is the expected sign of (a - b)."""
+    exp_sign is the expected sign of (a - b).
+    paired_p: when provided (pre-registered paired/crossed design), this p replaces
+    the independent-samples p for the Holm family and verdict decision.  The design
+    decision to match seeds is fixed at the protocol; this parameter restores the
+    test that matches that design (Amendment 6, 2026-11-18)."""
     st = res.get("status")
     if st == "insufficient_data":
         return _out("UNTESTABLE", "NONE", "U1_insufficient_data",
@@ -153,14 +158,16 @@ def _two_group(res, key, a_name, b_name, exp_sign, confound=None, hyp_label=""):
     if confound:
         blockers.append(confound)
     tier = "EXPLORATORY" if blockers else "CONFIRMATORY"
-    verdict, rule, lean = _decide(p, s, exp_sign, tier, key)
+    # Amendment 6: use paired_p when provided (pre-registered crossed design)
+    effective_p = paired_p if (paired_p is not None) else p
+    verdict, rule, lean = _decide(effective_p, s, exp_sign, tier, key)
     direction = {+1: f"{a_name} > {b_name}", -1: f"{a_name} < {b_name}", 0: "no difference"}[s]
     expected = {+1: f"{a_name} > {b_name}", -1: f"{a_name} < {b_name}"}[exp_sign]
     why.insert(0, f"observed direction: {direction}; hypothesis expects: {expected}")
     why.append(f"p {_fmt_p(p, True)}, alpha = {ALPHA}")
     return _out(verdict, tier, rule,
-                f"{hyp_label}: {verdict} ({tier.lower()}) -- observed {direction}, p={_fmt_p(p)}.",
-                why, blockers, res.get("how_to_fix", ""), lean, p_value=p)
+                f"{hyp_label}: {verdict} ({tier.lower()}) -- observed {direction}, p={_fmt_p(effective_p)}.",
+                why, blockers, res.get("how_to_fix", ""), lean, p_value=effective_p)
 
 
 def verdict_h1(res):
@@ -237,8 +244,11 @@ def _verdict_advantage(res, hyp, metric):
                     [res.get("reason", ""), "the generator never reaches the forecast"],
                     ["generator is not on the forecast path -- more seeds cannot change this"],
                     "Set forecast_path: generator in both GAN config sections, retrain, and re-run.")
+    # Amendment 6 (2026-11-18): pass paired p from pre-registered crossed design
+    _pb = res.get("paired_by_seed", {})
+    _paired_p = _pb.get("p_value") if (isinstance(_pb, dict) and _pb.get("status") == "ok") else None
     return _two_group(res, hyp, "QGAN-LLM", "Classical GAN-LLM", EXPECTED[hyp], None,
-                      f"{hyp} (QGAN {metric} lower than classical)")
+                      f"{hyp} (QGAN {metric} lower than classical)", paired_p=_paired_p)
 
 
 def verdict_h2(res):
