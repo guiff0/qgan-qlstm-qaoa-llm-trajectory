@@ -1,0 +1,163 @@
+{
+  "chosen_shift_sd": 3.0,
+  "target_pct": 10.0,
+  "fraction": 0.2,
+  "pilot_seeds": [
+    100,
+    101,
+    102,
+    103,
+    104
+  ],
+  "curve": [
+    {
+      "shift_sd": 0.05,
+      "median_degradation_pct": 0.9282687250765254,
+      "min_degradation_pct": -3.461717400290601,
+      "per_seed": [
+        3.3619504931293016,
+        0.6691773411386865,
+        0.95086010189559,
+        0.9282687250765254,
+        -3.461717400290601
+      ],
+      "meets_criterion": false
+    },
+    {
+      "shift_sd": 0.1,
+      "median_degradation_pct": 1.8591128641644699,
+      "min_degradation_pct": -6.921785907100523,
+      "per_seed": [
+        6.725040276676758,
+        1.3393099887171231,
+        1.9037562696190784,
+        1.8591128641644699,
+        -6.921785907100523
+      ],
+      "meets_criterion": false
+    },
+    {
+      "shift_sd": 0.2,
+      "median_degradation_pct": 3.728249850128007,
+      "min_degradation_pct": -13.836181746075995,
+      "per_seed": [
+        13.45423242030222,
+        2.682366357549099,
+        3.8154324226227594,
+        3.728249850128007,
+        -13.836181746075995
+      ],
+      "meets_criterion": false
+    },
+    {
+      "shift_sd": 0.3,
+      "median_degradation_pct": 5.60687870958894,
+      "min_degradation_pct": -20.741253404161377,
+      "per_seed": [
+        20.186879055080766,
+        4.02902400867279,
+        5.734598886250377,
+        5.60687870958894,
+        -20.741253404161377
+      ],
+      "meets_criterion": false
+    },
+    {
+      "shift_sd": 0.5,
+      "median_degradation_pct": 9.390653488082327,
+      "min_degradation_pct": -34.51162943472529,
+      "per_seed": [
+        33.66044745557976,
+        6.732597531824977,
+        9.593827207109404,
+        9.390653488082327,
+        -34.51162943472529
+      ],
+      "meets_criterion": false
+    },
+    {
+      "shift_sd": 1.0,
+      "median_degradation_pct": 18.985007054497455,
+      "min_degradation_pct": -68.30069684377824,
+      "per_seed": [
+        67.37709129241559,
+        13.545657469349957,
+        19.347966274782827,
+        18.985007054497455,
+        -68.30069684377824
+      ],
+      "meets_criterion": false
+    },
+    {
+      "shift_sd": 2.0,
+      "median_degradation_pct": 38.614829144131235,
+      "min_degradation_pct": -58.53602178878122,
+      "per_seed": [
+        134.88214581962572,
+        27.361371590525906,
+        39.20189161375575,
+        38.614829144131235,
+        -58.53602178878122
+      ],
+      "meets_criterion": false
+    },
+    {
+      "shift_sd": 3.0,
+      "median_degradation_pct": 58.65029739596148,
+      "min_degradation_pct": 10.196401964112226,
+      "per_seed": [
+        202.429487987341,
+        41.367987639602035,
+        59.37279794016086,
+        58.65029739596148,
+        10.196401964112226
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 4.0,
+      "median_degradation_pct": 79.65745842920106,
+      "min_degradation_pct": 55.513932486929676,
+      "per_seed": [
+        269.9959581284242,
+        55.513932486929676,
+        79.75400785001263,
+        78.95521763592198,
+        79.65745842920106
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 6.0,
+      "median_degradation_pct": 120.91403334657929,
+      "min_degradation_pct": 84.09506422915926,
+      "per_seed": [
+        405.1555798165699,
+        84.09506422915926,
+        120.91403334657929,
+        120.07429923011794,
+        218.86144740399408
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 8.0,
+      "median_degradation_pct": 162.3960498970644,
+      "min_degradation_pct": 112.93226012232998,
+      "per_seed": [
+        540.3320035675796,
+        112.93226012232998,
+        162.3960498970644,
+        161.60514644343712,
+        358.15578388133076
+      ],
+      "meets_criterion": true
+    }
+  ],
+  "note": "frozen value; record it in the amendment",
+  "chosen_fraction": 0.2,
+  "recipe": "chronological_split (same function as the in-run protocol)",
+  "generated_utc": "20261118T190250Z",
+  "n_rows_train": 100000,
+  "n_rows_eval": 372392
+}

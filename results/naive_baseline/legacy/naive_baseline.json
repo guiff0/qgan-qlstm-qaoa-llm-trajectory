@@ -2,7 +2,7 @@
   "arm": "linear",
   "role": "naive baseline (inputs only)",
   "experiment_id": "legacy",
-  "updated_utc": "20261116T190711Z",
+  "updated_utc": "20261118T190300Z",
   "plan_source": "windows copied from results\\walk_forward_q8.json",
   "windows": [
     {

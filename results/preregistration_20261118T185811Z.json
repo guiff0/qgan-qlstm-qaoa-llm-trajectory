@@ -1,0 +1,82 @@
+{
+  "frozen_utc": "20261118T185811Z",
+  "git_commit": "0d83b58a487aa3f4f5f9c63412be55e28c3984e8",
+  "equivalence": {
+    "alpha": 0.05,
+    "margins": {
+      "fid": [
+        "rel_ref",
+        0.1
+      ],
+      "rmse": [
+        "rel_persistence",
+        0.02
+      ],
+      "asr": [
+        "abs",
+        5.0
+      ],
+      "poisoning": [
+        "abs",
+        5.0
+      ],
+      "r0": [
+        "abs",
+        0.3
+      ]
+    }
+  },
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "feature_map_runs": [
+    {
+      "n_qubits": 8,
+      "n_layers": 3
+    },
+    {
+      "n_qubits": 12,
+      "n_layers": 3
+    }
+  ],
+  "file_sha256": {
+    "config/default_config.yaml": "88974cb70650470d8653c8a629e21e57870ddeb0235d63c4d0a6771cf74b091e",
+    "PREREGISTRATION.md": "e9925bac6f4a4770aea3f3846bf52854c7ce09523c356d4a6578cf9d89601b9d",
+    "scripts/run_hypothesis_tests.py": "14fd258b24cdf2ca568f4d34b8c94faf8cab16f9cf83be6662debb837ead474f",
+    "scripts/run_feature_map_experiment.py": "65dc98c090b5f9bb423e54d2dfb7721bdb061ff5e1cd91ca90b0650ccb4c5405",
+    "src/baselines/feature_map_forecaster.py": "ab9e5a4a124bb3d8fda20ab7734e8c7842cd38e2e2b0392de433d7c9e9fafbe2",
+    "src/quantum/feature_map.py": "3a1e09f763728c44c0aa3eaae9c2fbfc0d51e40e36acf0f8c0b5affa9fea2ee6",
+    "src/utils/generator_path.py": "28d25dac5efdc1bd4ecf1cfc44772158d347e4a4342b14cfb6e162e9ada97f78",
+    "src/utils/capacity_match.py": "a613d8feefdcebb4aa009dd6a87f3bee23ebb61c45b3fb5b2d4f1a3f087b51f6",
+    "src/baselines/qgan_llm.py": "c1a69730f850044c2bc8213776b53935fc41abd85264f1f2a0c02acce446b789",
+    "src/baselines/classical_gan_llm.py": "53886f1c0543dbd5ced97b223bf1f3c46c255550c3ec53531a3bccd7e31d9567",
+    "src/evaluation/verdicts.py": "3e919c4ad4e888ee5c213a2943f899d95c3f9964697aa4f359cc363e82c2e312",
+    "src/evaluation/paired_tests.py": "475b33856167009bfc6ae156ffb55cf666f613276b3df43023165228cfbfb01b",
+    "src/evaluation/study_status.py": "7b41f5b46492ba14efeef73bfee38dee5d76387624e97c888e687516bb7c3fd6",
+    "config/analysis_plan.yaml": "d4322f6d53c589f576c22b11cc08cadc41866c6b5481ab51be978de0070449dd",
+    "PREREGISTRATION_V2.md": "5b592ca02f93cd6699a1cbc0d74c3fb5c3cab685452c8ccbd1d91b8626ae6bbe",
+    "PREREGISTRATION_ADDENDUM.md": "32ff07759d11a4ff412a5fad857cc4b3749cac7b6220be1e0bd2c489b6f0eb03",
+    "PREREGISTRATION_AMENDMENT_2.md": "e876bb14a74de25de58b5180f8ef4b08cde185ce14d654b903230c667ea8936f",
+    "scripts/snapshot_results.py": "3c970f0f3bba23b2e3d526c3acbfdc88f7c64547b50d2c7dab86039feb83e829",
+    "src/evaluation/three_arm.py": "76429dd9f96d78893078c4e9011862f77d64e4b70ca90ee8bad025b7f5febe0e",
+    "src/evaluation/walk_forward.py": "89d4a5cd1f565d3d2d0a07e5a862c7394c353aec06f6091af7decc491a99de3f",
+    "src/evaluation/arm_metrics.py": "4202379ca133e386ef3f84461d65a5c03cf889c54a479ac5c7b1e2a5aa041f25",
+    "src/evaluation/protocol_compliance.py": "4d78fea629bcbbbd24e2a8f2cdb0f06ae940f2ae47366280c0cfa87c017a188f",
+    "src/evaluation/advantage_diagnostics.py": "6bd718a08bf0a6a4b8bbfe91851be4e07de7090014f38a5d7bd3703af2656d97",
+    "scripts/run_walk_forward.py": "3e7a61fdcb90e799d1e8658ac1dc1526dacf216a22870747c7c9fb0524ab740c",
+    "scripts/run_naive_baseline.py": "273727dfecbfeae10bfbfecc48f29890d57c37b0db9e9200d95d1d72e5beb3a0",
+    "scripts/run_full_study.py": "3da5e8c0af2215f4a24c1e89653b2cafc33be83e9a7a3b716c6242e0d25698da",
+    "scripts/run_full_study.ps1": "fa64c9fb8f27d2296d300e1b9f1e7199928eb0bd5a458cb7daa95f41f629c9e0",
+    "PREREGISTRATION_AMENDMENT_3.md": "a015b92d20bad17a69961354a4045c15e18d9bf0a2e278ab0512f372cbab3804",
+    "HYPOTHESES_V3.md": "b33643e59f1de2310a3f90d5b4ecdeffda3564ad8b9e76454998e130bd702b68"
+  }
+}

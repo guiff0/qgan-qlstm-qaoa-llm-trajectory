@@ -2,7 +2,7 @@
   "calibrate": {
     "status": "ok",
     "rc": 0,
-    "utc": "20261116T210915Z",
+    "utc": "20261118T190301Z",
     "seconds": 0.0,
     "commands": [],
     "note": "not needed (already calibrated, or the legacy protocol is configured)",
@@ -16,5 +16,16 @@
     "commands": [],
     "note": "recording the deviation failed (decision rules changed, or no frozen record exists)",
     "experiment_id": null
+  },
+  "hypothesis": {
+    "status": "failed",
+    "rc": 1,
+    "utc": "20261118T190054Z",
+    "seconds": 2.8,
+    "commands": [
+      "D:\\dev\\app\\qgan-qlstm-qaoa-llm-trajectory\\venv\\Scripts\\python.exe -m scripts.run_hypothesis_tests --feature-map-json results\\feature_map_advantage_q8.json results\\feature_map_advantage_q12.json --experiment-id EXP-20261116-VM-7fdd --run-confirmatory"
+    ],
+    "note": "",
+    "experiment_id": "EXP-20261116-VM-7fdd"
   }
 }

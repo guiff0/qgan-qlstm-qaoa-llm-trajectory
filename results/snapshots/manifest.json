@@ -1,0 +1,11 @@
+[
+  {
+    "utc": "20261118T071700Z",
+    "snapshot": "results/snapshots/all_results_20261118T071700Z.csv",
+    "source": "results/all_results.csv",
+    "sha256": "77acf434415a89cf38bc4c2991b359faffc80fae6fe84a17ff2fbb2694f7557e",
+    "bytes": 36271,
+    "rows": 40,
+    "note": "automatic snapshot at the confirmatory gate"
+  }
+]
