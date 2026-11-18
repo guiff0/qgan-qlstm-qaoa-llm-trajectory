@@ -106,7 +106,18 @@ def read_run_id(path: str, nbytes: int = 262144) -> str | None:
     return m[-1] if m else None
 
 
-def pipeline_lines(root: str = ROOT) -> list[str]:
+def feature_map_files(root: str = ROOT) -> list[str]:
+    """Canonical feature_map_advantage files, excluding __ history copies."""
+    result = []
+    base = os.path.join(root, "results", "feature_map_advantage.json")
+    if os.path.isfile(base):
+        result.append(base)
+    result += [f for f in sorted(glob.glob(os.path.join(root, "results", "feature_map_advantage_q*.json")))
+               if "__" not in os.path.basename(f)]
+    return result
+
+
+def pipeline_lines(root: str = ROOT, experiment_id: str = None) -> list[str]:
     """Where the study is in its stages, and the three-arm feature-map / matrix results found on disk.
     The three-arm stages are run by scripts.run_study (stages feature_map and matrix), AFTER the main runs."""
     out = []
@@ -115,16 +126,24 @@ def pipeline_lines(root: str = ROOT) -> list[str]:
             state = json.load(fh)
     except (OSError, ValueError):
         state = {}
+    _fm_files = feature_map_files(root)
+    _fm_files_present = bool(_fm_files)
     marks = []
     for st in PIPELINE_STAGES:
-        s = (state.get(st) or {}).get("status")
-        marks.append(f"{st}={'ok' if s == 'ok' else s or 'pending'}")
+        entry = state.get(st) or {}
+        s = entry.get("status")
+        if experiment_id and entry.get("experiment_id") and entry["experiment_id"] != experiment_id:
+            s = None  # another experiment's record -- show as pending for this run
+        if st == "feature_map" and s is None and _fm_files_present:
+            marks.append("feature_map=ok (file on disk)")
+        else:
+            marks.append(f"{st}={'ok' if s == 'ok' else s or 'pending'}")
     out.append("  stages: " + "  ".join(marks))
-    files = sorted(glob.glob(os.path.join(root, "results", "feature_map_advantage_q*.json")))
+    files = _fm_files
     if not files:
         out.append("  three-arm feature-map (linear / classical RF / quantum): not run yet (stage feature_map, after the main runs)")
     for fp in files:
-        label = os.path.basename(fp)[len("feature_map_advantage_"):-len(".json")]
+        label = os.path.basename(fp)[len("feature_map_advantage_"):-len(".json")] or "(unsuffixed)"
         try:
             with open(fp, encoding="utf8") as fh:
                 rows = json.load(fh).get("per_run", [])
@@ -171,7 +190,12 @@ class StudyDashboard:
         done = total - len(todo)
         done_now = self.n_start - len(todo)
         elapsed = time.time() - self.t0
-        eta = f"ETA {fmt_dur(elapsed / done_now * len(todo))}" if done_now > 0 and todo else "ETA n/a (no run finished yet)"
+        if not todo:
+            eta = "all runs done"
+        elif done_now > 0:
+            eta = f"ETA {fmt_dur(elapsed / done_now * len(todo))}"
+        else:
+            eta = "ETA n/a (no run finished yet)"
         with self._lock:
             n_running = len(self.active)
         lines = [f"[experiment] {self.experiment_id or 'legacy (no experiment id)'}",

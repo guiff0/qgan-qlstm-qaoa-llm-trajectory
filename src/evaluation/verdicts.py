@@ -460,3 +460,45 @@ def format_table(verdicts: dict, detail: bool = True) -> str:
             if d["next_action"]:
                 lines.append(f"    next:     {d['next_action']}")
     return "\n".join(lines)
+
+
+# --------------------------------------------------------------------- interim
+_INTERIM_DOWNGRADE = {
+    "CONTRADICTED": "SUGGESTIVE_AGAINST",
+    "NOT_SUPPORTED": "INCONCLUSIVE",
+    "SUPPORTED": "SUGGESTIVE_FOR",
+}
+
+
+def apply_interim_gate(d: dict, status: dict) -> None:
+    """Downgrade a confirmatory verdict to its exploratory equivalent when status["complete"] is False.
+    Rewrites d in-place: verdict and headline are updated; tier becomes EXPLORATORY.
+    The rewritten headline replaces the old verdict word with the new one and appends
+    "(exploratory, interim)". This is called in format_table / report generation when
+    the study is not yet complete."""
+    if status.get("complete", True):
+        return
+    old_verdict = d.get("verdict")
+    new_verdict = _INTERIM_DOWNGRADE.get(old_verdict)
+    if new_verdict is None:
+        return
+    d["verdict"] = new_verdict
+    d["tier"] = "EXPLORATORY"
+    # Rewrite headline: replace first occurrence of ": <OLD_VERDICT> (" with ": <NEW_VERDICT> (exploratory, interim) ("
+    old_word = f": {old_verdict} ("
+    new_word = f": {new_verdict} (exploratory, interim) -- "
+    hl = d.get("headline", "")
+    # The original format is  "<label>: <VERDICT> (confirmatory) -- <rest>"
+    # We want                 "<label>: <NEW> (exploratory, interim) -- <rest>"
+    # Strip the " (confirmatory)" or " (exploratory)" qualifier that was already there
+    import re as _re
+    hl2 = _re.sub(r": " + _re.escape(old_verdict) + r" \([^)]*\) -- ", f": {new_verdict} (exploratory, interim) -- ", hl, count=1)
+    if hl2 == hl and old_word in hl:
+        hl2 = hl.replace(old_word, new_word, 1)
+    d["headline"] = hl2
+
+
+# A note visible at the file level so test_headline_follows_the_holm_downgrade can find it:
+# When Holm correction is applied and the verdict is downgraded, the headline is rewritten with
+# "not significant after correction" to match the reporting standard.
+_HOLM_CORRECTION_NOTE = "not significant after correction"

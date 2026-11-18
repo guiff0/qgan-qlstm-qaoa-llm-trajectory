@@ -51,6 +51,7 @@ RESULTS_CSV = os.path.join("results", "all_results.csv")
 # Experiment scoping (src/utils/experiment.py). None = legacy behaviour: every row of the CSV counts and the
 # state files are shared. Set by main() (--experiment-id / env EXPERIMENT_ID) or by scripts/run_full_study.py.
 EXPERIMENT_ID: str | None = None
+_STATE_WARNED: set = set()   # tags already warned about unreadable state files (warn once)
 
 
 def set_experiment_id(eid: str | None) -> None:
@@ -67,11 +68,29 @@ def _state_path(tag: str) -> str:
     return os.path.join("logs", f"repeated_experiment_{tag}.json")
 
 
-def _load_state(tag: str) -> dict:
+def _load_state(tag: str, retries: int | None = None, wait: float | None = None) -> dict:
+    import time as _time
     path = _state_path(tag)
-    if os.path.exists(path):
-        with open(path) as f:
-            return json.load(f)
+    _retries = 3 if retries is None else retries
+    _wait = 0.1 if wait is None else wait
+    for attempt in range(_retries + 1):
+        if os.path.exists(path):
+            try:
+                with open(path) as f:
+                    data = json.load(f)
+                return {"completed_seeds": data.get("completed_seeds", []),
+                        "failed_seeds": data.get("failed_seeds", [])}
+            except (OSError, ValueError):
+                if attempt < _retries:
+                    if _wait > 0:
+                        _time.sleep(_wait)
+                    continue
+                if tag not in _STATE_WARNED:
+                    _STATE_WARNED.add(tag)
+                    print(f"[state] {path} could not be read after {_retries} retries; treating as empty.", flush=True)
+                return {"completed_seeds": [], "failed_seeds": []}
+        else:
+            break
     return {"completed_seeds": [], "failed_seeds": []}
 
 

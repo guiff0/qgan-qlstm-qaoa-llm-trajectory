@@ -205,7 +205,12 @@ def build_ledger(df, models_dir="models", results_dir="results", feature_map_pat
 
 
 def _sk(v):
-    return "   n/a " if v is None else f"{v:+.4f}"
+    if v is None:
+        return "   n/a "
+    rounded = round(float(v), 4)
+    if rounded == 0.0:
+        return f"{0.0:.4f}"
+    return f"{float(v):+.4f}"
 
 
 def format_walk_forward(led: dict) -> list[str]:

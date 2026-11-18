@@ -39,6 +39,21 @@ from ..utils.progress import progress_bar, log_progress_milestone
 
 
 CHECKPOINT_PATH = "models/classical_lstm_best.pt"
+CHECKPOINT_PATH_DELTA = "models/classical_lstm_delta_best.pt"
+
+
+def window_targets(y, frame: str, scale: float = 1.0):
+    """Convert raw targets to the requested frame, returned as float64.
+    frame='level': return y unchanged (scale ignored).
+    frame='delta': return np.diff(y, prepend=y[0]) / scale
+                  (index j holds the change INTO row j, so y[0] -> 0.0).
+    """
+    y = np.asarray(y, dtype=np.float64)
+    if frame == "level":
+        return y
+    if frame == "delta":
+        return np.diff(y, prepend=y[0]) / scale
+    raise ValueError(f"Unknown frame {frame!r}; expected 'level' or 'delta'")
 _CHECKPOINT_FORMAT_VERSION = 2
 
 
@@ -72,6 +87,11 @@ class ClassicalLSTM(BaseForecastingModel):
         cfg = {**default_config, **(config or {})}
         super().__init__("Classical LSTM", cfg)
         self.seed = seed
+        self.target_frame: str = cfg.get("forecast_target", "delta")
+        self.target_scale: float = 1.0
+        self.input_centering: str = cfg.get("input_centering", "window" if cfg.get("forecast_target", "delta") == "delta" else "none")
+        self.checkpoint_path: str = CHECKPOINT_PATH_DELTA if cfg.get("forecast_target", "delta") == "delta" else CHECKPOINT_PATH
+        self._best_epoch: int = -1
 
     def build(self):
         set_all_seeds(self.seed)
@@ -97,6 +117,8 @@ class ClassicalLSTM(BaseForecastingModel):
     def _forward(self, X_seq: torch.Tensor) -> torch.Tensor:
         """X_seq: (batch, sequence_length, n_features) -- a REAL sequence,
         not a length-1 stand-in."""
+        if self.input_centering == "window":
+            X_seq = X_seq - X_seq.mean(dim=1, keepdim=True)
         return self.fc(self._features(X_seq))
 
     # ------------------------------------------------------------------
@@ -118,6 +140,10 @@ class ClassicalLSTM(BaseForecastingModel):
                 "format_version": _CHECKPOINT_FORMAT_VERSION,
                 "lstm": self.model.state_dict(),
                 "fc": self.fc.state_dict(),
+                "target_frame": self.target_frame,
+                "target_scale": float(self.target_scale),
+                "input_centering": self.input_centering,
+                "best_epoch": self._best_epoch,
             },
             path,
         )
@@ -132,13 +158,42 @@ class ClassicalLSTM(BaseForecastingModel):
                 f"    python -m src.experiments.refit_lstm_head\n"
                 f"or retrain."
             )
+        ckpt_frame = ckpt.get("target_frame", "level")
+        if ckpt_frame != self.target_frame:
+            raise RuntimeError(
+                f"{path} was trained in the {ckpt_frame!r} frame but this model is configured for {self.target_frame!r}. "
+                f"Cross-frame checkpoint loading is not supported."
+            )
         self.model.load_state_dict(ckpt["lstm"])
         self.fc.load_state_dict(ckpt["fc"])
+        self.target_scale = float(ckpt.get("target_scale", 1.0))
+        if "input_centering" in ckpt:
+            self.input_centering = ckpt["input_centering"]
+        self._best_epoch = ckpt.get("best_epoch", -1)
         self.is_trained = True
 
     def train(self, X_train, y_train, X_val, y_val, run_logger=None):
         self.build()
         seq_len = self.config["sequence_length"]
+
+        # Delta-frame: predict next-bar change. target_scale = std(diff(y_train)).
+        if self.target_frame == "delta":
+            _y_diff_train = np.diff(np.asarray(y_train, dtype=np.float64))
+            self.target_scale = float(np.std(_y_diff_train)) if len(_y_diff_train) > 0 else 1.0
+            if self.target_scale == 0.0:
+                self.target_scale = 1.0
+            y_train = window_targets(y_train, "delta", self.target_scale)
+            y_val = window_targets(y_val, "delta", self.target_scale)
+            # Initialize fc to no-change forecast (all zeros)
+            with torch.no_grad():
+                self.fc.weight.zero_()
+                self.fc.bias.zero_()
+        else:
+            self.target_scale = 1.0
+
+        # Save no-change checkpoint as the starting baseline (best_epoch = -1)
+        self._best_epoch = -1
+        self.save_model(self.checkpoint_path)
 
         train_ds = WindowedSequenceDataset(X_train, y_train, sequence_length=seq_len)
         train_loader = DataLoader(
@@ -154,7 +209,20 @@ class ClassicalLSTM(BaseForecastingModel):
             val_ds = torch.utils.data.Subset(val_ds, sel.tolist())
         val_loader = DataLoader(val_ds, batch_size=self.config["batch_size"], shuffle=False)
 
-        best_val_loss = float("inf")
+        # For the delta frame we start with the no-change forecast as the best baseline.
+        # Compute its validation loss so that training epochs must beat it.
+        if self.target_frame == "delta":
+            self.model.eval()
+            _nc_loss_total, _nc_n = 0.0, 0
+            _val_ds_nc = WindowedSequenceDataset(X_val, y_val, sequence_length=seq_len)
+            _val_ldr_nc = DataLoader(_val_ds_nc, batch_size=self.config["batch_size"], shuffle=False)
+            with torch.no_grad():
+                for _Xb, _yb, _ in _val_ldr_nc:
+                    _nc_loss_total += self.criterion(self._forward(_Xb).squeeze(-1), _yb).item()
+                    _nc_n += 1
+            best_val_loss = _nc_loss_total / max(_nc_n, 1)
+        else:
+            best_val_loss = float("inf")
         patience_counter = 0
         n_epochs = self.config["epochs"]
         # Compute budget. Consecutive 1-minute windows share 59 of 60 rows, so a full pass over all ~3.7M
@@ -210,7 +278,8 @@ class ClassicalLSTM(BaseForecastingModel):
                 if val_loss < best_val_loss:
                     best_val_loss = val_loss
                     patience_counter = 0
-                    self.save_model(CHECKPOINT_PATH)
+                    self._best_epoch = epoch
+                    self.save_model(self.checkpoint_path)
                 else:
                     patience_counter += 1
                     if patience_counter >= self.config["early_stopping_patience"]:
@@ -219,7 +288,7 @@ class ClassicalLSTM(BaseForecastingModel):
                         break
 
         self.is_trained = True
-        self.load_model(CHECKPOINT_PATH)
+        self.load_model(self.checkpoint_path)
 
     def _window_view(self, X) -> np.ndarray:
         """Zero-copy (n_windows, seq_len, n_features) VIEW of a flat
@@ -302,11 +371,32 @@ class ClassicalLSTM(BaseForecastingModel):
         y_test_arr = np.array(y_test).flatten()[seq_len:]
         predictions_arr = np.array(predictions).flatten()
 
-        self.results = {
-            "rmse": rmse_fn(y_test_arr, predictions_arr),
-            "mae": mae_fn(y_test_arr, predictions_arr),
-            "model_type": "Classical LSTM",
-        }
+        if self.target_frame == "delta":
+            # Predictions are scaled changes; convert back to price-level changes for RMSE comparison
+            preds_unscaled = predictions_arr * self.target_scale
+            # y_test_arr is the actual price series trimmed to [seq_len:]; reconstruct actual changes
+            # persistence_rmse = sqrt(mean(diff(y_test)[seq_len:] ** 2))
+            y_test_full = np.asarray(y_test).flatten()
+            diffs = np.diff(y_test_full)
+            persistence_rmse = float(np.sqrt(np.mean(diffs[seq_len - 1:] ** 2))) if len(diffs) > seq_len - 1 else float("nan")
+            # actual next-bar changes aligned with predictions
+            actual_changes = diffs[seq_len - 1:len(predictions_arr) + seq_len - 1]
+            n_preds = len(actual_changes)
+            self.results = {
+                "rmse": float(np.sqrt(np.mean((preds_unscaled[:n_preds] - actual_changes) ** 2))),
+                "mae": float(np.mean(np.abs(preds_unscaled[:n_preds] - actual_changes))),
+                "model_type": "Classical LSTM",
+                "target_frame": self.target_frame,
+                "persistence_rmse": persistence_rmse,
+                "best_epoch": self._best_epoch,
+            }
+        else:
+            self.results = {
+                "rmse": rmse_fn(y_test_arr, predictions_arr),
+                "mae": mae_fn(y_test_arr, predictions_arr),
+                "model_type": "Classical LSTM",
+                "target_frame": self.target_frame,
+            }
 
         if attack_cfg is not None:
             self.model.eval()

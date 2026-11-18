@@ -206,6 +206,29 @@ def _mark_state(model: str, seed: int, ok: bool, lock) -> None:
         rre._save_state(tag, st)
 
 
+def mark_stage(stage: str, status: str, rc: int | None = None, *,
+               commands: list | None = None, path: str | None = None) -> None:
+    """Write a stage status record to the state JSON (atomic, same schema as the dashboard reads)."""
+    if path is None:
+        path = os.path.join("results", "study_driver_state.json")
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    try:
+        with open(path, encoding="utf8") as fh:
+            state = json.load(fh)
+    except (OSError, ValueError):
+        state = {}
+    record: dict = {"status": status, "experiment_id": EXPERIMENT}
+    if rc is not None:
+        record["rc"] = rc
+    if commands is not None:
+        record["commands"] = commands
+    state[stage] = record
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf8") as fh:
+        json.dump(state, fh, indent=2)
+    os.replace(tmp, path)
+
+
 def _run_one(model: str, seed: int, config, env: dict, lock) -> bool:
     """One (condition, seed) run in its own process; output to logs/study/. True only if its row was recorded."""
     os.makedirs(_study_dir(), exist_ok=True)         # logs/study/<experiment id>/ (created on first use)
@@ -214,7 +237,10 @@ def _run_one(model: str, seed: int, config, env: dict, lock) -> bool:
     if config:
         cmd += ["--config", config]
     if DASH:
-        DASH.run_started(model, seed, log)
+        try:
+            DASH.run_started(model, seed, log)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[dashboard] display error after {model!r} seed {seed} (ignored; the run itself was recorded): {exc!r}", flush=True)
     else:
         print(f"[worker] start  {model!r} seed {seed}  (log: {log})", flush=True)
     t0 = time.time()
@@ -254,7 +280,10 @@ def _run_one(model: str, seed: int, config, env: dict, lock) -> bool:
         except Exception as exc:  # noqa: BLE001  -- bookkeeping must never stop a multi-day study
             print(f"[experiment] could not register run: {exc!r}", flush=True)
     if DASH:
-        DASH.run_finished(model, seed, ok, rc, log, why)
+        try:
+            DASH.run_finished(model, seed, ok, rc, log, why)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[dashboard] display error after {model!r} seed {seed} (ignored; the run itself was recorded): {exc!r}", flush=True)
     else:
         print(f"[worker] {'OK   ' if ok else 'FAIL '} {model!r} seed {seed} exit {rc} in {minutes:.1f} min"
               + (f"\n         {why}" if why else ""), flush=True)

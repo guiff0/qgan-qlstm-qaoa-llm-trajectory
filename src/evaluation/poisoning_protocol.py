@@ -34,6 +34,22 @@ DEFAULT_FRACTIONS = (0.2, 0.3, 0.4)
 DEFAULTS = {"fraction": 0.2, "shift_sd": 3.0, "ridge": 1.0, "pc_floor_pct": 5.0, "pc_max_rows": 100_000,
             "pc_target_pct": 10.0}
 
+def pc_rows(max_rows, total: int) -> int:
+    """Resolve pc_max_rows sentinel values to a concrete row count."""
+    if max_rows is None:
+        return total
+    if isinstance(max_rows, str) and max_rows.lower() in ('all', 'null'):
+        return total
+    try:
+        v = int(max_rows)
+    except (TypeError, ValueError):
+        return total
+    if v <= 0:
+        return total
+    return min(v, total)
+
+
+
 
 def chronological_split(n: int, pc_max_rows: int, gap: int = 1) -> dict:
     """THE split of the H3 protocol, shared by the in-run evaluation AND the calibration (one function, so they cannot drift
@@ -41,7 +57,7 @@ def chronological_split(n: int, pc_max_rows: int, gap: int = 1) -> dict:
     figure's "identical chronological training and test splits (no look-ahead)". The control/positive-control head sees the
     first `pc_max_rows` training rows."""
     half = n // 2
-    k = min(int(pc_max_rows), half)
+    k = pc_rows(pc_max_rows, half)
     return {"train": slice(0, half), "eval": slice(half + int(gap), n), "pc": slice(0, k)}
 
 
@@ -93,26 +109,43 @@ def run_protocol(X_mixed, y_train, X_eval, y_eval, *, X_real_train=None, seed: i
            "poisoning_shift_sd": shift, "poisoning_pc_floor_pct": float(c["pc_floor_pct"]),
            "poisoning_calibrated": bool(c.get("calibrated", False)), "poisoning_split": SPLIT_NAME}
     if X_real_train is not None:
-        n = min(len(X_real_train), int(c["pc_max_rows"]))
+        n = pc_rows(c["pc_max_rows"], len(X_real_train))
         pc = degradation(np.asarray(X_real_train)[:n], np.asarray(y_train)[:n], X_eval, y_eval, fraction=fraction,
                          shift_sd=shift, seed=seed, ridge=ridge)
-        out.update({"poisoning_pc_degradation_pct": pc["degradation_pct"], "poisoning_pc_control_rmse": pc["control_rmse"]})
+        out.update({"poisoning_pc_degradation_pct": pc["degradation_pct"], "poisoning_pc_control_rmse": pc["control_rmse"],
+                    "poisoning_pc_rows": n})
     return out
 
 
 def calibrate_shift(X_train, y_train, X_eval, y_eval, *, seeds, fraction: float = 0.2, grid=DEFAULT_GRID,
-                    target_pct: float = 10.0, ridge: float = 1.0) -> dict:
+                    target_pct: float = 10.0, ridge: float = 1.0, floor_pct: float | None = None) -> dict:
     """Smallest shift_sd whose REAL-ONLY positive control degrades by >= target_pct in the median pilot seed.
     Pilot seeds must lie outside the confirmatory seed list. Uses no generator and no condition, so it cannot favour
     the noisy or the un-noised arm. Returns the chosen value and the whole curve (so the choice can be audited)."""
+    _floor = float(floor_pct) if floor_pct is not None else None
     curve = []
     for s in grid:
         d = [degradation(X_train, y_train, X_eval, y_eval, fraction=fraction, shift_sd=float(s), seed=int(sd),
                          ridge=ridge)["degradation_pct"] for sd in seeds]
-        curve.append({"shift_sd": float(s), "median_degradation_pct": float(np.nanmedian(d)),
-                      "min_degradation_pct": float(np.nanmin(d)), "per_seed": [float(x) for x in d]})
-    chosen = next((r["shift_sd"] for r in curve if r["median_degradation_pct"] >= target_pct), None)
-    return {"chosen_shift_sd": chosen, "target_pct": target_pct, "fraction": fraction, "pilot_seeds": [int(s) for s in seeds],
-            "curve": curve,
-            "note": ("no shift in the grid reaches the target: the head has no usable structure to damage on these "
-                     "features; H3 stays not decidable" if chosen is None else "frozen value; record it in the amendment")}
+        mn = float(np.nanmin(d))
+        med = float(np.nanmedian(d))
+        mx = float(np.nanmax(d))
+        sign_varying = mn < 0 < mx
+        meets = (med >= target_pct) and (_floor is None or mn >= _floor) and not sign_varying
+        curve.append({"shift_sd": float(s), "median_degradation_pct": med,
+                      "min_degradation_pct": mn, "per_seed": [float(x) for x in d],
+                      "meets_criterion": meets})
+    chosen = next((r["shift_sd"] for r in curve if r["meets_criterion"]), None)
+    if chosen is None:
+        any_unstable = any(r["min_degradation_pct"] < 0 < max(r["per_seed"]) for r in curve)
+        note = ("no shift in the grid reaches the target without sign-varying degradation (UNSTABLE): the attack "
+                "is not reliable; H3 stays not decidable" if any_unstable
+                else "no shift in the grid reaches the target: the head has no usable structure to damage on these "
+                     "features; H3 stays not decidable")
+    else:
+        note = "frozen value; record it in the amendment"
+    result = {"chosen_shift_sd": chosen, "target_pct": target_pct, "fraction": fraction, "pilot_seeds": [int(s) for s in seeds],
+              "curve": curve, "note": note}
+    if _floor is not None:
+        result["floor_pct"] = _floor
+    return result
