@@ -3,15 +3,25 @@
 #
 # WHAT THIS DOES
 # ==============
-# The 40 runs completed under Amendment 4 (experiment EXP-20261116-MAIN-f41c) used:
-#   shift_sd = 1.0  (from calibration 2026-11-13)
+# The 40 runs completed under Amendment 4 (experiment EXP-20261116-MAIN-f41c)
+# used shift_sd=1.0 and an attack with a mean-zero sign bug. Dashboard showed:
+#   [FAIL] M8_poisoning_positive_control  min degradation -48.7% vs floor 5.0%
 #
-# A second calibration run on 2026-11-18 (results/poisoning_calibration_20261118T190250Z.json)
-# found chosen_shift_sd = 3.0.  At shift_sd = 1.0 the attack is too weak: 4 of 10 seeds
-# showed negative positive-control degradation, so M8_poisoning_positive_control FAILS
-# (min degradation -48.7 % vs floor 5.0 %).
+# ROOT CAUSE (diagnosed 2026-11-18):
+#   inject_triggered_shift used sign(z[idx] - median(z)) as a multiplier,
+#   producing a ~50/50 mixed ±shift. A ridge head sees no consistent adversarial
+#   direction, so degradation sign is random across seeds. shift_sd alone cannot fix.
 #
-# Config patch already applied to config/default_config.yaml:
+# FIX (src/attacks/poisoning.py, 2026-11-18):
+#   1. Direction u is now adversarial: u = X.T @ residuals from a clean ridge fit,
+#      guaranteeing u opposes the fitted model regardless of seed.
+#   2. All selected rows shifted in the same (+) direction (no sign flip).
+#   3. Recalibration (results/poisoning_calibration_20261118T192121Z.json) chose
+#      shift_sd = 2.0 (median +67.5%, min +67.5%, deterministic across all seeds).
+#
+# Config patches applied to config/default_config.yaml:
+#   shift_sd: 3.0 -> 2.0  (matches recalibration of 2026-11-18)
+#   calibrated: true       (unchanged)
 #   shift_sd: 1.0 -> 3.0  (matches calibration run of 2026-11-18)
 #   calibrated: true       (unchanged)
 #
@@ -74,8 +84,8 @@ for section in ("classical_gan_llm", "qgan_llm"):
         errors.append(f"{section}.synthetic_ratio = {s.get('synthetic_ratio')} (expected 1.0)")
 
 p = cfg.get("poisoning", {})
-if p.get("shift_sd") != 3.0:
-    errors.append(f"poisoning.shift_sd = {p.get('shift_sd')} (expected 3.0)")
+if p.get("shift_sd") != 2.0:
+    errors.append(f"poisoning.shift_sd = {p.get('shift_sd')} (expected 2.0)")
 if not p.get("calibrated"):
     errors.append(f"poisoning.calibrated = {p.get('calibrated')} (expected true)")
 
@@ -83,7 +93,7 @@ if errors:
     print("CONFIG PATCH ERRORS -- do not launch:")
     for e in errors: print(f"  {e}")
     sys.exit(1)
-print("  attack_samples=200, synthetic_ratio=1.0, shift_sd=3.0, calibrated=true -- OK")
+print("  attack_samples=200, synthetic_ratio=1.0, shift_sd=2.0, calibrated=true -- OK")
 PYCHECK
 
 echo
@@ -119,9 +129,9 @@ fi
 # No frozen record matches the current state, so --record-deviation would fail.
 # --no-prepare skips the freeze-check step entirely; the deviation is documented
 # in this script and in the amendment notes instead.
-echo "[deviation] shift_sd recalibrated 1.0 -> 3.0 (calibration 2026-11-18)."
+echo "[deviation] Attack direction bug fixed + shift_sd recalibrated (2026-11-18)."
 echo "  Amendment 5 change:"
-echo "    shift_sd 1.0 -> 3.0  (Nov 18 calibration; at 1.0, 4/10 seeds show negative"
+echo "    inject_triggered_shift: mean-zero sign bug fixed; direction is now X.T@residuals"
 echo "                          positive-control degradation; M8 fails)"
 echo "  All other settings unchanged from Amendment 4."
 echo "  All 40 runs re-run from scratch."
@@ -139,7 +149,7 @@ python3 -m scripts.run_full_study \
     --config config/default_config.yaml \
     --new-experiment \
     --no-prepare \
-    --label "Amendment 5: shift_sd=3.0 (recalibrated Nov 18), all 40 runs" \
+    --label "Amendment 5: attack direction fix + shift_sd=2.0 (recalibrated Nov 18), all 40 runs" \
     --max-stalled-passes 5 \
     --retry-wait 300
 

@@ -92,11 +92,16 @@ def inject_triggered_shift(X: np.ndarray, y: np.ndarray, fraction: float = 0.2, 
     signal to lose, that reflection leaves the training distribution unchanged, so a 5 % reflection moves the head's
     RMSE by ~1e-5 %. The attack was a near no-op, so H3 compared two conditions on an outcome that could not move.
 
-    This attack adds a *systematic* dependence the head can learn: for a random `fraction` of rows the target is
-    shifted by shift_sd x sd(y) x sign(z), where z = (standardised X) @ u and u is a fixed random unit direction.
-    A linear head fitted on the poisoned rows learns a spurious slope along u and carries it to clean data, so its
-    clean-data RMSE rises. The damage is larger when the poisoned rows' features have LOW variance along u (the slope
-    is cov/var), which is the mechanism by which generator noise could matter -- that is H3's actual question.
+    This attack adds a *systematic* dependence the head can learn: the top `fraction` rows (ranked by trigger score
+    z = standardised_X @ u) have their target shifted upward by shift_sd * sd(y). The direction u is chosen
+    adversarially as the gradient direction X.T @ residuals from a clean ridge fit, which guarantees the shift
+    opposes the clean model and maximally perturbs predictions. A linear head fitted on the poisoned rows learns a
+    spurious slope along u and carries it to clean data, raising clean-data RMSE consistently across seeds.
+
+    The previous implementation used sign(z[idx] - median(z)) as a multiplier, which produced a mean-zero shift
+    (~50% positive, ~50% negative per batch). That mean-zero property meant a ridge head saw no consistent
+    adversarial direction, so degradation sign was random across seeds. This version fixes both issues: the
+    direction u is data-driven (not random), and all selected rows are shifted in the same (+) direction.
 
     Returns y_poisoned, the poisoned indices, and the direction u (so a caller can log it).
     """
@@ -105,18 +110,30 @@ def inject_triggered_shift(X: np.ndarray, y: np.ndarray, fraction: float = 0.2, 
     X = np.asarray(X, dtype=float)
     y = np.asarray(y, dtype=float)
     n = len(y)
-    rng = np.random.default_rng(seed)
+
+    # Adversarial direction: fit a clean ridge head, then set u = X.T @ residuals.
+    # This is the steepest-ascent direction for MSE given the clean fit -- guaranteed
+    # to push predictions away from truth regardless of random seed.
     if direction is None:
-        direction = rng.normal(size=X.shape[1])
+        A = X.T @ X + 1.0 * np.eye(X.shape[1])
+        w_clean = np.linalg.solve(A, X.T @ y)
+        residuals = y - X @ w_clean
+        direction = X.T @ residuals
     direction = np.asarray(direction, dtype=float)
     direction = direction / (np.linalg.norm(direction) or 1.0)
+
+    # Score each sample by how strongly it aligns with the adversarial direction.
     mu, sd = X.mean(axis=0), X.std(axis=0)
     sd = np.where(sd > 0, sd, 1.0)
     z = ((X - mu) / sd) @ direction
+
+    # Select the top-k rows (highest trigger score) and shift ALL of them upward.
+    # Unidirectional shift is essential: a mean-zero shift (sign-mixed) gives a ridge
+    # head no consistent adversarial slope to learn, so degradation becomes seed-random.
     k = int(n * fraction)
-    idx = rng.choice(n, size=k, replace=False)
+    idx = np.argpartition(z, -k)[-k:]
     y_p = y.copy()
-    y_p[idx] += shift_sd * float(np.std(y)) * np.sign(z[idx] - np.median(z))
+    y_p[idx] += shift_sd * float(np.std(y))
     return {"y_poisoned": y_p, "poisoned_indices": idx, "fraction_requested": fraction,
             "n_poisoned": k, "shift_sd": float(shift_sd), "direction": direction}
 

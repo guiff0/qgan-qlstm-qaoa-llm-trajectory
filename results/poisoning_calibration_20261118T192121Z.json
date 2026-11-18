@@ -1,0 +1,163 @@
+{
+  "chosen_shift_sd": 2.0,
+  "target_pct": 10.0,
+  "fraction": 0.2,
+  "pilot_seeds": [
+    100,
+    101,
+    102,
+    103,
+    104
+  ],
+  "curve": [
+    {
+      "shift_sd": 0.05,
+      "median_degradation_pct": -6.621246614241179,
+      "min_degradation_pct": -6.621246614241179,
+      "per_seed": [
+        -6.621246614241179,
+        -6.621246614241179,
+        -6.621246614241179,
+        -6.621246614241179,
+        -6.621246614241179
+      ],
+      "meets_criterion": false
+    },
+    {
+      "shift_sd": 0.1,
+      "median_degradation_pct": -13.235948402952314,
+      "min_degradation_pct": -13.235948402952314,
+      "per_seed": [
+        -13.235948402952314,
+        -13.235948402952314,
+        -13.235948402952314,
+        -13.235948402952314,
+        -13.235948402952314
+      ],
+      "meets_criterion": false
+    },
+    {
+      "shift_sd": 0.2,
+      "median_degradation_pct": -26.438656768594633,
+      "min_degradation_pct": -26.438656768594633,
+      "per_seed": [
+        -26.438656768594633,
+        -26.438656768594633,
+        -26.438656768594633,
+        -26.438656768594633,
+        -26.438656768594633
+      ],
+      "meets_criterion": false
+    },
+    {
+      "shift_sd": 0.3,
+      "median_degradation_pct": -39.58632849721883,
+      "min_degradation_pct": -39.58632849721883,
+      "per_seed": [
+        -39.58632849721883,
+        -39.58632849721883,
+        -39.58632849721883,
+        -39.58632849721883,
+        -39.58632849721883
+      ],
+      "meets_criterion": false
+    },
+    {
+      "shift_sd": 0.5,
+      "median_degradation_pct": -65.46447575459527,
+      "min_degradation_pct": -65.46447575459527,
+      "per_seed": [
+        -65.46447575459527,
+        -65.46447575459527,
+        -65.46447575459527,
+        -65.46447575459527,
+        -65.46447575459527
+      ],
+      "meets_criterion": false
+    },
+    {
+      "shift_sd": 1.0,
+      "median_degradation_pct": -64.40290980790516,
+      "min_degradation_pct": -64.40290980790516,
+      "per_seed": [
+        -64.40290980790516,
+        -64.40290980790516,
+        -64.40290980790516,
+        -64.40290980790516,
+        -64.40290980790516
+      ],
+      "meets_criterion": false
+    },
+    {
+      "shift_sd": 2.0,
+      "median_degradation_pct": 67.51506650199956,
+      "min_degradation_pct": 67.51506650199956,
+      "per_seed": [
+        67.51506650199956,
+        67.51506650199956,
+        67.51506650199956,
+        67.51506650199956,
+        67.51506650199956
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 3.0,
+      "median_degradation_pct": 200.63671438183354,
+      "min_degradation_pct": 200.63671438183354,
+      "per_seed": [
+        200.63671438183354,
+        200.63671438183354,
+        200.63671438183354,
+        200.63671438183354,
+        200.63671438183354
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 4.0,
+      "median_degradation_pct": 333.8554625051761,
+      "min_degradation_pct": 333.8554625051761,
+      "per_seed": [
+        333.8554625051761,
+        333.8554625051761,
+        333.8554625051761,
+        333.8554625051761,
+        333.8554625051761
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 6.0,
+      "median_degradation_pct": 600.3626164493242,
+      "min_degradation_pct": 600.3626164493242,
+      "per_seed": [
+        600.3626164493242,
+        600.3626164493242,
+        600.3626164493242,
+        600.3626164493242,
+        600.3626164493242
+      ],
+      "meets_criterion": true
+    },
+    {
+      "shift_sd": 8.0,
+      "median_degradation_pct": 866.8986472023544,
+      "min_degradation_pct": 866.8986472023544,
+      "per_seed": [
+        866.8986472023544,
+        866.8986472023544,
+        866.8986472023544,
+        866.8986472023544,
+        866.8986472023544
+      ],
+      "meets_criterion": true
+    }
+  ],
+  "note": "frozen value; record it in the amendment",
+  "chosen_fraction": 0.2,
+  "recipe": "chronological_split (same function as the in-run protocol)",
+  "generated_utc": "20261118T192121Z",
+  "n_rows_train": 100000,
+  "n_rows_eval": 372392
+}
